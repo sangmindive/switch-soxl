@@ -6,6 +6,8 @@
   var KEY = "switch-v3-state";
   var state = loadState();
   var tab = "home";
+  var statsMode = "month";
+  var statsYear = 2026;
 
   function loadState() {
     try {
@@ -200,6 +202,153 @@
     renderRanks(out);
     renderUdLog();
     renderTtLog();
+    renderStats(out);
+  }
+
+  function realizedRows() {
+    var rows = [];
+    function add(list) {
+      (list || []).forEach(function (t) {
+        if (t.pnl === "" || t.pnl == null || Number.isNaN(Number(t.pnl))) return;
+        if (!t.date) return;
+        rows.push({ date: t.date, pnl: Number(t.pnl), cycle: t.cycle });
+      });
+    }
+    add(state.updownTrades);
+    add(state.tteolTrades);
+    return rows;
+  }
+
+  function renderStats(out) {
+    var cap = state.settings.capital || 0;
+    var rows = realizedRows();
+    fillText("st-k3", (out.K3 >= 0 ? "+" : "") + money(out.K3));
+    fillText("st-l3", pct(out.L3));
+    fillText("st-cap", money(cap, 0));
+    var k3 = document.getElementById("st-k3");
+    if (k3) k3.className = "v " + (out.K3 >= 0 ? "pos" : "neg");
+    var l3 = document.getElementById("st-l3");
+    if (l3) l3.className = "v " + (out.L3 >= 0 ? "pos" : "neg");
+
+    var closed = {};
+    (state.updownTrades || []).forEach(function (t) {
+      if (t.type === "매도" && t.holdQty === 0 && t.cycle) closed[t.cycle] = true;
+    });
+    var cycleIds = Object.keys(closed);
+    fillText("st-cycles", cycleIds.length);
+    fillText("st-count", rows.length);
+
+    var daySum = 0;
+    cycleIds.forEach(function (c) {
+      var dates = (state.updownTrades || [])
+        .filter(function (t) {
+          return String(t.cycle) === String(c) && t.date;
+        })
+        .map(function (t) {
+          return t.date;
+        })
+        .sort();
+      if (dates.length) {
+        daySum += Math.max(1, Math.round((Date.parse(dates[dates.length - 1]) - Date.parse(dates[0])) / 86400000) + 1);
+      }
+    });
+    fillText("st-days", cycleIds.length ? (daySum / cycleIds.length).toFixed(1) + "일" : "—");
+
+    var years = {};
+    rows.forEach(function (r) {
+      years[r.date.slice(0, 4)] = true;
+    });
+    var yearList = Object.keys(years).sort();
+    if (yearList.indexOf(String(statsYear)) < 0 && yearList.length) statsYear = parseInt(yearList[yearList.length - 1], 10);
+    if (!yearList.length) yearList = [String(statsYear)];
+    document.getElementById("st-years").innerHTML = yearList
+      .map(function (y) {
+        return (
+          "<button type='button' data-year='" +
+          y +
+          "'" +
+          (Number(y) === statsYear ? " class='active'" : "") +
+          ">" +
+          y +
+          "년</button>"
+        );
+      })
+      .join("");
+    document.getElementById("st-years").style.display = statsMode === "month" ? "" : "none";
+
+    var items = [];
+    var periodPnl = 0;
+    var periodLabel = "";
+    if (statsMode === "month") {
+      periodLabel = statsYear + "년 월별";
+      for (var m = 1; m <= 12; m++) {
+        var key = statsYear + "-" + (m < 10 ? "0" : "") + m;
+        var v = 0;
+        rows.forEach(function (r) {
+          if (r.date.slice(0, 7) === key) v += r.pnl;
+        });
+        periodPnl += v;
+        items.push({ label: String(m), pnl: v });
+      }
+    } else {
+      periodLabel = "연간";
+      yearList.forEach(function (y) {
+        var v = 0;
+        rows.forEach(function (r) {
+          if (r.date.slice(0, 4) === y) v += r.pnl;
+        });
+        periodPnl += v;
+        items.push({ label: y, pnl: v });
+      });
+    }
+
+    fillText("st-period-label", periodLabel + " 실현손익");
+    var pp = document.getElementById("st-period-pnl");
+    if (pp) {
+      pp.textContent = (periodPnl >= 0 ? "+" : "") + money(periodPnl);
+      pp.className = "hero-quote " + (periodPnl > 0 ? "pos" : periodPnl < 0 ? "neg" : "");
+    }
+    fillText("st-period-ret", "수익률 " + pct(cap ? periodPnl / cap : 0));
+
+    var max = 1;
+    items.forEach(function (it) {
+      if (Math.abs(it.pnl) > max) max = Math.abs(it.pnl);
+    });
+    document.getElementById("st-chart").innerHTML = items
+      .map(function (it) {
+        var h = Math.max(2, Math.round((Math.abs(it.pnl) / max) * 96));
+        var cls = it.pnl > 0 ? "pos" : it.pnl < 0 ? "neg" : "zero";
+        return (
+          "<div class='bar-col'><div class='bar-track'><div class='bar-fill " +
+          cls +
+          "' style='height:" +
+          h +
+          "px'></div></div><span>" +
+          it.label +
+          "</span></div>"
+        );
+      })
+      .join("");
+
+    document.getElementById("st-table").innerHTML = items
+      .map(function (it) {
+        var ret = cap ? it.pnl / cap : 0;
+        var cls = it.pnl > 0 ? "buy" : it.pnl < 0 ? "sell" : "empty";
+        return (
+          "<tr><td>" +
+          (statsMode === "month" ? statsYear + "-" + (it.label.length < 2 ? "0" : "") + it.label : it.label) +
+          "</td><td class='" +
+          cls +
+          "'>" +
+          (it.pnl ? (it.pnl >= 0 ? "+" : "") + money(it.pnl) : "—") +
+          "</td><td class='" +
+          cls +
+          "'>" +
+          (it.pnl ? pct(ret) : "—") +
+          "</td></tr>"
+        );
+      })
+      .join("");
   }
 
   function fillText(id, text) {
@@ -432,11 +581,26 @@
   }
 
   function bind() {
-    document.querySelectorAll(".nav-item, .fab").forEach(function (b) {
+    document.querySelectorAll(".nav-item").forEach(function (b) {
       b.onclick = function () {
         setTab(b.dataset.tab);
       };
     });
+    document.querySelectorAll("#st-mode button").forEach(function (b) {
+      b.onclick = function () {
+        statsMode = b.dataset.mode;
+        document.querySelectorAll("#st-mode button").forEach(function (x) {
+          x.classList.toggle("active", x === b);
+        });
+        render();
+      };
+    });
+    document.getElementById("st-years").onclick = function (ev) {
+      var y = ev.target.getAttribute("data-year");
+      if (!y) return;
+      statsYear = parseInt(y, 10);
+      render();
+    };
     document.querySelectorAll(".seg button").forEach(function (b) {
       b.onclick = function () {
         document.querySelectorAll(".seg button").forEach(function (x) {

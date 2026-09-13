@@ -108,6 +108,47 @@
       </article>
     </section>
 
+    <section id="page-stats" class="page">
+      <article class="card">
+        <h2>누적 성과</h2>
+        <div class="stats">
+          <div class="stat"><div class="k">누적 실현손익</div><div class="v" id="st-k3"></div></div>
+          <div class="stat"><div class="k">누적 수익률</div><div class="v" id="st-l3"></div></div>
+          <div class="stat"><div class="k">투자 원금</div><div class="v" id="st-cap"></div></div>
+        </div>
+        <p class="note">전체 매매 기록 기준 · 수익률 = 실현손익 / 투자 원금</p>
+      </article>
+      <article class="card">
+        <div class="stats">
+          <div class="stat"><div class="k">완료 사이클</div><div class="v" id="st-cycles"></div></div>
+          <div class="stat"><div class="k">평균 진행일</div><div class="v" id="st-days"></div></div>
+          <div class="stat"><div class="k">실현 건수</div><div class="v" id="st-count"></div></div>
+        </div>
+      </article>
+      <article class="card">
+        <div class="card-head">
+          <h2>수익률</h2>
+          <div class="seg compact" id="st-mode">
+            <button type="button" class="active" data-mode="month">월별</button>
+            <button type="button" data-mode="year">연간</button>
+          </div>
+        </div>
+        <div class="year-picks" id="st-years"></div>
+        <div class="st-period">
+          <div class="k" id="st-period-label">선택 기간</div>
+          <div class="hero-quote" id="st-period-pnl">—</div>
+          <div class="k" id="st-period-ret"></div>
+        </div>
+        <div class="bar-chart" id="st-chart"></div>
+        <div class="grid-wrap" style="margin-top:12px">
+          <table class="sheet">
+            <thead><tr><th>기간</th><th>실현손익</th><th>수익률</th></tr></thead>
+            <tbody id="st-table"></tbody>
+          </table>
+        </div>
+      </article>
+    </section>
+
     <section id="page-journal" class="page">
       <div class="seg">
         <button type="button" class="active" data-log="ud">업다운</button>
@@ -280,7 +321,10 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="4" width="14" height="16" rx="2"/><path d="M8 9h8M8 13h8M8 17h5"/></svg>
         일지
       </button>
-      <button class="fab" data-tab="orders" type="button" aria-label="주문">+</button>
+      <button class="nav-item" data-tab="stats" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 19h18L14.2 6.8l-3.4 5.6L8 9.2 3 19z"/></svg>
+        통계
+      </button>
       <button class="nav-item" data-tab="orders" type="button">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19V5M4 19l6-6 4 4 6-8"/></svg>
         주문
