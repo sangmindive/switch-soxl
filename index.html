@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#2563eb" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="Switch" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <title>Switch · SOXL</title>
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="icon-192.png" />
+  <link rel="icon" href="icon-192.png" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">
+        <div class="mark">S</div>
+        <div>
+          <h1>Switch</h1>
+          <small>Switch Journal · SOXL LOC</small>
+        </div>
+      </div>
+      <div class="headline">
+        <strong>스위치로 더 편하게.</strong>
+        <span>시트와 같은 규칙으로 매수·매도를 봅니다.</span>
+      </div>
+    </header>
+
+    <section id="page-home" class="page active">
+      <article class="card">
+        <div class="k">현재가 / 전일종가</div>
+        <div class="quote-live">
+          <div>
+            <div class="k" id="set-symbol-label">SOXL</div>
+            <div class="hero-quote" id="live-price">—</div>
+          </div>
+          <div class="quote-chg">
+            <div class="k">등락률</div>
+            <div class="hero-quote" id="live-chg">—</div>
+          </div>
+        </div>
+        <div class="k">총 실현손익</div>
+        <div class="hero-pnl pos" id="home-pnl">—</div>
+        <div id="parity" class="badge ok">정합 확인</div>
+        <div class="stats">
+          <div class="stat"><div class="k">총 수익률</div><div class="v" id="v-L3"></div></div>
+          <div class="stat"><div class="k">투자금</div><div class="v" id="v-C8"></div></div>
+          <div class="stat"><div class="k">잔금</div><div class="v" id="v-D8"></div></div>
+        </div>
+      </article>
+
+      <div class="desktop-grid">
+        <article class="card">
+          <div class="cycle">
+            <div>
+              <div class="ticker">SOXL · 업다운</div>
+              <div class="k">Cycle <span id="v-B8"></span> · 포트 <span id="v-B13"></span></div>
+            </div>
+            <span class="pill">진행중</span>
+          </div>
+          <div class="price-grid" style="margin-top:12px">
+            <div class="price-box">
+              <div class="k">매수 단가</div>
+              <div class="v buy" id="hero-ud-buy-px">—</div>
+              <div class="k"><span id="hero-ud-buy-qty">—</span>주</div>
+            </div>
+            <div class="price-box">
+              <div class="k">매도 단가 (LP)</div>
+              <div class="v sell" id="hero-ud-sell-px">—</div>
+              <div class="k"><span id="hero-ud-sell-qty"></span>주</div>
+            </div>
+          </div>
+          <div class="row"><span class="k">보유</span><span class="v" id="v-C13"></span></div>
+          <div class="row"><span class="k">실현손익</span><span class="v" id="v-D13"></span></div>
+          <div class="row"><span class="k">수익금 / 수익률</span><span><span id="v-E13"></span> · <span id="v-F13"></span></span></div>
+        </article>
+
+        <article class="card">
+          <div class="cycle">
+            <div>
+              <div class="ticker">SOXL · 떨사오팔</div>
+              <div class="k">랭크 <span id="v-H13"></span> · 수량 <span id="v-I13"></span></div>
+            </div>
+            <span class="pill">진행중</span>
+          </div>
+          <div class="price-grid" style="margin-top:12px">
+            <div class="price-box">
+              <div class="k">매수 단가</div>
+              <div class="v buy" id="hero-tt-buy-px">—</div>
+              <div class="k"><span id="hero-tt-buy-qty"></span>주</div>
+            </div>
+            <div class="price-box">
+              <div class="k">매도 지정</div>
+              <div class="v" id="hero-tt-sell" style="font-size:15px">—</div>
+            </div>
+          </div>
+          <div class="row"><span class="k">실현손익</span><span class="v" id="v-J13"></span></div>
+          <div class="row"><span class="k">수익금 / 수익률</span><span><span id="v-K13"></span> · <span id="v-L13"></span></span></div>
+        </article>
+      </div>
+
+      <article class="card">
+        <div class="setting-row"><span class="k">평단 / 평가손익</span><span><span id="v-avg"></span> · <span id="v-eval"></span> · <span id="v-evalpct"></span></span></div>
+      </article>
+    </section>
+
+    <section id="page-journal" class="page">
+      <div class="seg">
+        <button type="button" class="active" data-log="ud">업다운</button>
+        <button type="button" data-log="tt">떨사오팔</button>
+      </div>
+      <div id="log-ud">
+        <article class="card">
+          <h2>행 추가</h2>
+          <div class="form-row">
+            <div class="field"><label>Date</label><input id="nu-date" type="date" /></div>
+            <div class="field"><label>구분</label>
+              <select id="nu-type"><option>매수</option><option>매도</option><option>떨</option></select>
+            </div>
+            <div class="field"><label>단가</label><input id="nu-price" type="number" step="0.01" /></div>
+            <div class="field"><label>수량</label><input id="nu-qty" type="number" step="1" /></div>
+            <button class="btn primary wide" id="btn-add-ud">업다운 행 추가</button>
+            <button class="btn sell wide" id="btn-liq-ud" type="button">청산</button>
+          </div>
+          <p class="note">청산은 포트·랭크를 전량 매도합니다. 기록은 남습니다.</p>
+        </article>
+        <div id="ud-log"></div>
+      </div>
+      <div id="log-tt" class="hidden">
+        <article class="card">
+          <h2>랭크 1–20</h2>
+          <div class="grid-wrap">
+            <table class="sheet">
+              <thead><tr><th>랭크</th><th>매수일</th><th>보유일</th><th>단가</th><th>수량</th><th>매도</th></tr></thead>
+              <tbody id="rank-body"></tbody>
+            </table>
+          </div>
+        </article>
+        <article class="card">
+          <h2>행 추가</h2>
+          <div class="form-row">
+            <div class="field"><label>Date</label><input id="nt-date" type="date" /></div>
+            <div class="field"><label>구분</label>
+              <select id="nt-type"><option>매수</option><option>매도</option></select>
+            </div>
+            <div class="field"><label>랭크</label><input id="nt-rank" type="number" min="1" /></div>
+            <div class="field"><label>단가</label><input id="nt-price" type="number" step="0.01" /></div>
+            <div class="field wide"><label>수량</label><input id="nt-qty" type="number" step="1" /></div>
+            <button class="btn primary wide" id="btn-add-tt">떨사오팔 행 추가</button>
+            <button class="btn sell wide" id="btn-liq-tt" type="button">청산</button>
+          </div>
+          <p class="note">청산은 포트·랭크를 전량 매도합니다. 기록은 남습니다.</p>
+        </article>
+        <div id="tt-log"></div>
+      </div>
+    </section>
+
+    <section id="page-orders" class="page">
+      <article class="card">
+        <h2>오늘 LOC</h2>
+        <div id="sug-ud"></div>
+        <button class="btn primary" id="btn-fill-ud" style="width:100%;margin-top:8px">업다운 체결 반영</button>
+        <div id="sug-tt" style="margin-top:14px"></div>
+        <button class="btn primary" id="btn-fill-tt" style="width:100%;margin-top:8px">떨사오팔 체결 반영</button>
+      </article>
+      <article class="card">
+        <div class="card-head">
+          <h2>업다운 정액 계단</h2>
+          <div class="ladder-picks">
+            <button type="button" class="num-pick" data-key="udLadderCount" data-title="주문 수">
+              <span class="k">주문 수</span>
+              <strong id="v-ud-orders">—</strong>
+            </button>
+            <button type="button" class="num-pick" data-key="udStepQty" data-title="계단 수">
+              <span class="k">계단 수</span>
+              <strong id="v-ud-step">—</strong>
+            </button>
+          </div>
+        </div>
+        <div class="grid-wrap">
+          <table class="sheet">
+            <thead><tr><th>#</th><th>단가</th><th>추가</th><th>누적</th><th>하락률</th></tr></thead>
+            <tbody id="ud-ladder"></tbody>
+          </table>
+        </div>
+      </article>
+      <article class="card">
+        <div class="card-head">
+          <h2>떨 정액 계단</h2>
+          <div class="ladder-picks">
+            <button type="button" class="num-pick" data-key="tteolLadderCount" data-title="주문 수">
+              <span class="k">주문 수</span>
+              <strong id="v-tt-orders">—</strong>
+            </button>
+            <button type="button" class="num-pick" data-key="tteolStepQty" data-title="계단 수">
+              <span class="k">계단 수</span>
+              <strong id="v-tt-step">—</strong>
+            </button>
+          </div>
+        </div>
+        <div class="grid-wrap">
+          <table class="sheet">
+            <thead><tr><th>#</th><th>단가</th><th>추가</th><th>누적</th><th>하락률</th></tr></thead>
+            <tbody id="tt-ladder"></tbody>
+          </table>
+        </div>
+      </article>
+      <article class="card">
+        <h2>떨 → 업다운 이관</h2>
+        <div class="row"><span class="k">날짜</span><span id="v-B54"></span></div>
+        <div class="row"><span class="k">랭크</span><span id="v-C54"></span></div>
+        <div class="actions">
+          <button class="btn tteol" id="btn-transfer">1랭크 이관</button>
+          <label class="check"><input type="checkbox" id="set-auto" /> 자동 이관</label>
+        </div>
+        <p class="note">업다운 0 + 떨 잔여일 때 랭크가 뜹니다. 로그 구분은 떨.</p>
+      </article>
+      <div class="hidden">
+        <span id="v-B19"></span><span id="v-C19"></span><span id="v-D19"></span>
+        <span id="v-E19"></span><span id="v-F19"></span><span id="v-H19"></span><span id="v-I19"></span>
+        <span id="v-G8"></span><span id="v-H8"></span><span id="v-I8"></span><span id="v-E8"></span><span id="v-F8"></span>
+      </div>
+    </section>
+
+    <section id="page-settings" class="page">
+      <article class="card">
+        <h2>프리셋</h2>
+        <div class="actions">
+          <button class="btn primary" id="btn-preset-min">민 20/10</button>
+          <button class="btn" id="btn-preset-simple">단리</button>
+          <button class="btn" id="btn-preset-new">복리(신)</button>
+          <button class="btn" id="btn-preset-old">복리(구)</button>
+          <button class="btn ghost" id="btn-reset">시트 시드 복원</button>
+        </div>
+      </article>
+      <article class="card">
+        <h2>계좌</h2>
+        <div class="setting-row"><span class="k">Symbol</span><input id="set-symbol" /></div>
+        <div class="setting-row"><span class="k">투자 원금</span><input id="set-capital" type="number" step="1" /></div>
+        <div class="setting-row"><span class="k">계좌 수수료</span><input id="set-fee" type="number" step="0.00001" /></div>
+        <div class="setting-row"><span class="k">재투자 금액</span><span id="v-I3"></span></div>
+        <div class="setting-row"><span class="k">총 수익금</span><span id="v-K3"></span></div>
+      </article>
+      <article class="card">
+        <h2>분할 / 복리</h2>
+        <div class="setting-row"><span class="k">시드 분할</span><input id="set-seed" type="number" step="1" /></div>
+        <div class="setting-row"><span class="k">랭크 분할</span><input id="set-rank" type="number" step="1" /></div>
+        <div class="setting-row"><span class="k">분할 증가</span><input id="set-inc" type="number" step="0.01" /></div>
+        <div class="setting-row"><span class="k">랭크 보유기간</span><input id="set-hold" type="number" step="1" /></div>
+        <div class="setting-row"><span class="k">재투자율</span><input id="set-reinvest" type="number" step="0.01" /></div>
+        <div class="setting-row"><span class="k">총 시드 분할</span><span id="v-J3"></span></div>
+        <label class="check"><input type="checkbox" id="set-fixed" /> 시드 분할 고정</label>
+      </article>
+      <article class="card">
+        <h2>정액 주문</h2>
+        <div class="setting-row"><span class="k">업다운 주문 수</span><input id="set-ud-steps" type="number" min="0" max="20" /></div>
+        <div class="setting-row"><span class="k">업다운 계단 주수</span><input id="set-ud-qty" type="number" min="0" max="20" /></div>
+        <div class="setting-row"><span class="k">1회 매수금</span><span id="v-D16"></span></div>
+        <div class="setting-row"><span class="k">시드 사용 / 비율</span><span><span id="v-E16"></span> · <span id="v-F16"></span></span></div>
+        <div class="setting-row"><span class="k">떨 주문 수</span><input id="set-tt-steps" type="number" min="0" max="20" /></div>
+        <div class="setting-row"><span class="k">떨 계단 주수</span><input id="set-tt-qty" type="number" min="0" max="20" /></div>
+        <div class="setting-row"><span class="k">떨 1회 / 복리 기준</span><span><span id="v-J16"></span> · <span id="v-I16"></span></span></div>
+        <div class="setting-row"><span class="k">떨 시드 사용</span><span><span id="v-K16"></span> · <span id="v-L16"></span></span></div>
+        <label class="check"><input type="checkbox" id="set-blocked" /> 매수 불가</label>
+        <label class="check"><input type="checkbox" id="set-f8" /> 시트 마지막 분할 제한</label>
+        <p class="note">입력한 값만 저장됩니다. 수량은 내림, 매도 단가는 LP입니다.</p>
+      </article>
+    </section>
+
+    <nav class="dock">
+      <button class="nav-item active" data-tab="home" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6H10v6H5a1 1 0 0 1-1-1v-9.5Z"/></svg>
+        홈
+      </button>
+      <button class="nav-item" data-tab="journal" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="4" width="14" height="16" rx="2"/><path d="M8 9h8M8 13h8M8 17h5"/></svg>
+        일지
+      </button>
+      <button class="fab" data-tab="orders" type="button" aria-label="주문">+</button>
+      <button class="nav-item" data-tab="orders" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19V5M4 19l6-6 4 4 6-8"/></svg>
+        주문
+      </button>
+      <button class="nav-item" data-tab="settings" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 4v2M12 18v2M4.93 4.93l1.4 1.4M17.67 17.67l1.4 1.4M4 12H2M22 12h-2M4.93 19.07l1.4-1.4M17.67 6.33l1.4-1.4"/></svg>
+        설정
+      </button>
+    </nav>
+  </div>
+
+  <div id="toast" class="toast"></div>
+  <div id="num-pop" class="num-pop hidden">
+    <div class="num-pop-card">
+      <div class="num-pop-title" id="num-pop-title">주문 수</div>
+      <div class="num-pop-grid" id="num-pop-grid"></div>
+    </div>
+  </div>
+  <script src="engine.js"></script>
+  <script src="seed.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
