@@ -261,6 +261,9 @@
     var yearList = Object.keys(years).sort();
     if (yearList.indexOf(String(statsYear)) < 0 && yearList.length) statsYear = parseInt(yearList[yearList.length - 1], 10);
     if (!yearList.length) yearList = [String(statsYear)];
+    document.querySelectorAll("#st-mode button").forEach(function (b) {
+      b.classList.toggle("active", b.dataset.mode === statsMode);
+    });
     document.getElementById("st-years").innerHTML = yearList
       .map(function (y) {
         return (
@@ -601,9 +604,9 @@
       statsYear = parseInt(y, 10);
       render();
     };
-    document.querySelectorAll(".seg button").forEach(function (b) {
+    document.querySelectorAll("#page-journal .seg button").forEach(function (b) {
       b.onclick = function () {
-        document.querySelectorAll(".seg button").forEach(function (x) {
+        document.querySelectorAll("#page-journal .seg button").forEach(function (x) {
           x.classList.toggle("active", x === b);
         });
         document.getElementById("log-ud").classList.toggle("hidden", b.dataset.log !== "ud");
