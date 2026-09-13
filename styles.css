@@ -78,6 +78,14 @@ body {
 
 .page { display: none; padding: 8px 16px 28px; }
 .page.active { display: block; }
+.credit {
+  text-align: center;
+  color: #9ca3af;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  margin: 18px 0 8px;
+}
 
 .card {
   background: var(--paper);
