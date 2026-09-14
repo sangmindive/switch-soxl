@@ -321,24 +321,31 @@ input:focus, select:focus { outline: 2px solid #bfdbfe; border-color: var(--blue
   cursor: pointer;
 }
 .btn.primary, .btn.buy { background: var(--blue); color: #fff; }
-.fill-btn {
-  width: 100%;
+.fill-block { margin-top: 12px; }
+.fill-block .btn { width: 100%; }
+.loc-data {
   margin-top: 8px;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 4px;
-  text-align: left;
   padding: 12px 14px;
-  line-height: 1.35;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #fff;
 }
-.fill-btn-title { display: block; font-size: 15px; }
-.fill-btn-detail, .fill-btn-amt {
-  display: block;
-  font-size: 12px;
-  font-weight: 600;
-  opacity: 0.95;
+.loc-data-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  color: var(--muted);
 }
+.loc-data-amt {
+  font-weight: 800;
+  font-size: 18px;
+  letter-spacing: -0.03em;
+  margin-top: 4px;
+}
+.loc-data-amt.pos { color: var(--blue); }
+.loc-data-amt.neg { color: var(--red); }
+.loc-data-meta { color: var(--muted); font-size: 12px; margin-top: 4px; }
 .btn.ghost { background: #fff; border: 1px solid var(--line-strong); }
 .btn.tteol { background: #ea580c; color: #fff; }
 .btn.sell { background: var(--red); color: #fff; }

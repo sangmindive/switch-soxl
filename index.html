@@ -12,7 +12,7 @@
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="apple-touch-icon" href="icon-192.png" />
   <link rel="icon" href="icon-192.png" />
-  <link rel="stylesheet" href="styles.css?v=20260915b" />
+  <link rel="stylesheet" href="styles.css?v=20260915c" />
 </head>
 <body>
   <div class="app">
@@ -41,7 +41,7 @@
         </div>
         <div class="k">총 실현손익</div>
         <div class="hero-pnl pos" id="home-pnl">—</div>
-        <div id="parity" class="badge ok">정합 확인</div>
+        <div id="parity" class="badge ok" style="display:none">정합 확인</div>
         <div class="stats">
           <div class="stat"><div class="k">총 수익률</div><div class="v" id="v-L3"></div></div>
           <div class="stat"><div class="k">투자금</div><div class="v" id="v-C8"></div></div>
@@ -200,14 +200,14 @@
     <section id="page-orders" class="page">
       <article class="card">
         <h2>오늘 LOC</h2>
-        <div id="sug-ud"></div>
-        <button class="btn primary fill-btn" id="btn-fill-ud" type="button">
-          <span class="fill-btn-title">업다운 체결 반영</span>
-        </button>
-        <div id="sug-tt" style="margin-top:14px"></div>
-        <button class="btn primary fill-btn" id="btn-fill-tt" type="button">
-          <span class="fill-btn-title">떨사오팔 체결 반영</span>
-        </button>
+        <div class="fill-block">
+          <button class="btn primary wide" id="btn-fill-ud" type="button">업다운 체결 반영</button>
+          <div id="sug-ud"></div>
+        </div>
+        <div class="fill-block">
+          <button class="btn primary wide" id="btn-fill-tt" type="button">떨사오팔 체결 반영</button>
+          <div id="sug-tt"></div>
+        </div>
       </article>
       <article class="card">
         <div class="card-head">
@@ -346,6 +346,6 @@
   </div>
   <script src="engine.js?v=20260915b"></script>
   <script src="seed.js"></script>
-  <script src="app.js?v=20260915b"></script>
+  <script src="app.js?v=20260915c"></script>
 </body>
 </html>

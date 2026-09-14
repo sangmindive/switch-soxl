@@ -101,8 +101,13 @@
     var m = state.market;
     var p = parityOk(out);
     var badge = document.getElementById("parity");
-    badge.className = "badge " + (p.ok === true ? "ok" : p.ok === false ? "err" : "warn");
-    badge.textContent = p.text;
+    if (p.ok === false) {
+      badge.style.display = "";
+      badge.className = "badge err";
+      badge.textContent = p.text;
+    } else {
+      badge.style.display = "none";
+    }
     var pnl = document.getElementById("home-pnl");
     if (pnl) {
       pnl.textContent = (out.K3 >= 0 ? "+" : "") + money(out.K3);
@@ -420,67 +425,39 @@
     var ud = out.suggestedUd || {};
     var tt = out.suggestedTt || {};
     var date = state.market.closeDate;
-    document.getElementById("sug-ud").innerHTML = ud.type ? "" : sugHtml("업다운", ud, date);
-    document.getElementById("sug-tt").innerHTML = tt.type ? "" : sugHtml("떨사오팔", tt, date);
-    paintFillBtn("btn-fill-ud", "업다운 체결 반영", ud, date);
-    paintFillBtn("btn-fill-tt", "떨사오팔 체결 반영", tt, date);
+    document.getElementById("btn-fill-ud").disabled = !ud.type;
+    document.getElementById("btn-fill-tt").disabled = !tt.type;
+    document.getElementById("sug-ud").innerHTML = sugHtml("업다운", ud, date);
+    document.getElementById("sug-tt").innerHTML = sugHtml("떨사오팔", tt, date);
     var canMove = out.C54 !== "" && out.C54 != null;
     document.getElementById("v-C54").textContent = canMove ? "랭크 " + out.C54 : "";
     document.getElementById("v-B54").textContent = canMove ? state.market.closeDate : "";
     document.getElementById("btn-transfer").disabled = !canMove;
   }
 
-  function paintFillBtn(id, title, sug, date) {
-    var btn = document.getElementById(id);
-    btn.disabled = !sug.type;
-    if (!sug.type) {
-      btn.innerHTML = "<span class='fill-btn-title'>" + title + "</span>";
-      return;
-    }
-    var who = sug.pot != null ? "포트 " + sug.pot : "랭크 " + sug.rank;
-    var qtyLine =
-      money(sug.price) +
-      " × " +
-      sug.qty +
-      "주" +
-      (sug.type === "매수" && sug.stepShares ? " (계단 +" + sug.stepShares + ")" : "") +
-      " · " +
-      money(sug.amount);
-    btn.innerHTML =
-      "<span class='fill-btn-title'>" +
-      title +
-      "</span><span class='fill-btn-detail'>" +
-      date +
-      " · " +
-      sug.type +
-      " · " +
-      who +
-      "</span><span class='fill-btn-amt'>" +
-      qtyLine +
-      "</span>";
-  }
-
   function sugHtml(title, sug, date) {
     if (!sug.type) {
       return "<div class='note'>" + title + " 제안 없음. " + (sug.reason || "") + "</div>";
     }
+    var who = sug.pot != null ? "포트 " + sug.pot : "랭크 " + sug.rank;
+    var qtyLine = sug.qty + "주";
+    if (sug.type === "매수" && sug.stepShares) qtyLine += " (계단 +" + sug.stepShares + ")";
     return (
-      "<div class='log-card' style='margin:0'><header><div><strong>" +
-      title +
-      "</strong> <span class='pill " +
-      (sug.type === "매도" ? "sell" : "") +
-      "'>" +
+      "<div class='loc-data'>" +
+      "<div class='loc-data-top'><strong>" +
       sug.type +
-      "</span></div><span class='log-meta'>" +
+      "</strong><span>" +
       date +
-      "</span></header><div class='log-amt " +
+      "</span></div>" +
+      "<div class='loc-data-amt " +
       (sug.type === "매도" ? "neg" : "pos") +
       "'>" +
       money(sug.price) +
       " × " +
-      sug.qty +
-      "</div><div class='log-meta'>" +
-      (sug.pot != null ? "포트 " + sug.pot : "랭크 " + sug.rank) +
+      qtyLine +
+      "</div>" +
+      "<div class='loc-data-meta'>" +
+      who +
       " · " +
       money(sug.amount) +
       " · 수수료 " +
