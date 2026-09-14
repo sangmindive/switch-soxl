@@ -333,7 +333,9 @@
     }
 
     var D16 = excelRoundDown(J3 ? C8 / J3 : 0, 2);
-    var profitForReinvest = E13 + K13 < 0 ? 0 : E13 + K13;
+    var sizePrice = isFiniteNumber(Number(m.prevClose)) && Number(m.prevClose) > 0 ? Number(m.prevClose) : m.lastClose;
+    var E13Size = (sizePrice - avg) * C13 + D13;
+    var profitForReinvest = E13Size + K13 < 0 ? 0 : E13Size + K13;
     var J16raw = !I16 ? D16 : D16 + (profitForReinvest * s.reinvest) / I16;
     var J16 = Math.min(J16raw, D8 - D16);
     var F16 = E16 + K16 ? E16 / (E16 + K16) : 0;
