@@ -218,6 +218,14 @@
     });
   }
 
+  function updownF5(state) {
+    var m = state.market;
+    var trade = String(m.tradeDate || m.closeDate || "");
+    var close = String(m.closeDate || "");
+    if (trade.slice(0, 10) && trade.slice(0, 10) === close.slice(0, 10)) return Number(m.price);
+    return Number(m.prevClose);
+  }
+
   function computeLp(state, derived) {
     var m = state.market;
     var last = derived.udLast;
@@ -348,7 +356,8 @@
     var F19 = C13 === 0 ? "" : D19;
 
     var sheetF8Blocks = s.applySheetF8Limit && F8 >= J3 - 1;
-    var I19 = sheetF8Blocks ? "" : excelRound(m.lastClose - 0.01, 2);
+    var f5 = updownF5(state);
+    var I19 = sheetF8Blocks ? "" : excelRound(f5 - 0.01, 2);
     var H19 = I19 === "" ? "" : excelRoundDown(J16 / I19, 0);
 
     var udLadder = buildLadder(B19, D16, s.udStepQty, s.udLadderCount, C19);
@@ -491,14 +500,15 @@
     if (d.udLast && d.udLast.date === m.closeDate) {
       return { type: "", reason: "당일 업다운 체결 있음" };
     }
+    var f5 = updownF5(state);
     var type = "";
     if (d.B13 === 0) {
-      if (m.lastClose <= m.prevClose * 1.1) type = "매수";
+      if (f5 <= m.prevClose * 1.1) type = "매수";
     } else if (s.buyBlocked) {
-      if (m.lastClose >= (d.F19 || m.lastClose)) type = "매도";
+      if (f5 >= (d.F19 || f5)) type = "매도";
     } else {
-      if (m.lastClose <= d.C19) type = "매수";
-      else if (d.F19 !== "" && m.lastClose >= d.F19) type = "매도";
+      if (f5 <= d.C19) type = "매수";
+      else if (d.F19 !== "" && f5 >= d.F19) type = "매도";
     }
     if (!type) return { type: "", reason: "밴드 밖 (미체결)" };
 
@@ -512,7 +522,7 @@
       else pot = d.udLast.pot - 1;
     }
 
-    var fill = m.lastClose;
+    var fill = f5;
     var qty;
     var ordered;
     if (type === "매도") {
@@ -571,9 +581,10 @@
       /* 당일 매수 있으면 같은 날 그 랭크 매도만 금지. 다른 랭크 매도는 가능 */
     }
 
+    var f5 = updownF5(state);
     var type = "";
     var rank = "";
-    if (m.lastClose <= m.prevClose - 0.01) {
+    if (f5 <= m.prevClose - 0.01) {
       if (d.ttLast && d.ttLast.date === m.closeDate) {
         return { type: "", reason: "당일 떨 체결 있음" };
       }
@@ -587,7 +598,7 @@
     } else {
       var hit = null;
       for (var i = 0; i < d.sellTargets.length; i++) {
-        if (d.sellTargets[i].sellPrice <= m.lastClose) {
+        if (d.sellTargets[i].sellPrice <= f5) {
           hit = d.sellTargets[i];
           break;
         }
@@ -600,7 +611,7 @@
       rank = hit.rank;
     }
 
-    var fill = m.lastClose;
+    var fill = f5;
     var qty;
     var ordered;
     var amount;
