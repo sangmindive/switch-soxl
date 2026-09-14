@@ -216,7 +216,7 @@
     fillText("v-F19", out.F19 === "" ? "" : money(out.F19));
     fillText("v-H19", out.H19 === "" ? "" : out.H19);
     fillText("v-I19", out.I19 === "" ? "" : money(out.I19));
-    fillText("v-avg", money(out.avg, 4));
+    fillText("v-avg", money(out.combAvg, 4));
     fillText("v-eval", money(out.udEval));
     fillText("v-evalpct", pct(out.udEvalPct));
 

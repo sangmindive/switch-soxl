@@ -356,6 +356,18 @@
     var udLadder = buildLadder(B19, D16, s.udStepQty, s.udLadderCount, C19);
     var ttLadder = I19 === "" ? [] : buildLadder(H19, J16, s.tteolStepQty, s.tteolLadderCount, I19);
 
+    var ttCost = 0;
+    for (var ti = 0; ti < openRanks.length; ti++) {
+      var tr = openRanks[ti];
+      ttCost += tr.amount != null && tr.amount !== "" ? Number(tr.amount) : Number(tr.price) * Number(tr.qty);
+    }
+    var udCost = (avg || 0) * (C13 || 0);
+    var holdQty = (C13 || 0) + (I13 || 0);
+    var combAvg = holdQty ? (udCost + ttCost) / holdQty : 0;
+    var mark = Number(m.price);
+    var udEval = holdQty ? (mark - combAvg) * holdQty : 0;
+    var udEvalPct = combAvg ? mark / combAvg - 1 : "";
+
     var sellTargets = openRanks
       .map(function (r) {
         var sellPrice = excelRound(r.price * (1 + (r.sellRate || 0)), 2);
@@ -464,8 +476,10 @@
       H19: H19,
       I19: I19,
       avg: avg,
-      udEval: (m.price - avg) * C13,
-      udEvalPct: avg ? m.price / avg - 1 : "",
+      combAvg: combAvg,
+      holdQty: holdQty,
+      udEval: udEval,
+      udEvalPct: udEvalPct,
       udLadder: udLadder,
       ttLadder: ttLadder,
       openRanks: openRanks.map(function (r) {
