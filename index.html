@@ -12,7 +12,7 @@
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="apple-touch-icon" href="icon-192.png" />
   <link rel="icon" href="icon-192.png" />
-  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="styles.css?v=20260915b" />
 </head>
 <body>
   <div class="app">
@@ -201,9 +201,13 @@
       <article class="card">
         <h2>오늘 LOC</h2>
         <div id="sug-ud"></div>
-        <button class="btn primary" id="btn-fill-ud" style="width:100%;margin-top:8px">업다운 체결 반영</button>
+        <button class="btn primary fill-btn" id="btn-fill-ud" type="button">
+          <span class="fill-btn-title">업다운 체결 반영</span>
+        </button>
         <div id="sug-tt" style="margin-top:14px"></div>
-        <button class="btn primary" id="btn-fill-tt" style="width:100%;margin-top:8px">떨사오팔 체결 반영</button>
+        <button class="btn primary fill-btn" id="btn-fill-tt" type="button">
+          <span class="fill-btn-title">떨사오팔 체결 반영</span>
+        </button>
       </article>
       <article class="card">
         <div class="card-head">
@@ -340,8 +344,8 @@
       <div class="num-pop-grid" id="num-pop-grid"></div>
     </div>
   </div>
-  <script src="engine.js"></script>
+  <script src="engine.js?v=20260915b"></script>
   <script src="seed.js"></script>
-  <script src="app.js?v=20260915"></script>
+  <script src="app.js?v=20260915b"></script>
 </body>
 </html>

@@ -321,6 +321,24 @@ input:focus, select:focus { outline: 2px solid #bfdbfe; border-color: var(--blue
   cursor: pointer;
 }
 .btn.primary, .btn.buy { background: var(--blue); color: #fff; }
+.fill-btn {
+  width: 100%;
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  text-align: left;
+  padding: 12px 14px;
+  line-height: 1.35;
+}
+.fill-btn-title { display: block; font-size: 15px; }
+.fill-btn-detail, .fill-btn-amt {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  opacity: 0.95;
+}
 .btn.ghost { background: #fff; border: 1px solid var(--line-strong); }
 .btn.tteol { background: #ea580c; color: #fff; }
 .btn.sell { background: var(--red); color: #fff; }
