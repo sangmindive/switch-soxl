@@ -70,7 +70,20 @@
     return state.updownTrades[0] && state.updownTrades[0].date === "2026-09-11" && state.updownTrades[0].type === "매도";
   }
 
+  var TABS = { home: 1, orders: 1, journal: 1, stats: 1, settings: 1 };
+
+  function tabFromUrl() {
+    var h = (location.hash || "").replace(/^#/, "");
+    if (TABS[h]) return h;
+    try {
+      var saved = sessionStorage.getItem("switch-v3-tab");
+      if (TABS[saved]) return saved;
+    } catch (e) {}
+    return "home";
+  }
+
   function setTab(name) {
+    if (!TABS[name]) name = "home";
     tab = name;
     document.querySelectorAll(".nav-item").forEach(function (b) {
       b.classList.toggle("active", b.dataset.tab === name);
@@ -78,6 +91,12 @@
     document.querySelectorAll(".page").forEach(function (p) {
       p.classList.toggle("active", p.id === "page-" + name);
     });
+    try {
+      sessionStorage.setItem("switch-v3-tab", name);
+    } catch (e) {}
+    if (location.hash !== "#" + name) {
+      history.replaceState(null, "", "#" + name);
+    }
   }
 
   function bindNum(sel, obj, key, asInt) {
@@ -440,8 +459,6 @@
       return "<div class='note'>" + title + " 제안 없음. " + (sug.reason || "") + "</div>";
     }
     var who = sug.pot != null ? "포트 " + sug.pot : "랭크 " + sug.rank;
-    var qtyLine = sug.qty + "주";
-    if (sug.type === "매수" && sug.stepShares) qtyLine += " (계단 +" + sug.stepShares + ")";
     return (
       "<div class='loc-data'>" +
       "<div class='loc-data-top'><strong>" +
@@ -454,8 +471,8 @@
       "'>" +
       money(sug.price) +
       " × " +
-      qtyLine +
-      "</div>" +
+      sug.qty +
+      "주</div>" +
       "<div class='loc-data-meta'>" +
       who +
       " · " +
@@ -962,7 +979,10 @@
   });
 
   bind();
-  setTab("home");
+  setTab(tabFromUrl());
+  window.addEventListener("hashchange", function () {
+    setTab(tabFromUrl());
+  });
   render();
   fetchQuote();
   setInterval(fetchQuote, 15000);
