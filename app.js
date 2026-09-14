@@ -840,33 +840,89 @@
 
   var quoteBusy = false;
 
+  function applyLiveQuote(q) {
+    if (!q || !isFinite(q.price) || q.price <= 0) return;
+    var nextPct = q.changePct;
+    if (nextPct != null && !isFinite(nextPct)) nextPct = null;
+    if (near(state.market.price, q.price, 1e-6) && (nextPct == null || near(state.market.changePct, nextPct, 1e-8))) {
+      return;
+    }
+    state.market.price = q.price;
+    if (nextPct != null) state.market.changePct = nextPct;
+    persist();
+  }
+
+  function parseCnbcQuote(data) {
+    var q = data && data.QuickQuoteResult && data.QuickQuoteResult.QuickQuote;
+    if (!q) return null;
+    if (Object.prototype.toString.call(q) === "[object Array]") q = q[0];
+    if (!q) return null;
+    var prev = Number(q.previous_day_closing);
+    var price = Number(q.last);
+    var status = String(q.curmktstatus || "");
+    var ext = q.ExtendedMktQuote;
+    if (ext && /PRE_MKT|POST_MKT|EXTENDED/.test(status) && ext.last != null) {
+      var extLast = Number(ext.last);
+      if (isFinite(extLast) && extLast > 0) price = extLast;
+    }
+    if (!isFinite(price) || price <= 0) return null;
+    var changePct = isFinite(prev) && prev > 0 ? (price - prev) / prev : Number(q.change_pct) / 100;
+    if (!isFinite(changePct)) changePct = null;
+    return { price: price, changePct: changePct };
+  }
+
+  function fetchJson(url) {
+    return fetch(url, { cache: "no-store" }).then(function (r) {
+      if (!r.ok) throw new Error("http");
+      return r.json();
+    });
+  }
+
+  function fetchCnbcQuote(symbol) {
+    var url =
+      "https://quote.cnbc.com/quote-html-webservice/quote.htm?partnerId=2&requestMethod=quick&exthrs=1&noform=1&output=json&symbols=" +
+      encodeURIComponent(symbol);
+    return fetchJson(url).then(function (data) {
+      var q = parseCnbcQuote(data);
+      if (!q) throw new Error("parse");
+      return q;
+    });
+  }
+
+  function fetchLocalQuote(symbol) {
+    return fetchJson("quote?symbol=" + encodeURIComponent(symbol)).then(function (q) {
+      if (!q || !q.price) throw new Error("parse");
+      return { price: Number(q.price), changePct: q.changePct == null ? null : Number(q.changePct) };
+    });
+  }
+
   function fetchQuote() {
-    if (quoteBusy) return;
+    if (quoteBusy || document.hidden) return;
     quoteBusy = true;
-    fetch("/quote?symbol=" + encodeURIComponent(state.settings.symbol || "SOXL"), { cache: "no-store" })
-      .then(function (r) {
-        if (!r.ok) throw new Error("http");
-        return r.json();
+    var symbol = String(state.settings.symbol || "SOXL").toUpperCase();
+    fetchCnbcQuote(symbol)
+      .catch(function () {
+        return fetchLocalQuote(symbol);
       })
       .then(function (q) {
-        if (!q || !q.price) throw new Error("parse");
-        state.market.price = q.price;
-        if (q.changePct != null) state.market.changePct = q.changePct;
-        persist();
-      })
-      .catch(function () {})
+        applyLiveQuote(q);
+      }, function () {})
       .then(function () {
         quoteBusy = false;
       });
   }
 
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("sw.js").catch(function () {});
+    navigator.serviceWorker.register("sw.js?v=2").catch(function () {});
   }
+
+  document.addEventListener("visibilitychange", function () {
+    if (!document.hidden) fetchQuote();
+  });
 
   bind();
   setTab("home");
   render();
   fetchQuote();
-  setInterval(fetchQuote, 60000);
+  setInterval(fetchQuote, 15000);
 })();
