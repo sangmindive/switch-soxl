@@ -62,7 +62,42 @@
       Accept: "application/vnd.github+json",
       Authorization: "Bearer " + token,
       "Content-Type": "application/json",
+      "X-GitHub-Api-Version": "2022-11-28",
     };
+  }
+
+  function cleanToken(raw) {
+    var s = String(raw || "").trim().replace(/^Bearer\s+/i, "").replace(/^token\s+/i, "");
+    var m = s.match(/(ghp_[A-Za-z0-9]+|github_pat_[A-Za-z0-9_]+|gho_[A-Za-z0-9]+)/);
+    return m ? m[1] : s.replace(/\s+/g, "");
+  }
+
+  function setSyncMsg(text, ok) {
+    var el = document.getElementById("sync-msg");
+    if (!el) return;
+    el.textContent = text;
+    el.style.color = ok ? "var(--green)" : ok === false ? "var(--red)" : "";
+  }
+
+  function gistApiError(r, data) {
+    var msg = (data && data.message) || ("HTTP " + r.status);
+    if (r.status === 401) return "토큰이 잘못됐거나 만료됐습니다. 새로 만들어 붙여넣으세요.";
+    if (r.status === 403 || /resource not accessible|gists/i.test(msg)) {
+      return "Gists 권한이 없습니다. 클래식 토큰이면 gist 체크, 세분화된 토큰이면 Account permissions → Gists: Read and write.";
+    }
+    return msg;
+  }
+
+  function readGistResponse(r) {
+    return r
+      .json()
+      .catch(function () {
+        return {};
+      })
+      .then(function (data) {
+        if (!r.ok) throw new Error(gistApiError(r, data));
+        return data;
+      });
   }
 
   function gistBody() {
@@ -119,13 +154,7 @@
     var cfg = loadSyncCfg();
     if (!cfg.token || !cfg.gistId || syncing) return Promise.resolve(false);
     syncing = true;
-    return fetch("https://api.github.com/gists/" + cfg.gistId, { headers: gistHeaders(cfg.token) })
-      .then(function (r) {
-        if (r.status === 401 || r.status === 403) throw new Error("토큰 권한");
-        if (r.status === 404) throw new Error("연결 코드");
-        if (!r.ok) throw new Error("HTTP " + r.status);
-        return r.json();
-      })
+    return fetch("https://api.github.com/gists/" + cfg.gistId, { headers: gistHeaders(cfg.token) }).then(readGistResponse)
       .then(function (gist) {
         var file = gist.files && gist.files["switch-v3-state.json"];
         if (!file || !file.content) return false;
@@ -155,10 +184,9 @@
       headers: gistHeaders(cfg.token),
       body: JSON.stringify(gistBody()),
     })
-      .then(function (r) {
+      .then(readGistResponse)
+      .then(function () {
         syncing = false;
-        if (r.status === 401 || r.status === 403) throw new Error("토큰 권한");
-        if (!r.ok) throw new Error("HTTP " + r.status);
       })
       .catch(function (err) {
         syncing = false;
@@ -167,11 +195,17 @@
   }
 
   function createSyncFromHere() {
-    var token = (document.getElementById("sync-token").value || "").trim();
+    var token = cleanToken(document.getElementById("sync-token").value);
     if (!token) {
+      token = cleanToken(document.getElementById("sync-code").value);
+      if (token) document.getElementById("sync-token").value = token;
+    }
+    if (!token) {
+      setSyncMsg("토큰을 위에 붙여넣으세요.", false);
       toast("GitHub 토큰을 먼저 넣으세요");
       return;
     }
+    setSyncMsg("GitHub에 연결 중…");
     if (!state.rev) state.rev = Date.now();
     saveState();
     fetch("https://api.github.com/gists", {
@@ -179,21 +213,24 @@
       headers: gistHeaders(token),
       body: JSON.stringify(gistBody()),
     })
-      .then(function (r) {
-        if (r.status === 401 || r.status === 403) throw new Error("토큰 권한");
-        if (!r.ok) throw new Error("HTTP " + r.status);
-        return r.json();
-      })
+      .then(readGistResponse)
       .then(function (gist) {
+        if (!gist || !gist.id) throw new Error("Gist ID를 받지 못했습니다");
         var cfg = { token: token, gistId: gist.id };
         saveSyncCfg(cfg);
         var codeEl = document.getElementById("sync-code");
         if (codeEl) codeEl.value = encodePair(cfg);
         renderSyncUi();
-        toast("연결 코드를 폰에 붙여넣으세요");
+        setSyncMsg("연결됨. 아래 코드를 폰에 붙여넣으세요.", true);
+        toast("연결됨 · 코드를 폰에 붙여넣으세요");
       })
       .catch(function (err) {
-        toast("연결 실패 · " + (err.message || "네트워크"));
+        var msg = err && err.message ? err.message : "네트워크";
+        if (/Failed to fetch|NetworkError/i.test(msg)) {
+          msg = "GitHub에 닿지 못했습니다. 토큰은 gist 권한이 있는 클래식(ghp_) 토큰이어야 합니다.";
+        }
+        setSyncMsg("연결 실패 · " + msg, false);
+        toast("연결 실패 · " + msg);
       });
   }
 
@@ -236,7 +273,7 @@
     el.style.display = "block";
     setTimeout(function () {
       el.style.display = "none";
-    }, 2600);
+    }, 5000);
   }
 
   function near(a, b, eps) {
@@ -902,6 +939,12 @@
     };
     document.getElementById("btn-sync-start").onclick = createSyncFromHere;
     document.getElementById("btn-sync-join").onclick = joinSyncFromCode;
+    document.getElementById("sync-token").addEventListener("keydown", function (ev) {
+      if (ev.key === "Enter") {
+        ev.preventDefault();
+        createSyncFromHere();
+      }
+    });
     document.getElementById("btn-sync-copy").onclick = function () {
       var cfg = loadSyncCfg();
       var code = document.getElementById("sync-code").value.trim() || (cfg.token && cfg.gistId ? encodePair(cfg) : "");
