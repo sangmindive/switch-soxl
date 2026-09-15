@@ -12,7 +12,7 @@
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="apple-touch-icon" href="icon-192.png" />
   <link rel="icon" href="icon-192.png" />
-  <link rel="stylesheet" href="styles.css?v=20260916c" />
+  <link rel="stylesheet" href="styles.css?v=20260916d" />
 </head>
 <body>
   <div class="app">
@@ -274,7 +274,10 @@
         <h2>폰 · PC 동기화</h2>
         <p class="note">데이터가 있는 기기에서 연결을 만드세요. 나온 코드를 다른 기기에 붙여넣으면 체결·일지가 같이 바뀝니다. 코드는 공유하지 마세요.</p>
         <div class="setting-row"><span class="k">상태</span><span id="sync-status">미연결</span></div>
-        <div class="setting-row"><span class="k">GitHub 토큰</span><input id="sync-token" type="password" autocomplete="off" /></div>
+        <div class="field">
+          <label for="sync-token">여기에 GitHub 토큰 붙여넣기 (ghp_로 시작)</label>
+          <input id="sync-token" type="text" autocomplete="off" placeholder="ghp_ 뒤에 긴 영숫자" />
+        </div>
         <textarea id="sync-code" rows="3" placeholder="연결 코드"></textarea>
         <div class="actions">
           <button class="btn primary wide" id="btn-sync-start" type="button">이 기기로 연결 만들기</button>
@@ -358,8 +361,8 @@
       <div class="num-pop-grid" id="num-pop-grid"></div>
     </div>
   </div>
-  <script src="engine.js?v=20260916c"></script>
+  <script src="engine.js?v=20260916d"></script>
   <script src="seed.js"></script>
-  <script src="app.js?v=20260916c"></script>
+  <script src="app.js?v=20260916d"></script>
 </body>
 </html>
