@@ -12,7 +12,7 @@
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="apple-touch-icon" href="icon-192.png" />
   <link rel="icon" href="icon-192.png" />
-  <link rel="stylesheet" href="styles.css?v=20260915c" />
+  <link rel="stylesheet" href="styles.css?v=20260916c" />
 </head>
 <body>
   <div class="app">
@@ -271,6 +271,19 @@
 
     <section id="page-settings" class="page">
       <article class="card">
+        <h2>폰 · PC 동기화</h2>
+        <p class="note">데이터가 있는 기기에서 연결을 만드세요. 나온 코드를 다른 기기에 붙여넣으면 체결·일지가 같이 바뀝니다. 코드는 공유하지 마세요.</p>
+        <div class="setting-row"><span class="k">상태</span><span id="sync-status">미연결</span></div>
+        <div class="setting-row"><span class="k">GitHub 토큰</span><input id="sync-token" type="password" autocomplete="off" /></div>
+        <textarea id="sync-code" rows="3" placeholder="연결 코드"></textarea>
+        <div class="actions">
+          <button class="btn primary wide" id="btn-sync-start" type="button">이 기기로 연결 만들기</button>
+          <button class="btn wide" id="btn-sync-join" type="button">코드로 연결</button>
+          <button class="btn ghost" id="btn-sync-copy" type="button">코드 복사</button>
+        </div>
+        <p class="note">토큰은 GitHub → Settings → Developer settings → Personal access tokens에서 <strong>gist</strong> 권한만 켜서 만듭니다.</p>
+      </article>
+      <article class="card">
         <h2>프리셋</h2>
         <div class="actions">
           <button class="btn primary" id="btn-preset-min">민 20/10</button>
@@ -345,8 +358,8 @@
       <div class="num-pop-grid" id="num-pop-grid"></div>
     </div>
   </div>
-  <script src="engine.js?v=20260916b"></script>
+  <script src="engine.js?v=20260916c"></script>
   <script src="seed.js"></script>
-  <script src="app.js?v=20260916b"></script>
+  <script src="app.js?v=20260916c"></script>
 </body>
 </html>

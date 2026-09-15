@@ -509,4 +509,15 @@ table.sheet tr.ladder-sell td { background: #fffafa; }
   border-bottom: 1px solid var(--line);
 }
 .setting-row input, .setting-row select { max-width: 160px; text-align: right; }
+#sync-token { max-width: 220px; text-align: left; font-size: 12px; }
+#sync-code {
+  width: 100%;
+  max-width: none;
+  text-align: left;
+  font-size: 11px;
+  line-height: 1.4;
+  min-height: 76px;
+  margin: 10px 0 8px;
+  word-break: break-all;
+}
 .hidden { display: none !important; }

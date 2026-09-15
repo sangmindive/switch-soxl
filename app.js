@@ -4,10 +4,13 @@
   var E = window.SwitchEngine;
   var S = window.SwitchSeed;
   var KEY = "switch-v3-state";
+  var SYNC_KEY = "switch-v3-sync";
   var state = loadState();
   var tab = "home";
   var statsMode = "month";
   var statsYear = 2026;
+  var pushTimer = null;
+  var syncing = false;
 
   function loadState() {
     try {
@@ -22,6 +25,196 @@
 
   function saveState() {
     localStorage.setItem(KEY, JSON.stringify(state));
+  }
+
+  function loadSyncCfg() {
+    try {
+      var cfg = JSON.parse(localStorage.getItem(SYNC_KEY) || "{}");
+      if (cfg && cfg.token && cfg.gistId) return cfg;
+    } catch (e) {}
+    return { token: "", gistId: "" };
+  }
+
+  function saveSyncCfg(cfg) {
+    localStorage.setItem(SYNC_KEY, JSON.stringify({ token: cfg.token || "", gistId: cfg.gistId || "" }));
+  }
+
+  function encodePair(cfg) {
+    var json = JSON.stringify({ t: cfg.token, g: cfg.gistId });
+    return btoa(unescape(encodeURIComponent(json)))
+      .replace(/\+/g, "-")
+      .replace(/\//g, "_")
+      .replace(/=+$/, "");
+  }
+
+  function decodePair(raw) {
+    var s = String(raw || "").trim().replace(/\s+/g, "");
+    if (!s) throw new Error("empty");
+    s = s.replace(/-/g, "+").replace(/_/g, "/");
+    while (s.length % 4) s += "=";
+    var o = JSON.parse(decodeURIComponent(escape(atob(s))));
+    if (!o || !o.t || !o.g) throw new Error("bad");
+    return { token: o.t, gistId: o.g };
+  }
+
+  function gistHeaders(token) {
+    return {
+      Accept: "application/vnd.github+json",
+      Authorization: "Bearer " + token,
+      "Content-Type": "application/json",
+    };
+  }
+
+  function gistBody() {
+    return {
+      description: "Switch SOXL device sync",
+      public: false,
+      files: {
+        "switch-v3-state.json": { content: JSON.stringify(state) },
+      },
+    };
+  }
+
+  function applyRemoteState(remote) {
+    if (!remote || !remote.settings || !remote.updownTrades) return false;
+    var live = state.market || {};
+    state = remote;
+    if (!state.market) state.market = {};
+    if (live.price) state.market.price = live.price;
+    if (live.changePct != null) state.market.changePct = live.changePct;
+    if (live.phase) state.market.phase = live.phase;
+    saveState();
+    return true;
+  }
+
+  function renderSyncUi() {
+    var status = document.getElementById("sync-status");
+    var tokenEl = document.getElementById("sync-token");
+    var codeEl = document.getElementById("sync-code");
+    if (!status) return;
+    var cfg = loadSyncCfg();
+    if (cfg.token && cfg.gistId) {
+      status.textContent = "연결됨";
+      status.className = "pos";
+      if (tokenEl && !tokenEl.value) tokenEl.value = cfg.token;
+      if (codeEl && !codeEl.value) codeEl.value = encodePair(cfg);
+    } else {
+      status.textContent = "미연결";
+      status.className = "";
+    }
+  }
+
+  function schedulePush() {
+    var cfg = loadSyncCfg();
+    if (!cfg.token || !cfg.gistId) return;
+    clearTimeout(pushTimer);
+    pushTimer = setTimeout(function () {
+      pushRemote().catch(function (err) {
+        toast("동기화 실패 · " + (err.message || "네트워크"));
+      });
+    }, 700);
+  }
+
+  function pullRemote() {
+    var cfg = loadSyncCfg();
+    if (!cfg.token || !cfg.gistId || syncing) return Promise.resolve(false);
+    syncing = true;
+    return fetch("https://api.github.com/gists/" + cfg.gistId, { headers: gistHeaders(cfg.token) })
+      .then(function (r) {
+        if (r.status === 401 || r.status === 403) throw new Error("토큰 권한");
+        if (r.status === 404) throw new Error("연결 코드");
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        return r.json();
+      })
+      .then(function (gist) {
+        var file = gist.files && gist.files["switch-v3-state.json"];
+        if (!file || !file.content) return false;
+        var remote = JSON.parse(file.content);
+        var remoteRev = Number(remote.rev) || 0;
+        var localRev = Number(state.rev) || 0;
+        if (remoteRev <= localRev) return false;
+        return applyRemoteState(remote);
+      })
+      .then(function (changed) {
+        syncing = false;
+        if (changed) render();
+        return changed;
+      })
+      .catch(function (err) {
+        syncing = false;
+        throw err;
+      });
+  }
+
+  function pushRemote() {
+    var cfg = loadSyncCfg();
+    if (!cfg.token || !cfg.gistId || syncing) return Promise.resolve();
+    syncing = true;
+    return fetch("https://api.github.com/gists/" + cfg.gistId, {
+      method: "PATCH",
+      headers: gistHeaders(cfg.token),
+      body: JSON.stringify(gistBody()),
+    })
+      .then(function (r) {
+        syncing = false;
+        if (r.status === 401 || r.status === 403) throw new Error("토큰 권한");
+        if (!r.ok) throw new Error("HTTP " + r.status);
+      })
+      .catch(function (err) {
+        syncing = false;
+        throw err;
+      });
+  }
+
+  function createSyncFromHere() {
+    var token = (document.getElementById("sync-token").value || "").trim();
+    if (!token) {
+      toast("GitHub 토큰을 먼저 넣으세요");
+      return;
+    }
+    if (!state.rev) state.rev = Date.now();
+    saveState();
+    fetch("https://api.github.com/gists", {
+      method: "POST",
+      headers: gistHeaders(token),
+      body: JSON.stringify(gistBody()),
+    })
+      .then(function (r) {
+        if (r.status === 401 || r.status === 403) throw new Error("토큰 권한");
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        return r.json();
+      })
+      .then(function (gist) {
+        var cfg = { token: token, gistId: gist.id };
+        saveSyncCfg(cfg);
+        var codeEl = document.getElementById("sync-code");
+        if (codeEl) codeEl.value = encodePair(cfg);
+        renderSyncUi();
+        toast("연결 코드를 폰에 붙여넣으세요");
+      })
+      .catch(function (err) {
+        toast("연결 실패 · " + (err.message || "네트워크"));
+      });
+  }
+
+  function joinSyncFromCode() {
+    try {
+      var cfg = decodePair(document.getElementById("sync-code").value);
+      saveSyncCfg(cfg);
+      var tokenEl = document.getElementById("sync-token");
+      if (tokenEl) tokenEl.value = cfg.token;
+      renderSyncUi();
+      pullRemote()
+        .then(function (changed) {
+          toast(changed ? "다른 기기 데이터를 불러왔습니다" : "연결됨 · 이미 최신");
+          if (!changed) schedulePush();
+        })
+        .catch(function (err) {
+          toast("불러오기 실패 · " + (err.message || "네트워크"));
+        });
+    } catch (e) {
+      toast("연결 코드가 올바르지 않습니다");
+    }
   }
 
   function money(n, d) {
@@ -109,9 +302,11 @@
     };
   }
 
-  function persist() {
+  function persist(opts) {
+    if (!(opts && opts.keepRev)) state.rev = Date.now();
     saveState();
     render();
+    if (!(opts && opts.sync === false)) schedulePush();
   }
 
   function render() {
@@ -227,6 +422,7 @@
     var ttEvalEl = document.getElementById("v-tt-eval");
     if (ttEvalEl) ttEvalEl.className = out.I13 && out.ttEval < 0 ? "neg" : out.I13 && out.ttEval > 0 ? "pos" : "";
     fillText("v-tt-evalpct", out.I13 ? pct(out.ttEvalPct) : "—");
+    renderSyncUi();
 
     renderLadder("ud-ladder", out.udLadder, "ud", out);
     renderLadder("tt-ladder", out.ttLadder, "tt", out);
@@ -704,6 +900,28 @@
         toast("시트 시드로 복원");
       }
     };
+    document.getElementById("btn-sync-start").onclick = createSyncFromHere;
+    document.getElementById("btn-sync-join").onclick = joinSyncFromCode;
+    document.getElementById("btn-sync-copy").onclick = function () {
+      var cfg = loadSyncCfg();
+      var code = document.getElementById("sync-code").value.trim() || (cfg.token && cfg.gistId ? encodePair(cfg) : "");
+      if (!code) {
+        toast("먼저 연결을 만들거나 코드를 넣으세요");
+        return;
+      }
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(code).then(
+          function () {
+            toast("연결 코드 복사됨");
+          },
+          function () {
+            toast("복사 실패 · 코드를 길게 눌러 복사하세요");
+          }
+        );
+      } else {
+        toast("코드를 길게 눌러 복사하세요");
+      }
+    };
     document.getElementById("btn-fill-ud").onclick = function () {
       var r = E.applySuggested(state, "ud");
       maybeAutoTransfer();
@@ -968,7 +1186,7 @@
         }
       }
     }
-    if (changed) persist();
+    if (changed) persist({ sync: false, keepRev: true });
   }
 
   function cnbcSessionDate(q) {
@@ -1063,7 +1281,10 @@
   }
 
   document.addEventListener("visibilitychange", function () {
-    if (!document.hidden) fetchQuote();
+    if (!document.hidden) {
+      fetchQuote();
+      pullRemote().catch(function () {});
+    }
   });
 
   bind();
@@ -1073,5 +1294,9 @@
   });
   render();
   fetchQuote();
+  pullRemote().catch(function () {});
   setInterval(fetchQuote, 15000);
+  setInterval(function () {
+    pullRemote().catch(function () {});
+  }, 20000);
 })();
