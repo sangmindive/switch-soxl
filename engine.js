@@ -253,11 +253,50 @@
     return Math.max(excelRoundDown(amount * SEC_RATE, 2), SEC_MIN);
   }
 
+  function pnlNumber(t) {
+    var n = Number(t && t.pnl);
+    return t && t.pnl != null && t.pnl !== "" && isFiniteNumber(n) ? n : 0;
+  }
+
+  function tteolBuyCost(buy) {
+    if (!buy) return 0;
+    if (buy.amount != null && buy.amount !== "" && isFiniteNumber(Number(buy.amount))) return Number(buy.amount);
+    return (Number(buy.price) || 0) * (Number(buy.qty) || 0);
+  }
+
+  function repairTteolPnls(trades) {
+    var repaired = false;
+    var byRank = {};
+    var oldestFirst = (trades || []).slice().sort(function (a, b) {
+      if (a.date !== b.date) return a.date < b.date ? -1 : 1;
+      return (a.seq || 0) - (b.seq || 0);
+    });
+    for (var i = 0; i < oldestFirst.length; i++) {
+      var t = oldestFirst[i];
+      if (t.type === "매수") {
+        byRank[t.rank] = t;
+      } else if (t.type === "매도") {
+        if (!(t.pnl != null && t.pnl !== "" && isFiniteNumber(Number(t.pnl)))) {
+          var buy = byRank[t.rank];
+          if (buy) {
+            var amount = t.amount != null && t.amount !== "" ? Number(t.amount) : Number(t.price) * Number(t.qty);
+            var fee = Number(t.fee) || 0;
+            t.pnl = amount - tteolBuyCost(buy) - ((Number(buy.fee) || 0) + fee + secFee(amount));
+            repaired = true;
+          }
+        }
+        delete byRank[t.rank];
+      }
+    }
+    return repaired;
+  }
+
   function compute(state, opts) {
     var s = state.settings;
     var m = state.market;
     var ud = sortNewestFirst(state.updownTrades || []);
     var tt = sortNewestFirst(state.tteolTrades || []);
+    var repairedTt = repairTteolPnls(tt);
     state.updownTrades = ud;
     state.tteolTrades = tt;
 
@@ -283,19 +322,19 @@
     var B8 = F8 === 0 ? Math.max(udCycle, ttCycle) + 1 : Math.max(udCycle, ttCycle);
 
     var D13 = sum(ud, function (t) {
-      return t.cycle === B8 && t.pnl != null && t.pnl !== "" ? t.pnl : 0;
+      return t.cycle === B8 ? pnlNumber(t) : 0;
     });
     var J13 = sum(tt, function (t) {
-      return t.cycle === B8 && t.pnl != null && t.pnl !== "" ? t.pnl : 0;
+      return t.cycle === B8 ? pnlNumber(t) : 0;
     });
     var K13 = 0 + J13;
 
     var K3 =
       sum(ud, function (t) {
-        return t.pnl != null && t.pnl !== "" ? t.pnl : 0;
+        return pnlNumber(t);
       }) +
       sum(tt, function (t) {
-        return t.pnl != null && t.pnl !== "" ? t.pnl : 0;
+        return pnlNumber(t);
       });
     var L3 = s.capital ? K3 / s.capital : 0;
     var I3 = (B13 === 0 ? K3 : K3 - D13 - J13) * s.reinvest;
@@ -365,8 +404,11 @@
     var holdQty = (C13 || 0) + (I13 || 0);
     var combAvg = holdQty ? (udCost + ttCost) / holdQty : 0;
     var mark = Number(m.price);
-    var udEval = holdQty ? (mark - combAvg) * holdQty : 0;
-    var udEvalPct = combAvg ? mark / combAvg - 1 : "";
+    var udEval = C13 ? (mark - avg) * C13 : 0;
+    var udEvalPct = avg && C13 ? mark / avg - 1 : "";
+    var ttAvg = I13 ? ttCost / I13 : 0;
+    var ttEval = I13 ? (mark - ttAvg) * I13 : 0;
+    var ttEvalPct = ttAvg ? mark / ttAvg - 1 : "";
 
     var sellTargets = openRanks
       .map(function (r) {
@@ -456,6 +498,9 @@
       holdQty: holdQty,
       udEval: udEval,
       udEvalPct: udEvalPct,
+      ttAvg: ttAvg,
+      ttEval: ttEval,
+      ttEvalPct: ttEvalPct,
       udLadder: udLadder,
       ttLadder: ttLadder,
       openRanks: openRanks.map(function (r) {
@@ -465,6 +510,8 @@
           holdDays: networkDays(r.buyDate, m.tradeDate || m.closeDate),
           price: r.price,
           qty: r.qty,
+          amount: r.amount,
+          fee: r.fee,
           sellPrice: excelRound(r.price * (1 + (r.sellRate || 0)), 2),
           sellRate: r.sellRate || 0,
         };
@@ -475,6 +522,7 @@
       suggestedTt: suggestedTt,
       udLast: udLast,
       ttLast: ttLast,
+      repairedTt: repairedTt,
     };
   }
 
@@ -712,7 +760,12 @@
       amount = fill * qty;
       fee = sellFee(amount, s.fee);
       var sec = secFee(amount);
-      var pnl = amount - pos.amount - (pos.fee + fee + sec);
+      var buyCost =
+        pos.amount != null && pos.amount !== "" && isFiniteNumber(Number(pos.amount))
+          ? Number(pos.amount)
+          : Number(pos.price) * Number(pos.qty);
+      var posBuyFee = Number(pos.fee) || 0;
+      var pnl = amount - buyCost - (posBuyFee + fee + sec);
       var cycle = ttLastCycle(d);
       return {
         type: type,

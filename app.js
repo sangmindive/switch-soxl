@@ -116,6 +116,7 @@
 
   function render() {
     var out = E.compute(state);
+    if (out.repairedTt) saveState();
     var s = state.settings;
     var m = state.market;
     var p = parityOk(out);
@@ -216,9 +217,16 @@
     fillText("v-F19", out.F19 === "" ? "" : money(out.F19));
     fillText("v-H19", out.H19 === "" ? "" : out.H19);
     fillText("v-I19", out.I19 === "" ? "" : money(out.I19));
-    fillText("v-avg", money(out.combAvg, 4));
-    fillText("v-eval", money(out.udEval));
-    fillText("v-evalpct", pct(out.udEvalPct));
+    fillText("v-ud-avg", out.C13 ? money(out.avg, 4) : "—");
+    fillText("v-ud-eval", out.C13 ? money(out.udEval) : "—");
+    var udEvalEl = document.getElementById("v-ud-eval");
+    if (udEvalEl) udEvalEl.className = out.C13 && out.udEval < 0 ? "neg" : out.C13 && out.udEval > 0 ? "pos" : "";
+    fillText("v-ud-evalpct", out.C13 ? pct(out.udEvalPct) : "—");
+    fillText("v-tt-avg", out.I13 ? money(out.ttAvg, 4) : "—");
+    fillText("v-tt-eval", out.I13 ? money(out.ttEval) : "—");
+    var ttEvalEl = document.getElementById("v-tt-eval");
+    if (ttEvalEl) ttEvalEl.className = out.I13 && out.ttEval < 0 ? "neg" : out.I13 && out.ttEval > 0 ? "pos" : "";
+    fillText("v-tt-evalpct", out.I13 ? pct(out.ttEvalPct) : "—");
 
     renderLadder("ud-ladder", out.udLadder, "ud", out);
     renderLadder("tt-ladder", out.ttLadder, "tt", out);
@@ -507,11 +515,23 @@
     document.getElementById("rank-body").innerHTML = html;
   }
 
+  function logPnlView(t) {
+    var n = Number(t.pnl);
+    var hasPnl = t.type === "매도" && t.pnl !== "" && t.pnl != null && Number.isFinite(n);
+    if (hasPnl) {
+      return {
+        kind: "손익",
+        text: (n >= 0 ? "+" : "") + money(n),
+        cls: n >= 0 ? "pos" : "neg",
+      };
+    }
+    return { kind: "금액", text: money(t.amount), cls: "" };
+  }
+
   function renderUdLog() {
     var html = state.updownTrades
       .map(function (t, idx) {
-        var signed = t.pnl === "" || t.pnl == null ? money(t.amount) : (t.pnl >= 0 ? "+" : "") + money(t.pnl);
-        var cls = t.pnl === "" || t.pnl == null ? "" : t.pnl >= 0 ? "pos" : "neg";
+        var view = logPnlView(t);
         return (
           "<article class='log-card'><header><div><strong>SOXL</strong> <span class='pill " +
           (t.type === "매도" ? "sell" : t.type === "떨" ? "tteol" : "") +
@@ -519,10 +539,12 @@
           t.type +
           "</span></div><button class='btn ghost' data-ud='" +
           idx +
-          "'>삭제</button></header><div class='log-amt " +
-          cls +
+          "'>삭제</button></header><div class='k'>" +
+          view.kind +
+          "</div><div class='log-amt " +
+          view.cls +
           "'>" +
-          signed +
+          view.text +
           "</div><div class='log-meta'>" +
           t.date +
           " · 포트 " +
@@ -545,8 +567,7 @@
   function renderTtLog() {
     var html = state.tteolTrades
       .map(function (t, idx) {
-        var signed = t.pnl === "" || t.pnl == null ? money(t.amount) : (t.pnl >= 0 ? "+" : "") + money(t.pnl);
-        var cls = t.pnl === "" || t.pnl == null ? "" : t.pnl >= 0 ? "pos" : "neg";
+        var view = logPnlView(t);
         return (
           "<article class='log-card'><header><div><strong>SOXL 랭크 " +
           t.rank +
@@ -556,10 +577,12 @@
           t.type +
           "</span></div><button class='btn ghost' data-tt='" +
           idx +
-          "'>삭제</button></header><div class='log-amt " +
-          cls +
+          "'>삭제</button></header><div class='k'>" +
+          view.kind +
+          "</div><div class='log-amt " +
+          view.cls +
           "'>" +
-          signed +
+          view.text +
           "</div><div class='log-meta'>" +
           t.date +
           " · " +
