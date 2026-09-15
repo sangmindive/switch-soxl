@@ -446,8 +446,8 @@
     var date = state.market.closeDate;
     document.getElementById("btn-fill-ud").disabled = !ud.type;
     document.getElementById("btn-fill-tt").disabled = !tt.type;
-    document.getElementById("sug-ud").innerHTML = sugHtml("업다운", ud, date);
-    document.getElementById("sug-tt").innerHTML = sugHtml("떨사오팔", tt, date);
+    document.getElementById("sug-ud").innerHTML = sugHtml("업다운", ud, ud.date || date);
+    document.getElementById("sug-tt").innerHTML = sugHtml("떨사오팔", tt, tt.date || date);
     var canMove = out.C54 !== "" && out.C54 != null;
     document.getElementById("v-C54").textContent = canMove ? "랭크 " + out.C54 : "";
     document.getElementById("v-B54").textContent = canMove ? state.market.closeDate : "";
@@ -685,13 +685,13 @@
       var r = E.applySuggested(state, "ud");
       maybeAutoTransfer();
       persist();
-      toast(r.ok ? "업다운 " + r.trade.type + " 반영" : r.reason);
+      toast(r.ok ? "업다운 " + r.trade.type + " 반영 · " + (r.trade.date || "") : r.reason);
     };
     document.getElementById("btn-fill-tt").onclick = function () {
       var r = E.applySuggested(state, "tteol");
       maybeAutoTransfer();
       persist();
-      toast(r.ok ? "떨사오팔 " + r.trade.type + " 반영" : r.reason);
+      toast(r.ok ? "떨사오팔 " + r.trade.type + " 반영 · " + (r.trade.date || "") : r.reason);
     };
     document.getElementById("btn-transfer").onclick = function () {
       var r = E.transferOneRank(state);
@@ -865,6 +865,24 @@
 
   var quoteBusy = false;
 
+  function rememberClose(m, date, close) {
+    if (!date || !isFinite(close) || close <= 0) return false;
+    m.closeHistory = m.closeHistory || [];
+    for (var i = 0; i < m.closeHistory.length; i++) {
+      if (m.closeHistory[i].date === date) {
+        if (near(m.closeHistory[i].close, close, 1e-6)) return false;
+        m.closeHistory[i].close = close;
+        return true;
+      }
+    }
+    m.closeHistory.push({ date: date, close: close });
+    m.closeHistory.sort(function (a, b) {
+      return a.date < b.date ? 1 : -1;
+    });
+    if (m.closeHistory.length > 12) m.closeHistory = m.closeHistory.slice(0, 12);
+    return true;
+  }
+
   function applyLiveQuote(q) {
     if (!q || !isFinite(q.price) || q.price <= 0) return;
     var changed = false;
@@ -876,17 +894,54 @@
       state.market.changePct = q.changePct;
       changed = true;
     }
-    if (q.sessionClosed && q.sessionDate && isFinite(q.lastClose) && q.lastClose > 0) {
+    if (q.phase && q.phase !== state.market.phase) {
+      state.market.phase = q.phase;
+      changed = true;
+    }
+    if (q.phase && q.phase !== "REG_MKT" && q.sessionDate && isFinite(q.prevClose) && q.prevClose > 0) {
+      var histPrev = E.previousTradingDate(q.sessionDate);
+      if (histPrev && rememberClose(state.market, histPrev, q.prevClose)) changed = true;
+    }
+    if (q.phase === "POST_MKT" && q.sessionDate && isFinite(q.lastClose) && q.lastClose > 0) {
+      var expectedPrev = E.previousTradingDate(q.sessionDate);
+      if (rememberClose(state.market, q.sessionDate, q.lastClose)) changed = true;
+      if (expectedPrev && isFinite(q.prevClose) && q.prevClose > 0) {
+        if (rememberClose(state.market, expectedPrev, q.prevClose)) changed = true;
+      }
       var prevDate = state.market.closeDate || "";
-      if (q.sessionDate >= prevDate) {
-        if (q.sessionDate > prevDate && isFinite(q.prevClose) && q.prevClose > 0) {
-          state.market.prevClose = q.prevClose;
+      var curClose = state.market.lastClose;
+      if (q.sessionDate > prevDate) {
+        state.market.prevPrevClose = state.market.prevClose;
+        if (prevDate === expectedPrev) {
+          state.market.prevCloseDate = prevDate;
+          if (isFinite(curClose) && curClose > 0) state.market.prevClose = curClose;
+          else if (isFinite(q.prevClose) && q.prevClose > 0) state.market.prevClose = q.prevClose;
+        } else {
+          if (prevDate && isFinite(curClose) && curClose > 0) rememberClose(state.market, prevDate, curClose);
+          state.market.prevCloseDate = expectedPrev;
+          if (isFinite(q.prevClose) && q.prevClose > 0) state.market.prevClose = q.prevClose;
+          else if (isFinite(curClose) && curClose > 0) state.market.prevClose = curClose;
         }
-        if (q.sessionDate !== prevDate || !near(state.market.lastClose, q.lastClose, 1e-6)) {
-          state.market.lastClose = q.lastClose;
-          state.market.closeDate = q.sessionDate;
-          state.market.tradeDate = q.sessionDate;
+        state.market.lastClose = q.lastClose;
+        state.market.closeDate = q.sessionDate;
+        state.market.tradeDate = q.sessionDate;
+        changed = true;
+      } else if (q.sessionDate === prevDate) {
+        if (expectedPrev && state.market.prevCloseDate !== expectedPrev && isFinite(q.prevClose) && q.prevClose > 0) {
+          state.market.prevPrevClose = state.market.prevClose;
+          state.market.prevCloseDate = expectedPrev;
+          state.market.prevClose = q.prevClose;
           changed = true;
+        }
+        if (!near(curClose, q.lastClose, 1e-6)) {
+          var revertToPrev = isFinite(state.market.prevClose) && near(q.lastClose, state.market.prevClose, 1e-4) && q.lastClose > curClose;
+          if (!revertToPrev) {
+            if (isFinite(curClose) && curClose > q.lastClose) state.market.prevClose = curClose;
+            else if (isFinite(q.prevClose) && q.prevClose > 0) state.market.prevClose = q.prevClose;
+            state.market.lastClose = q.lastClose;
+            state.market.tradeDate = q.sessionDate;
+            changed = true;
+          }
         }
       }
     }
@@ -907,9 +962,18 @@
     var prev = Number(q.previous_day_closing);
     var regularLast = Number(q.last);
     var todaysClose = Number(q.todays_closing);
-    var status = String(q.curmktstatus || "") + " " + String(q.mainmktstatus || "");
-    var sessionClosed = /POST_MKT|CLOSED|\bCLOSE\b/.test(status);
     var ext = q.ExtendedMktQuote;
+    var status =
+      String(q.curmktstatus || "") +
+      " " +
+      String(q.mainmktstatus || "") +
+      " " +
+      String((ext && ext.type) || "");
+    var phase = "REG_MKT";
+    if (/PRE_MKT/.test(status)) phase = "PRE_MKT";
+    else if (/POST_MKT/.test(status)) phase = "POST_MKT";
+    else if (/CLOSED|\bCLOSE\b/.test(status)) phase = "CLOSED";
+    var sessionClosed = phase === "POST_MKT";
     var price = regularLast;
     if (ext && /PRE_MKT|POST_MKT|EXTENDED/.test(status) && ext.last != null) {
       var extLast = Number(ext.last);
@@ -926,6 +990,7 @@
       prevClose: prev,
       sessionDate: cnbcSessionDate(q),
       sessionClosed: sessionClosed,
+      phase: phase,
     };
   }
 

@@ -253,7 +253,7 @@
     return Math.max(excelRoundDown(amount * SEC_RATE, 2), SEC_MIN);
   }
 
-  function compute(state) {
+  function compute(state, opts) {
     var s = state.settings;
     var m = state.market;
     var ud = sortNewestFirst(state.updownTrades || []);
@@ -407,36 +407,12 @@
     else if (remainRank === "") C54 = overRank;
     else C54 = Math.min(remainRank, overRank);
 
-    var suggestedUd = suggestUpdown(state, {
-      B13: B13,
-      C13: C13,
-      F8: F8,
-      B19: B19,
-      C19: C19,
-      E19: E19,
-      F19: F19,
-      D16: D16,
-      J3: J3,
-      B16: s.udLadderCount,
-      N13: s.udStepQty,
-      udLast: udLast,
-    });
-
-    var suggestedTt = suggestTteol(state, {
-      F8: F8,
-      J3: J3,
-      I19: I19,
-      H19: H19,
-      J16: J16,
-      H16: s.tteolLadderCount,
-      O13: s.tteolStepQty,
-      openRanks: openRanks,
-      sellTargets: sellTargets,
-      ttLast: ttLast,
-      udLast: udLast,
-      B13: B13,
-      B8: B8,
-    });
+    var suggestedUd = { type: "" };
+    var suggestedTt = { type: "" };
+    if (!(opts && opts.skipSuggest)) {
+      suggestedUd = suggestFromPending(state, "ud");
+      suggestedTt = suggestFromPending(state, "tteol");
+    }
 
     return {
       I3: I3,
@@ -494,11 +470,118 @@
         };
       }),
       C54: C54,
+      sellTargets: sellTargets,
       suggestedUd: suggestedUd,
       suggestedTt: suggestedTt,
       udLast: udLast,
       ttLast: ttLast,
     };
+  }
+
+  function hasTradeOn(trades, date) {
+    return (trades || []).some(function (t) {
+      return t.date === date;
+    });
+  }
+
+  function previousTradingDate(iso) {
+    if (!iso) return "";
+    var d = parseISO(iso);
+    d.setUTCDate(d.getUTCDate() - 1);
+    while (d.getUTCDay() === 0 || d.getUTCDay() === 6) {
+      d.setUTCDate(d.getUTCDate() - 1);
+    }
+    return toISO(d);
+  }
+
+  function nextTradingDate(iso) {
+    if (!iso) return "";
+    var d = parseISO(iso);
+    d.setUTCDate(d.getUTCDate() + 1);
+    while (d.getUTCDay() === 0 || d.getUTCDay() === 6) {
+      d.setUTCDate(d.getUTCDate() + 1);
+    }
+    return toISO(d);
+  }
+
+  function closePriceMap(m) {
+    var map = {};
+    function put(date, px) {
+      px = Number(px);
+      if (date && isFiniteNumber(px) && px > 0) map[date] = px;
+    }
+    (m.closeHistory || []).forEach(function (h) {
+      put(h.date, h.close);
+    });
+    put(m.closeDate, m.lastClose);
+    var prevDate = m.prevCloseDate || (m.closeDate ? previousTradingDate(m.closeDate) : "");
+    put(prevDate, m.prevClose);
+    return map;
+  }
+
+  function pendingFillSession(state, which) {
+    var m = state.market || {};
+    var trades = which === "tteol" ? state.tteolTrades : state.updownTrades;
+    var last = lastOf(sortNewestFirst(trades || []));
+    var closeDate = m.closeDate || "";
+    if (!closeDate) return null;
+    var prices = closePriceMap(m);
+    var cursor = last && last.date ? nextTradingDate(last.date) : closeDate;
+    if (!cursor || cursor > closeDate) return null;
+    var guard = 0;
+    while (cursor && cursor <= closeDate && guard++ < 40) {
+      if (!hasTradeOn(trades, cursor) && prices[cursor]) {
+        var prevD = previousTradingDate(cursor);
+        var prevPx = prices[prevD];
+        if (!(isFiniteNumber(prevPx) && prevPx > 0)) {
+          if (last && last.date === prevD && last.price) prevPx = Number(last.price);
+          else if (cursor === closeDate) prevPx = Number(m.prevClose);
+          else prevPx = Number(m.prevPrevClose);
+        }
+        if (!(isFiniteNumber(prevPx) && prevPx > 0) && last && last.price) prevPx = Number(last.price);
+        if (!(isFiniteNumber(prevPx) && prevPx > 0)) prevPx = prices[cursor];
+        return {
+          date: cursor,
+          lastClose: prices[cursor],
+          prevClose: prevPx,
+          isPast: cursor !== closeDate,
+        };
+      }
+      cursor = nextTradingDate(cursor);
+    }
+    return null;
+  }
+
+  function suggestFromPending(state, which) {
+    var session = pendingFillSession(state, which);
+    if (!session) {
+      var trades = which === "tteol" ? state.tteolTrades : state.updownTrades;
+      var last = lastOf(sortNewestFirst(trades || []));
+      if (last && last.date === (state.market && state.market.closeDate)) {
+        return { type: "", reason: which === "tteol" ? "당일 떨 체결 있음" : "당일 업다운 체결 있음" };
+      }
+      return { type: "", reason: "체결 없음" };
+    }
+    if (!session.isPast && state.market.phase === "REG_MKT") {
+      return { type: "", reason: "정규장 마감 전" };
+    }
+    var virt = clone(state);
+    virt.market = Object.assign({}, state.market, {
+      closeDate: session.date,
+      tradeDate: session.date,
+      lastClose: session.lastClose,
+      prevClose: session.prevClose,
+      phase: "POST_MKT",
+    });
+    if (which === "tteol") {
+      virt.updownTrades = (virt.updownTrades || []).filter(function (t) {
+        return t.date !== session.date;
+      });
+    }
+    var d = compute(virt, { skipSuggest: true });
+    var sug = which === "tteol" ? suggestTteol(virt, d) : suggestUpdown(virt, d);
+    if (sug && sug.type) sug.date = session.date;
+    return sug;
   }
 
   function suggestUpdown(state, d) {
@@ -692,10 +775,11 @@
     var sug = which === "tteol" ? out.suggestedTt : out.suggestedUd;
     if (!sug || !sug.type) return { ok: false, reason: sug && sug.reason ? sug.reason : "체결 없음" };
 
+    var fillDate = sug.date || state.market.closeDate;
     if (which === "tteol") {
       state.tteolTrades.unshift({
-        date: state.market.closeDate,
-        seq: nextSeq(state.tteolTrades, state.market.closeDate),
+        date: fillDate,
+        seq: nextSeq(state.tteolTrades, fillDate),
         type: sug.type,
         rank: sug.rank,
         price: sug.price,
@@ -707,8 +791,8 @@
       });
     } else {
       state.updownTrades.unshift({
-        date: state.market.closeDate,
-        seq: nextSeq(state.updownTrades, state.market.closeDate),
+        date: fillDate,
+        seq: nextSeq(state.updownTrades, fillDate),
         type: sug.type,
         pot: sug.pot,
         price: sug.price,
@@ -888,6 +972,8 @@
     defaultSettings: defaultSettings,
     defaultMarket: defaultMarket,
     compute: compute,
+    previousTradingDate: previousTradingDate,
+    nextTradingDate: nextTradingDate,
     applySuggested: applySuggested,
     transferOneRank: transferOneRank,
     liquidateAll: liquidateAll,
