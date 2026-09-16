@@ -1182,6 +1182,7 @@
       state.market.phase = q.phase;
       changed = true;
     }
+    var curClose = state.market.lastClose;
     if (q.phase && q.phase !== "REG_MKT" && q.sessionDate && isFinite(q.prevClose) && q.prevClose > 0) {
       var histPrev = E.previousTradingDate(q.sessionDate);
       if (histPrev && rememberClose(state.market, histPrev, q.prevClose)) changed = true;
@@ -1199,7 +1200,6 @@
         if (rememberClose(state.market, expectedPrev, q.prevClose)) changed = true;
       }
       var prevDate = state.market.closeDate || "";
-      var curClose = state.market.lastClose;
       if (q.sessionDate > prevDate) {
         state.market.prevPrevClose = state.market.prevClose;
         if (prevDate === expectedPrev) {
@@ -1236,6 +1236,10 @@
         }
       }
     }
+    if (q.phase && q.phase !== "REG_MKT" && isFinite(q.lastClose) && q.lastClose > 0 && !near(state.market.lastClose, q.lastClose, 1e-6)) {
+      state.market.lastClose = q.lastClose;
+      changed = true;
+    }
     if (changed) persist({ sync: false, keepRev: true });
   }
 
@@ -1251,8 +1255,8 @@
     if (Object.prototype.toString.call(q) === "[object Array]") q = q[0];
     if (!q) return null;
     var prev = Number(q.previous_day_closing);
+    var prevPrev = Number(q.prev_prev_closing);
     var regularLast = Number(q.last);
-    var todaysClose = Number(q.todays_closing);
     var ext = q.ExtendedMktQuote;
     var status =
       String(q.curmktstatus || "") +
@@ -1271,17 +1275,18 @@
       if (isFinite(extLast) && extLast > 0) price = extLast;
     }
     if (!isFinite(price) || price <= 0) return null;
-    var completedClose = NaN;
-    if (isFinite(todaysClose) && todaysClose > 0) completedClose = todaysClose;
-    else if (phase !== "REG_MKT" && isFinite(regularLast) && regularLast > 0) completedClose = regularLast;
-    var lastClose = phase === "REG_MKT" ? NaN : completedClose;
+    var lastClose = phase === "REG_MKT" || !isFinite(regularLast) || regularLast <= 0 ? NaN : regularLast;
+    var prevClose = isFinite(prev) && prev > 0 ? prev : NaN;
+    if (isFinite(lastClose) && isFinite(prevClose) && Math.abs(prevClose - lastClose) <= 1e-4 && isFinite(prevPrev) && prevPrev > 0) {
+      prevClose = prevPrev;
+    }
     var changePct = isFinite(prev) && prev > 0 ? (price - prev) / prev : Number(q.change_pct) / 100;
     if (!isFinite(changePct)) changePct = null;
     return {
       price: price,
       changePct: changePct,
       lastClose: lastClose,
-      prevClose: prev,
+      prevClose: prevClose,
       sessionDate: cnbcSessionDate(q),
       sessionClosed: sessionClosed,
       phase: phase,
