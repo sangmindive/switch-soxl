@@ -402,6 +402,7 @@
     document.getElementById("set-tt-steps").value = s.tteolLadderCount;
     document.getElementById("set-ud-qty").value = s.udStepQty;
     document.getElementById("set-tt-qty").value = s.tteolStepQty;
+    markPresetButtons();
     fillText("v-ud-orders", s.udLadderCount);
     fillText("v-ud-step", s.udStepQty);
     fillText("v-tt-orders", s.tteolLadderCount);
@@ -829,6 +830,30 @@
       })
       .join("");
     document.getElementById("tt-log").innerHTML = html;
+  }
+
+  function matchedPreset(s) {
+    var names = ["min", "simple", "compoundNew", "compoundOld"];
+    for (var i = 0; i < names.length; i++) {
+      var p = E.applyPreset(E.defaultSettings(), names[i]);
+      if (
+        near(s.seedSplit, p.seedSplit) &&
+        near(s.rankSplit, p.rankSplit) &&
+        near(s.splitIncrease, p.splitIncrease) &&
+        near(s.reinvest, p.reinvest) &&
+        !!s.seedSplitFixed === !!p.seedSplitFixed
+      ) {
+        return names[i];
+      }
+    }
+    return "";
+  }
+
+  function markPresetButtons() {
+    var name = matchedPreset(state.settings);
+    document.querySelectorAll("[data-preset]").forEach(function (el) {
+      el.classList.toggle("primary", el.getAttribute("data-preset") === name);
+    });
   }
 
   function readSettingsFromForm() {
