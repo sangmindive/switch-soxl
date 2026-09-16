@@ -1186,7 +1186,13 @@
       var histPrev = E.previousTradingDate(q.sessionDate);
       if (histPrev && rememberClose(state.market, histPrev, q.prevClose)) changed = true;
     }
-    if (q.phase === "POST_MKT" && q.sessionDate && isFinite(q.lastClose) && q.lastClose > 0) {
+    var canRollClose =
+      q.phase &&
+      q.phase !== "REG_MKT" &&
+      q.sessionDate &&
+      isFinite(q.lastClose) &&
+      q.lastClose > 0;
+    if (canRollClose) {
       var expectedPrev = E.previousTradingDate(q.sessionDate);
       if (rememberClose(state.market, q.sessionDate, q.lastClose)) changed = true;
       if (expectedPrev && isFinite(q.prevClose) && q.prevClose > 0) {
@@ -1218,8 +1224,9 @@
           changed = true;
         }
         if (!near(curClose, q.lastClose, 1e-6)) {
-          var revertToPrev = isFinite(state.market.prevClose) && near(q.lastClose, state.market.prevClose, 1e-4) && q.lastClose > curClose;
-          if (!revertToPrev) {
+          var collapseToPrev = isFinite(q.prevClose) && near(q.lastClose, q.prevClose, 1e-4);
+          var rollingBack = q.lastClose < curClose;
+          if (!(collapseToPrev && rollingBack)) {
             if (isFinite(curClose) && curClose > q.lastClose) state.market.prevClose = curClose;
             else if (isFinite(q.prevClose) && q.prevClose > 0) state.market.prevClose = q.prevClose;
             state.market.lastClose = q.lastClose;
@@ -1264,7 +1271,10 @@
       if (isFinite(extLast) && extLast > 0) price = extLast;
     }
     if (!isFinite(price) || price <= 0) return null;
-    var lastClose = sessionClosed && isFinite(todaysClose) && todaysClose > 0 ? todaysClose : sessionClosed ? regularLast : NaN;
+    var completedClose = NaN;
+    if (isFinite(todaysClose) && todaysClose > 0) completedClose = todaysClose;
+    else if (phase !== "REG_MKT" && isFinite(regularLast) && regularLast > 0) completedClose = regularLast;
+    var lastClose = phase === "REG_MKT" ? NaN : completedClose;
     var changePct = isFinite(prev) && prev > 0 ? (price - prev) / prev : Number(q.change_pct) / 100;
     if (!isFinite(changePct)) changePct = null;
     return {
