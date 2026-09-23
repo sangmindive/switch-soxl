@@ -113,16 +113,118 @@
     };
   }
 
-  function applyRemoteState(remote) {
-    if (!remote || !remote.settings || !remote.updownTrades) return false;
-    var live = state.market || {};
-    state = remote;
-    if (!state.market) state.market = {};
-    if (live.price) state.market.price = live.price;
-    if (live.changePct != null) state.market.changePct = live.changePct;
-    if (live.phase) state.market.phase = live.phase;
-    saveState();
-    return true;
+  function numOrNull(v) {
+    var n = Number(v);
+    return isFinite(n) && n > 0 ? n : null;
+  }
+
+  function mergeCloseList(primary, secondary) {
+    var map = {};
+    function put(list) {
+      (list || []).forEach(function (r) {
+        if (!r || !r.date) return;
+        var close = numOrNull(r.close);
+        if (close == null) return;
+        map[r.date] = { date: r.date, close: close };
+      });
+    }
+    put(secondary);
+    put(primary);
+    return Object.keys(map)
+      .map(function (k) {
+        return map[k];
+      })
+      .sort(function (a, b) {
+        return a.date < b.date ? 1 : -1;
+      });
+  }
+
+  function pickTrades(localList, remoteList, localRev, remoteRev) {
+    var localRows = localList || [];
+    var remoteRows = remoteList || [];
+    if (!localRows.length && remoteRows.length) return remoteRows.slice();
+    if (!remoteRows.length && localRows.length) return localRows.slice();
+    return (remoteRev > localRev ? remoteRows : localRows).slice();
+  }
+
+  function applyCloseOnto(market, closes, localM, remoteM, localRev, remoteRev) {
+    if (closes.length) {
+      market.lastClose = closes[0].close;
+      market.closeDate = closes[0].date;
+      market.tradeDate = closes[0].date;
+      if (closes.length > 1) {
+        market.prevClose = closes[1].close;
+        market.prevCloseDate = closes[1].date;
+      }
+      return;
+    }
+    var ld = (localM && localM.closeDate) || "";
+    var rd = (remoteM && remoteM.closeDate) || "";
+    var src = rd > ld ? remoteM : ld > rd ? localM : remoteRev >= localRev ? remoteM : localM;
+    src = src || {};
+    if (numOrNull(src.lastClose) == null) {
+      var other = src === remoteM ? localM : remoteM;
+      if (other && numOrNull(other.lastClose) != null) src = other;
+    }
+    market.lastClose = numOrNull(src.lastClose);
+    market.closeDate = src.closeDate || "";
+    market.prevClose = numOrNull(src.prevClose);
+    market.prevCloseDate = src.prevCloseDate || "";
+    market.prevPrevClose = numOrNull(src.prevPrevClose);
+    market.tradeDate = src.tradeDate || src.closeDate || "";
+  }
+
+  function syncSnapshot(s) {
+    s = s || {};
+    var m = s.market || {};
+    return {
+      settings: s.settings || {},
+      updownTrades: s.updownTrades || [],
+      tteolTrades: s.tteolTrades || [],
+      closeDb: mergeCloseList(s.closeDb, []),
+      market: {
+        lastClose: numOrNull(m.lastClose),
+        closeDate: m.closeDate || "",
+        prevClose: numOrNull(m.prevClose),
+        prevCloseDate: m.prevCloseDate || "",
+        prevPrevClose: numOrNull(m.prevPrevClose),
+        tradeDate: m.tradeDate || "",
+        closeHistory: mergeCloseList(m.closeHistory, []),
+      },
+    };
+  }
+
+  function reconcile(local, remote) {
+    if (!remote || !remote.settings || !remote.updownTrades) {
+      return { state: local, push: false, changed: false };
+    }
+    var localRev = Number(local.rev) || 0;
+    var remoteRev = Number(remote.rev) || 0;
+    var base = remoteRev > localRev ? remote : local;
+    var next = JSON.parse(JSON.stringify(base));
+    if (!next.market) next.market = {};
+    if (!next.closeDb) next.closeDb = [];
+    var higherRev = remoteRev > localRev ? remoteRev : localRev;
+    var closePrimary = remoteRev > localRev ? remote : local;
+    var closeSecondary = closePrimary === remote ? local : remote;
+    next.updownTrades = pickTrades(local.updownTrades, remote.updownTrades, localRev, remoteRev);
+    next.tteolTrades = pickTrades(local.tteolTrades, remote.tteolTrades, localRev, remoteRev);
+    next.closeDb = mergeCloseList(closePrimary.closeDb, closeSecondary.closeDb);
+    next.market.closeHistory = mergeCloseList(
+      (closePrimary.market || {}).closeHistory,
+      (closeSecondary.market || {}).closeHistory
+    );
+    applyCloseOnto(next.market, next.closeDb, local.market, remote.market, localRev, remoteRev);
+    var live = local.market || {};
+    if (live.price) next.market.price = live.price;
+    if (live.changePct != null && live.changePct !== "") next.market.changePct = live.changePct;
+    if (live.phase) next.market.phase = live.phase;
+    var before = JSON.stringify(syncSnapshot(local));
+    var after = JSON.stringify(syncSnapshot(next));
+    var remoteSnap = JSON.stringify(syncSnapshot(remote));
+    var push = after !== remoteSnap;
+    next.rev = push ? Date.now() : higherRev;
+    return { state: next, push: push, changed: before !== after };
   }
 
   function renderSyncUi() {
@@ -153,24 +255,33 @@
     }, 700);
   }
 
+  function readRemoteState(gist) {
+    var file = gist && gist.files && gist.files["switch-v3-state.json"];
+    if (!file || !file.content) return null;
+    return JSON.parse(file.content);
+  }
+
   function pullRemote() {
     var cfg = loadSyncCfg();
     if (!cfg.token || !cfg.gistId || syncing) return Promise.resolve(false);
     syncing = true;
-    return fetch("https://api.github.com/gists/" + cfg.gistId, { headers: gistHeaders(cfg.token) }).then(readGistResponse)
+    return fetch("https://api.github.com/gists/" + cfg.gistId, { headers: gistHeaders(cfg.token) })
+      .then(readGistResponse)
       .then(function (gist) {
-        var file = gist.files && gist.files["switch-v3-state.json"];
-        if (!file || !file.content) return false;
-        var remote = JSON.parse(file.content);
-        var remoteRev = Number(remote.rev) || 0;
-        var localRev = Number(state.rev) || 0;
-        if (remoteRev <= localRev) return false;
-        return applyRemoteState(remote);
-      })
-      .then(function (changed) {
+        var remote = readRemoteState(gist);
+        if (!remote) {
+          syncing = false;
+          return false;
+        }
+        var rec = reconcile(state, remote);
+        state = rec.state;
+        saveState();
         syncing = false;
-        if (changed) render();
-        return changed;
+        if (rec.changed) render();
+        if (!rec.push) return rec.changed;
+        return pushRemote().then(function () {
+          return true;
+        });
       })
       .catch(function (err) {
         syncing = false;
@@ -182,12 +293,26 @@
     var cfg = loadSyncCfg();
     if (!cfg.token || !cfg.gistId || syncing) return Promise.resolve();
     syncing = true;
-    return fetch("https://api.github.com/gists/" + cfg.gistId, {
-      method: "PATCH",
-      headers: gistHeaders(cfg.token),
-      body: JSON.stringify(gistBody()),
-    })
+    return fetch("https://api.github.com/gists/" + cfg.gistId, { headers: gistHeaders(cfg.token) })
       .then(readGistResponse)
+      .then(function (gist) {
+        var remote = readRemoteState(gist);
+        if (remote) {
+          var rec = reconcile(state, remote);
+          state = rec.state;
+          saveState();
+          if (!rec.push) {
+            syncing = false;
+            if (rec.changed) render();
+            return;
+          }
+        }
+        return fetch("https://api.github.com/gists/" + cfg.gistId, {
+          method: "PATCH",
+          headers: gistHeaders(cfg.token),
+          body: JSON.stringify(gistBody()),
+        }).then(readGistResponse);
+      })
       .then(function () {
         syncing = false;
       })
@@ -1244,23 +1369,24 @@
 
   function applyLiveQuote(q) {
     if (!q || !isFinite(q.price) || q.price <= 0) return;
-    var changed = false;
+    var quoteDirty = false;
+    var closeDirty = false;
     if (!near(state.market.price, q.price, 1e-6)) {
       state.market.price = q.price;
-      changed = true;
+      quoteDirty = true;
     }
     if (q.changePct != null && isFinite(q.changePct) && !near(state.market.changePct, q.changePct, 1e-8)) {
       state.market.changePct = q.changePct;
-      changed = true;
+      quoteDirty = true;
     }
     if (q.phase && q.phase !== state.market.phase) {
       state.market.phase = q.phase;
-      changed = true;
+      quoteDirty = true;
     }
     var curClose = state.market.lastClose;
     if (q.phase && q.phase !== "REG_MKT" && q.sessionDate && isFinite(q.prevClose) && q.prevClose > 0) {
       var histPrev = E.previousTradingDate(q.sessionDate);
-      if (histPrev && rememberClose(state.market, histPrev, q.prevClose)) changed = true;
+      if (histPrev && rememberClose(state.market, histPrev, q.prevClose)) closeDirty = true;
     }
     var canRollClose =
       q.phase &&
@@ -1270,9 +1396,9 @@
       q.lastClose > 0;
     if (canRollClose) {
       var expectedPrev = E.previousTradingDate(q.sessionDate);
-      if (rememberClose(state.market, q.sessionDate, q.lastClose)) changed = true;
+      if (rememberClose(state.market, q.sessionDate, q.lastClose)) closeDirty = true;
       if (expectedPrev && isFinite(q.prevClose) && q.prevClose > 0) {
-        if (rememberClose(state.market, expectedPrev, q.prevClose)) changed = true;
+        if (rememberClose(state.market, expectedPrev, q.prevClose)) closeDirty = true;
       }
       var prevDate = state.market.closeDate || "";
       if (q.sessionDate > prevDate) {
@@ -1290,13 +1416,13 @@
         state.market.lastClose = q.lastClose;
         state.market.closeDate = q.sessionDate;
         state.market.tradeDate = q.sessionDate;
-        changed = true;
+        closeDirty = true;
       } else if (q.sessionDate === prevDate) {
         if (expectedPrev && state.market.prevCloseDate !== expectedPrev && isFinite(q.prevClose) && q.prevClose > 0) {
           state.market.prevPrevClose = state.market.prevClose;
           state.market.prevCloseDate = expectedPrev;
           state.market.prevClose = q.prevClose;
-          changed = true;
+          closeDirty = true;
         }
         if (!near(curClose, q.lastClose, 1e-6)) {
           var collapseToPrev = isFinite(q.prevClose) && near(q.lastClose, q.prevClose, 1e-4);
@@ -1306,19 +1432,20 @@
             else if (isFinite(q.prevClose) && q.prevClose > 0) state.market.prevClose = q.prevClose;
             state.market.lastClose = q.lastClose;
             state.market.tradeDate = q.sessionDate;
-            changed = true;
+            closeDirty = true;
           }
         }
       }
     }
     if (q.phase && q.phase !== "REG_MKT" && isFinite(q.lastClose) && q.lastClose > 0 && !near(state.market.lastClose, q.lastClose, 1e-6)) {
       state.market.lastClose = q.lastClose;
-      changed = true;
+      closeDirty = true;
     }
     if (q.phase && q.phase !== "REG_MKT" && q.sessionDate && isFinite(q.lastClose) && q.lastClose > 0) {
-      if (recordCloseDb(q.sessionDate, q.lastClose)) changed = true;
+      if (recordCloseDb(q.sessionDate, q.lastClose)) closeDirty = true;
     }
-    if (changed) persist({ sync: false, keepRev: true });
+    if (closeDirty) persist();
+    else if (quoteDirty) persist({ sync: false, keepRev: true });
   }
 
   function cnbcSessionDate(q) {
@@ -1413,7 +1540,7 @@
   }
 
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("sw.js?v=3").catch(function () {});
+    navigator.serviceWorker.register("sw.js?v=4").catch(function () {});
   }
 
   document.addEventListener("visibilitychange", function () {
