@@ -343,7 +343,7 @@
     if (s.seedSplitFixed || !s.splitIncrease) {
       J3 = s.seedSplit;
     } else {
-      var splitAdd = excelRoundDown(I3 / s.capital / s.splitIncrease, 0) / 10;
+      var splitAdd = !s.capital ? 0 : excelRoundDown(I3 / s.capital / s.splitIncrease, 0) / 10;
       var split = s.seedSplit + splitAdd;
       J3 = split <= s.seedSplit + 5 ? split : s.seedSplit + 5;
     }
@@ -366,7 +366,7 @@
     if (!s.splitIncrease) I16 = s.rankSplit;
     else if (s.rankSplit === true) I16 = 0;
     else {
-      var rAdd = excelRoundDown(I3 / s.capital / s.splitIncrease, 0) / 10;
+      var rAdd = !s.capital ? 0 : excelRoundDown(I3 / s.capital / s.splitIncrease, 0) / 10;
       var rSplit = s.rankSplit + rAdd;
       I16 = rSplit <= s.rankSplit + 5 ? rSplit : s.rankSplit + 5;
     }

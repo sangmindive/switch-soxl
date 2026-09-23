@@ -12,21 +12,87 @@
   var pushTimer = null;
   var syncing = false;
 
+  function bookOf(s) {
+    return {
+      settings: s.settings,
+      updownTrades: s.updownTrades || [],
+      tteolTrades: s.tteolTrades || [],
+    };
+  }
+
+  function blankBook() {
+    var settings = E.defaultSettings();
+    settings.capital = 0;
+    return {
+      settings: settings,
+      updownTrades: [],
+      tteolTrades: [],
+    };
+  }
+
+  function attachAccounts(root) {
+    if (!root || typeof root !== "object") root = S.sheetSnapshot();
+    if (!root.closeDb) root.closeDb = [];
+    if (!root.market) root.market = E.defaultMarket();
+    var hasBooks = root.accounts && root.accounts["1"] && root.accounts["1"].settings;
+    if (!hasBooks) {
+      if (!root.settings || !root.updownTrades) {
+        var seed = S.sheetSnapshot();
+        root.settings = root.settings || seed.settings;
+        root.updownTrades = root.updownTrades || seed.updownTrades;
+        root.tteolTrades = root.tteolTrades || seed.tteolTrades;
+        root.market = root.market || seed.market;
+      }
+      root.accounts = {
+        "1": bookOf(root),
+        "2": blankBook(),
+      };
+      root.accountId = "1";
+    }
+    if (!root.accounts["2"] || !root.accounts["2"].settings) root.accounts["2"] = blankBook();
+    if (root.accountId !== "1" && root.accountId !== "2") root.accountId = "1";
+    if (root.settings && root.updownTrades) root.accounts[root.accountId] = bookOf(root);
+    var active = root.accounts[root.accountId];
+    root.settings = active.settings;
+    root.updownTrades = active.updownTrades || [];
+    root.tteolTrades = active.tteolTrades || [];
+    return root;
+  }
+
+  function stashActive() {
+    if (!state || !state.settings) return;
+    attachAccounts(state);
+  }
+
+  function selectAccount(id) {
+    if (id !== "1" && id !== "2") return;
+    attachAccounts(state);
+    if (state.accountId === id) return;
+    state.accounts[state.accountId] = bookOf(state);
+    state.accountId = id;
+    var book = state.accounts[id];
+    state.settings = book.settings;
+    state.updownTrades = book.updownTrades;
+    state.tteolTrades = book.tteolTrades;
+    persist();
+  }
+
   function loadState() {
     try {
       var raw = localStorage.getItem(KEY);
       if (raw) {
         var parsed = JSON.parse(raw);
-        if (parsed && parsed.settings && parsed.updownTrades) {
+        if (parsed && ((parsed.settings && parsed.updownTrades) || (parsed.accounts && parsed.accounts["1"]))) {
           if (!parsed.closeDb) parsed.closeDb = [];
-          return parsed;
+          return attachAccounts(parsed);
         }
       }
     } catch (e) {}
-    return S.sheetSnapshot();
+    return attachAccounts(S.sheetSnapshot());
   }
 
   function saveState() {
+    stashActive();
     localStorage.setItem(KEY, JSON.stringify(state));
   }
 
@@ -174,14 +240,32 @@
     market.tradeDate = src.tradeDate || src.closeDate || "";
   }
 
-  function syncSnapshot(s) {
-    s = s || {};
-    var m = s.market || {};
+  function bookSnap(book) {
+    book = book || {};
     return {
-      settings: s.settings || {},
-      updownTrades: s.updownTrades || [],
-      tteolTrades: s.tteolTrades || [],
-      closeDb: mergeCloseList(s.closeDb, []),
+      settings: book.settings || {},
+      updownTrades: book.updownTrades || [],
+      tteolTrades: book.tteolTrades || [],
+    };
+  }
+
+  function mergeBook(localBook, remoteBook, localRev, remoteRev) {
+    var base = remoteRev > localRev ? remoteBook : localBook;
+    var next = JSON.parse(JSON.stringify(base || blankBook()));
+    next.updownTrades = pickTrades(localBook && localBook.updownTrades, remoteBook && remoteBook.updownTrades, localRev, remoteRev);
+    next.tteolTrades = pickTrades(localBook && localBook.tteolTrades, remoteBook && remoteBook.tteolTrades, localRev, remoteRev);
+    return next;
+  }
+
+  function syncSnapshot(s) {
+    var copy = attachAccounts(JSON.parse(JSON.stringify(s || {})));
+    var m = copy.market || {};
+    return {
+      accounts: {
+        "1": bookSnap(copy.accounts["1"]),
+        "2": bookSnap(copy.accounts["2"]),
+      },
+      closeDb: mergeCloseList(copy.closeDb, []),
       market: {
         lastClose: numOrNull(m.lastClose),
         closeDate: m.closeDate || "",
@@ -195,9 +279,13 @@
   }
 
   function reconcile(local, remote) {
-    if (!remote || !remote.settings || !remote.updownTrades) {
+    var remoteOk = remote && ((remote.settings && remote.updownTrades) || (remote.accounts && remote.accounts["1"]));
+    if (!remoteOk) {
       return { state: local, push: false, changed: false };
     }
+    var remoteHadAccounts = !!(remote.accounts && remote.accounts["1"] && remote.accounts["2"]);
+    local = attachAccounts(JSON.parse(JSON.stringify(local)));
+    remote = attachAccounts(JSON.parse(JSON.stringify(remote)));
     var localRev = Number(local.rev) || 0;
     var remoteRev = Number(remote.rev) || 0;
     var base = remoteRev > localRev ? remote : local;
@@ -207,8 +295,12 @@
     var higherRev = remoteRev > localRev ? remoteRev : localRev;
     var closePrimary = remoteRev > localRev ? remote : local;
     var closeSecondary = closePrimary === remote ? local : remote;
-    next.updownTrades = pickTrades(local.updownTrades, remote.updownTrades, localRev, remoteRev);
-    next.tteolTrades = pickTrades(local.tteolTrades, remote.tteolTrades, localRev, remoteRev);
+    next.accounts["1"] = mergeBook(local.accounts["1"], remote.accounts["1"], localRev, remoteRev);
+    next.accounts["2"] = mergeBook(local.accounts["2"], remote.accounts["2"], localRev, remoteRev);
+    next.accountId = local.accountId || "1";
+    next.settings = next.accounts[next.accountId].settings;
+    next.updownTrades = next.accounts[next.accountId].updownTrades;
+    next.tteolTrades = next.accounts[next.accountId].tteolTrades;
     next.closeDb = mergeCloseList(closePrimary.closeDb, closeSecondary.closeDb);
     next.market.closeHistory = mergeCloseList(
       (closePrimary.market || {}).closeHistory,
@@ -222,7 +314,7 @@
     var before = JSON.stringify(syncSnapshot(local));
     var after = JSON.stringify(syncSnapshot(next));
     var remoteSnap = JSON.stringify(syncSnapshot(remote));
-    var push = after !== remoteSnap;
+    var push = after !== remoteSnap || !remoteHadAccounts;
     next.rev = push ? Date.now() : higherRev;
     return { state: next, push: push, changed: before !== after };
   }
@@ -474,8 +566,16 @@
     if (!(opts && opts.sync === false)) schedulePush();
   }
 
+  function renderAccountSeg() {
+    var id = state.accountId || "1";
+    document.querySelectorAll("#account-seg button").forEach(function (b) {
+      b.classList.toggle("active", b.dataset.account === id);
+    });
+  }
+
   function render() {
     var out = E.compute(state);
+    renderAccountSeg();
     if (out.repairedTt) saveState();
     var s = state.settings;
     var m = state.market;
@@ -1096,11 +1196,25 @@
       state.settings = E.applyPreset(state.settings, "compoundOld");
       persist();
     };
+    document.getElementById("account-seg").onclick = function (ev) {
+      var btn = ev.target.closest("button");
+      if (!btn || !btn.dataset.account) return;
+      selectAccount(btn.dataset.account);
+    };
     document.getElementById("btn-reset").onclick = function () {
-      if (confirm("시트 스냅샷(2026-09-11)으로 되돌릴까요? 로컬 변경이 사라집니다.")) {
-        state = S.sheetSnapshot();
+      if (confirm("이 계좌를 시트 스냅샷(2026-09-11)으로 되돌릴까요? 이 계좌의 변경이 사라집니다.")) {
+        var snap = S.sheetSnapshot();
+        var id = state.accountId || "1";
+        state.accounts[id] = {
+          settings: snap.settings,
+          updownTrades: snap.updownTrades,
+          tteolTrades: snap.tteolTrades,
+        };
+        state.settings = state.accounts[id].settings;
+        state.updownTrades = state.accounts[id].updownTrades;
+        state.tteolTrades = state.accounts[id].tteolTrades;
         persist();
-        toast("시트 시드로 복원");
+        toast("이 계좌를 시트 시드로 복원");
       }
     };
     document.getElementById("btn-sync-start").onclick = createSyncFromHere;
@@ -1540,7 +1654,7 @@
   }
 
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("sw.js?v=4").catch(function () {});
+    navigator.serviceWorker.register("sw.js?v=5").catch(function () {});
   }
 
   document.addEventListener("visibilitychange", function () {

@@ -12,7 +12,7 @@
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="apple-touch-icon" href="icon-192.png" />
   <link rel="icon" href="icon-192.png" />
-  <link rel="stylesheet" href="styles.css?v=20260923a" />
+  <link rel="stylesheet" href="styles.css?v=20260923d" />
 </head>
 <body>
   <div class="app">
@@ -25,6 +25,13 @@
         </div>
       </div>
     </header>
+
+    <div class="account-bar">
+      <div class="seg account-seg" id="account-seg">
+        <button type="button" data-account="1">1번 계좌</button>
+        <button type="button" data-account="2">2번 계좌</button>
+      </div>
+    </div>
 
     <section id="page-home" class="page active">
       <article class="card">
@@ -305,6 +312,7 @@
       </article>
       <article class="card">
         <h2>계좌</h2>
+        <p class="note">1번과 2번은 원금·일지가 따로입니다. 2번 계좌 원금은 0에서 시작합니다.</p>
         <div class="setting-row"><span class="k">Symbol</span><input id="set-symbol" /></div>
         <div class="setting-row"><span class="k">투자 원금</span><input id="set-capital" type="number" step="1" /></div>
         <div class="setting-row"><span class="k">계좌 수수료</span><input id="set-fee" type="number" step="0.00001" /></div>
@@ -385,8 +393,8 @@
       <div class="num-pop-grid" id="num-pop-grid"></div>
     </div>
   </div>
-  <script src="engine.js?v=20260923c"></script>
-  <script src="seed.js?v=20260923c"></script>
-  <script src="app.js?v=20260923c"></script>
+  <script src="engine.js?v=20260923d"></script>
+  <script src="seed.js?v=20260923d"></script>
+  <script src="app.js?v=20260923d"></script>
 </body>
 </html>
