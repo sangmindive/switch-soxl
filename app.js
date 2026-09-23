@@ -621,7 +621,7 @@
     document.getElementById("set-rank").value = s.rankSplit;
     document.getElementById("set-inc").value = s.splitIncrease;
     document.getElementById("set-hold").value = s.rankHoldDays;
-    document.getElementById("set-reinvest").value = s.reinvest;
+    document.getElementById("set-reinvest").value = Math.round(Number(s.reinvest) * 1000) / 10;
     document.getElementById("set-fixed").checked = !!s.seedSplitFixed;
     document.getElementById("set-blocked").checked = !!s.buyBlocked;
     document.getElementById("set-f8").checked = !!s.applySheetF8Limit;
@@ -1094,7 +1094,7 @@
     s.rankSplit = parseFloat(document.getElementById("set-rank").value) || 0;
     s.splitIncrease = parseFloat(document.getElementById("set-inc").value) || 0;
     s.rankHoldDays = parseFloat(document.getElementById("set-hold").value) || 0;
-    s.reinvest = parseFloat(document.getElementById("set-reinvest").value) || 0;
+    s.reinvest = (parseFloat(document.getElementById("set-reinvest").value) || 0) / 100;
     s.seedSplitFixed = document.getElementById("set-fixed").checked;
     s.buyBlocked = document.getElementById("set-blocked").checked;
     s.applySheetF8Limit = document.getElementById("set-f8").checked;

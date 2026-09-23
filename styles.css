@@ -513,6 +513,8 @@ table.sheet tr.ladder-sell td { background: #fffafa; }
   border-bottom: 1px solid var(--line);
 }
 .setting-row input, .setting-row select { max-width: 160px; text-align: right; }
+.with-unit { display: flex; align-items: center; gap: 4px; color: var(--muted); font-weight: 700; }
+.with-unit input { width: 88px; }
 #sync-token { max-width: none; text-align: left; font-size: 14px; margin: 8px 0 4px; }
 #sync-code {
   width: 100%;
