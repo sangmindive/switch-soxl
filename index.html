@@ -12,7 +12,7 @@
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="apple-touch-icon" href="icon-192.png" />
   <link rel="icon" href="icon-192.png" />
-  <link rel="stylesheet" href="styles.css?v=20260924a" />
+  <link rel="stylesheet" href="styles.css?v=20260924b" />
 </head>
 <body>
   <div class="app">
@@ -323,7 +323,7 @@
         <h2>분할 / 복리</h2>
         <div class="setting-row"><span class="k">시드 분할</span><input id="set-seed" type="number" step="1" /></div>
         <div class="setting-row"><span class="k">랭크 분할</span><input id="set-rank" type="number" step="1" /></div>
-        <div class="setting-row"><span class="k">분할 증가</span><input id="set-inc" type="number" step="0.01" /></div>
+        <div class="setting-row"><span class="k">분할 증가</span><span class="with-unit"><input id="set-inc" type="number" step="1" min="0" /><span>%</span></span></div>
         <div class="setting-row"><span class="k">랭크 보유기간</span><input id="set-hold" type="number" step="1" /></div>
         <div class="setting-row"><span class="k">재투자율</span><span class="with-unit"><input id="set-reinvest" type="number" step="1" min="0" /><span>%</span></span></div>
         <div class="setting-row"><span class="k">총 시드 분할</span><span id="v-J3"></span></div>
@@ -393,8 +393,8 @@
       <div class="num-pop-grid" id="num-pop-grid"></div>
     </div>
   </div>
-  <script src="engine.js?v=20260924a"></script>
-  <script src="seed.js?v=20260924a"></script>
-  <script src="app.js?v=20260924a"></script>
+  <script src="engine.js?v=20260924b"></script>
+  <script src="seed.js?v=20260924b"></script>
+  <script src="app.js?v=20260924b"></script>
 </body>
 </html>
