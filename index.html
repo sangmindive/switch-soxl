@@ -307,12 +307,15 @@
           <button class="btn" id="btn-preset-simple" data-preset="simple">단리</button>
           <button class="btn" id="btn-preset-new" data-preset="compoundNew">복리(신)</button>
           <button class="btn" id="btn-preset-old" data-preset="compoundOld">복리(구)</button>
-          <button class="btn ghost" id="btn-reset">시트 시드 복원</button>
         </div>
       </article>
       <article class="card">
         <h2>계좌</h2>
         <p class="note">1번과 2번은 원금·일지가 따로입니다. 2번 계좌 원금은 0에서 시작합니다.</p>
+        <div class="fill-block">
+          <button class="btn ghost" id="btn-reset" type="button">거래 내역 리셋</button>
+        </div>
+        <p class="note">이 계좌의 업다운·떨사오팔 기록을 모두 지웁니다. 원금과 설정은 남습니다.</p>
         <div class="setting-row"><span class="k">Symbol</span><input id="set-symbol" /></div>
         <div class="setting-row"><span class="k">투자 원금</span><input id="set-capital" type="number" step="1" /></div>
         <div class="setting-row"><span class="k">계좌 수수료</span><input id="set-fee" type="number" step="0.00001" /></div>
@@ -393,8 +396,8 @@
       <div class="num-pop-grid" id="num-pop-grid"></div>
     </div>
   </div>
-  <script src="engine.js?v=20260924b"></script>
-  <script src="seed.js?v=20260924b"></script>
-  <script src="app.js?v=20260924b"></script>
+  <script src="engine.js?v=20260924c"></script>
+  <script src="seed.js?v=20260924c"></script>
+  <script src="app.js?v=20260924c"></script>
 </body>
 </html>

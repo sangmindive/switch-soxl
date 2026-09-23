@@ -14,9 +14,9 @@
 
   function bookOf(s) {
     return {
-      settings: s.settings,
-      updownTrades: s.updownTrades || [],
-      tteolTrades: s.tteolTrades || [],
+      settings: JSON.parse(JSON.stringify(s.settings)),
+      updownTrades: JSON.parse(JSON.stringify(s.updownTrades || [])),
+      tteolTrades: JSON.parse(JSON.stringify(s.tteolTrades || [])),
     };
   }
 
@@ -208,8 +208,6 @@
   function pickTrades(localList, remoteList, localRev, remoteRev) {
     var localRows = localList || [];
     var remoteRows = remoteList || [];
-    if (!localRows.length && remoteRows.length) return remoteRows.slice();
-    if (!remoteRows.length && localRows.length) return localRows.slice();
     return (remoteRev > localRev ? remoteRows : localRows).slice();
   }
 
@@ -1202,20 +1200,17 @@
       selectAccount(btn.dataset.account);
     };
     document.getElementById("btn-reset").onclick = function () {
-      if (confirm("이 계좌를 시트 스냅샷(2026-09-11)으로 되돌릴까요? 이 계좌의 변경이 사라집니다.")) {
-        var snap = S.sheetSnapshot();
-        var id = state.accountId || "1";
-        state.accounts[id] = {
-          settings: snap.settings,
-          updownTrades: snap.updownTrades,
-          tteolTrades: snap.tteolTrades,
-        };
-        state.settings = state.accounts[id].settings;
-        state.updownTrades = state.accounts[id].updownTrades;
-        state.tteolTrades = state.accounts[id].tteolTrades;
-        persist();
-        toast("이 계좌를 시트 시드로 복원");
-      }
+      var id = state.accountId || "1";
+      if (!confirm(id + "번 계좌의 업다운·떨사오팔 거래 내역을 모두 지울까요? 원금과 설정은 남습니다.")) return;
+      state.updownTrades = [];
+      state.tteolTrades = [];
+      state.accounts[id] = {
+        settings: state.settings,
+        updownTrades: state.updownTrades,
+        tteolTrades: state.tteolTrades,
+      };
+      persist();
+      toast(id + "번 계좌 거래 내역을 지웠습니다");
     };
     document.getElementById("btn-sync-start").onclick = createSyncFromHere;
     document.getElementById("btn-sync-join").onclick = joinSyncFromCode;
