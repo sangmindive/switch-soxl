@@ -17,7 +17,10 @@
       var raw = localStorage.getItem(KEY);
       if (raw) {
         var parsed = JSON.parse(raw);
-        if (parsed && parsed.settings && parsed.updownTrades) return parsed;
+        if (parsed && parsed.settings && parsed.updownTrades) {
+          if (!parsed.closeDb) parsed.closeDb = [];
+          return parsed;
+        }
       }
     } catch (e) {}
     return S.sheetSnapshot();
@@ -300,7 +303,7 @@
     return state.updownTrades[0] && state.updownTrades[0].date === "2026-09-11" && state.updownTrades[0].type === "매도";
   }
 
-  var TABS = { home: 1, orders: 1, journal: 1, stats: 1, settings: 1 };
+  var TABS = { home: 1, orders: 1, journal: 1, stats: 1, settings: 1, closes: 1 };
 
   function tabFromUrl() {
     var h = (location.hash || "").replace(/^#/, "");
@@ -460,6 +463,7 @@
     var ttEvalEl = document.getElementById("v-tt-eval");
     if (ttEvalEl) ttEvalEl.className = out.I13 && out.ttEval < 0 ? "neg" : out.I13 && out.ttEval > 0 ? "pos" : "";
     fillText("v-tt-evalpct", out.I13 ? pct(out.ttEvalPct) : "—");
+    renderCloseDb();
     renderSyncUi();
 
     renderLadder("ud-ladder", out.udLadder, "ud", out);
@@ -895,6 +899,18 @@
         setTab(b.dataset.tab);
       };
     });
+    document.getElementById("btn-closedb").onclick = function () {
+      setTab("closes");
+    };
+    document.getElementById("btn-closedb").onkeydown = function (ev) {
+      if (ev.key === "Enter" || ev.key === " ") {
+        ev.preventDefault();
+        setTab("closes");
+      }
+    };
+    document.getElementById("btn-closedb-home").onclick = function () {
+      setTab("home");
+    };
     document.querySelectorAll("#st-mode button").forEach(function (b) {
       b.onclick = function () {
         statsMode = b.dataset.mode;
@@ -1188,8 +1204,42 @@
     m.closeHistory.sort(function (a, b) {
       return a.date < b.date ? 1 : -1;
     });
-    if (m.closeHistory.length > 12) m.closeHistory = m.closeHistory.slice(0, 12);
+    if (m.closeHistory.length > 2500) m.closeHistory = m.closeHistory.slice(0, 2500);
     return true;
+  }
+
+  function recordCloseDb(date, close) {
+    if (!date || !isFinite(close) || close <= 0) return false;
+    state.closeDb = state.closeDb || [];
+    for (var i = 0; i < state.closeDb.length; i++) {
+      if (state.closeDb[i].date === date) {
+        if (near(state.closeDb[i].close, close, 1e-6)) return false;
+        state.closeDb[i].close = close;
+        return true;
+      }
+    }
+    state.closeDb.push({ date: date, close: Number(close) });
+    state.closeDb.sort(function (a, b) {
+      return a.date < b.date ? 1 : -1;
+    });
+    return true;
+  }
+
+  function renderCloseDb() {
+    var rows = state.closeDb || [];
+    var latest = rows[0];
+    fillText("v-closedb-latest", latest ? latest.date + " · " + money(latest.close) : "기록 없음");
+    var tb = document.getElementById("closedb-body");
+    if (!tb) return;
+    if (!rows.length) {
+      tb.innerHTML = "<tr><td colspan='2'>정규장 마감 후 자동으로 쌓입니다</td></tr>";
+      return;
+    }
+    tb.innerHTML = rows
+      .map(function (r) {
+        return "<tr><td>" + r.date + "</td><td>" + money(r.close) + "</td></tr>";
+      })
+      .join("");
   }
 
   function applyLiveQuote(q) {
@@ -1264,6 +1314,9 @@
     if (q.phase && q.phase !== "REG_MKT" && isFinite(q.lastClose) && q.lastClose > 0 && !near(state.market.lastClose, q.lastClose, 1e-6)) {
       state.market.lastClose = q.lastClose;
       changed = true;
+    }
+    if (q.phase && q.phase !== "REG_MKT" && q.sessionDate && isFinite(q.lastClose) && q.lastClose > 0) {
+      if (recordCloseDb(q.sessionDate, q.lastClose)) changed = true;
     }
     if (changed) persist({ sync: false, keepRev: true });
   }
