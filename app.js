@@ -1283,21 +1283,22 @@
     var prevPrev = Number(q.prev_prev_closing);
     var regularLast = Number(q.last);
     var ext = q.ExtendedMktQuote;
-    var status =
-      String(q.curmktstatus || "") +
-      " " +
-      String(q.mainmktstatus || "") +
-      " " +
-      String((ext && ext.type) || "");
+    var curStatus = String(q.curmktstatus || "");
+    var mainStatus = String(q.mainmktstatus || "");
     var phase = "REG_MKT";
-    if (/PRE_MKT/.test(status)) phase = "PRE_MKT";
-    else if (/POST_MKT/.test(status)) phase = "POST_MKT";
-    else if (/CLOSED|\bCLOSE\b/.test(status)) phase = "CLOSED";
+    if (/PRE_MKT/.test(curStatus) || /PRE_MKT/.test(mainStatus)) phase = "PRE_MKT";
+    else if (/POST_MKT/.test(curStatus) || /POST_MKT/.test(mainStatus)) phase = "POST_MKT";
+    else if (/CLOSED|\bCLOSE\b/.test(curStatus) || /CLOSED|\bCLOSE\b/.test(mainStatus)) phase = "CLOSED";
     var sessionClosed = phase === "POST_MKT";
     var price = regularLast;
-    if (ext && /PRE_MKT|POST_MKT|EXTENDED/.test(status) && ext.last != null) {
+    var changePct = isFinite(prev) && prev > 0 ? (regularLast - prev) / prev : Number(q.change_pct) / 100;
+    if (phase !== "REG_MKT" && ext && ext.last != null) {
       var extLast = Number(ext.last);
-      if (isFinite(extLast) && extLast > 0) price = extLast;
+      if (isFinite(extLast) && extLast > 0) {
+        price = extLast;
+        if (ext.change_pct != null && isFinite(Number(ext.change_pct))) changePct = Number(ext.change_pct) / 100;
+        else if (isFinite(prev) && prev > 0) changePct = (price - prev) / prev;
+      }
     }
     if (!isFinite(price) || price <= 0) return null;
     var lastClose = phase === "REG_MKT" || !isFinite(regularLast) || regularLast <= 0 ? NaN : regularLast;
@@ -1305,7 +1306,6 @@
     if (isFinite(lastClose) && isFinite(prevClose) && Math.abs(prevClose - lastClose) <= 1e-4 && isFinite(prevPrev) && prevPrev > 0) {
       prevClose = prevPrev;
     }
-    var changePct = isFinite(prev) && prev > 0 ? (price - prev) / prev : Number(q.change_pct) / 100;
     if (!isFinite(changePct)) changePct = null;
     return {
       price: price,
