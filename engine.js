@@ -610,9 +610,6 @@
     for (var n = 0; n < 40; n++) {
       var session = pendingFillSession(state, which, after);
       if (!session) break;
-      if (!session.isPast && state.market.phase === "REG_MKT") {
-        return { type: "", reason: "정규장 마감 전" };
-      }
       var virt = clone(state);
       virt.market = Object.assign({}, state.market, {
         closeDate: session.date,
