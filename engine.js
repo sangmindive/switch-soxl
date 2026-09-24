@@ -565,14 +565,18 @@
     return map;
   }
 
-  function pendingFillSession(state, which) {
+  function pendingFillSession(state, which, afterDate) {
     var m = state.market || {};
     var trades = which === "tteol" ? state.tteolTrades : state.updownTrades;
     var last = lastOf(sortNewestFirst(trades || []));
     var closeDate = m.closeDate || "";
     if (!closeDate) return null;
     var prices = closePriceMap(m);
-    var cursor = last && last.date ? nextTradingDate(last.date) : closeDate;
+    var cursor = afterDate
+      ? nextTradingDate(afterDate)
+      : last && last.date
+        ? nextTradingDate(last.date)
+        : closeDate;
     if (!cursor || cursor > closeDate) return null;
     var guard = 0;
     while (cursor && cursor <= closeDate && guard++ < 40) {
@@ -601,35 +605,43 @@
   }
 
   function suggestFromPending(state, which) {
-    var session = pendingFillSession(state, which);
-    if (!session) {
-      var trades = which === "tteol" ? state.tteolTrades : state.updownTrades;
-      var last = lastOf(sortNewestFirst(trades || []));
-      if (last && last.date === (state.market && state.market.closeDate)) {
-        return { type: "", reason: which === "tteol" ? "당일 떨 체결 있음" : "당일 업다운 체결 있음" };
+    var after = "";
+    var lastEmpty = null;
+    for (var n = 0; n < 40; n++) {
+      var session = pendingFillSession(state, which, after);
+      if (!session) break;
+      if (!session.isPast && state.market.phase === "REG_MKT") {
+        return { type: "", reason: "정규장 마감 전" };
       }
-      return { type: "", reason: "체결 없음" };
-    }
-    if (!session.isPast && state.market.phase === "REG_MKT") {
-      return { type: "", reason: "정규장 마감 전" };
-    }
-    var virt = clone(state);
-    virt.market = Object.assign({}, state.market, {
-      closeDate: session.date,
-      tradeDate: session.date,
-      lastClose: session.lastClose,
-      prevClose: session.prevClose,
-      phase: "POST_MKT",
-    });
-    if (which === "tteol") {
-      virt.updownTrades = (virt.updownTrades || []).filter(function (t) {
-        return t.date !== session.date;
+      var virt = clone(state);
+      virt.market = Object.assign({}, state.market, {
+        closeDate: session.date,
+        tradeDate: session.date,
+        lastClose: session.lastClose,
+        prevClose: session.prevClose,
+        phase: "POST_MKT",
       });
+      if (which === "tteol") {
+        virt.updownTrades = (virt.updownTrades || []).filter(function (t) {
+          return t.date !== session.date;
+        });
+      }
+      var d = compute(virt, { skipSuggest: true });
+      var sug = which === "tteol" ? suggestTteol(virt, d) : suggestUpdown(virt, d);
+      if (sug && sug.type) {
+        sug.date = session.date;
+        return sug;
+      }
+      lastEmpty = sug;
+      after = session.date;
     }
-    var d = compute(virt, { skipSuggest: true });
-    var sug = which === "tteol" ? suggestTteol(virt, d) : suggestUpdown(virt, d);
-    if (sug && sug.type) sug.date = session.date;
-    return sug;
+    if (lastEmpty) return lastEmpty;
+    var trades = which === "tteol" ? state.tteolTrades : state.updownTrades;
+    var last = lastOf(sortNewestFirst(trades || []));
+    if (last && last.date === (state.market && state.market.closeDate)) {
+      return { type: "", reason: which === "tteol" ? "당일 떨 체결 있음" : "당일 업다운 체결 있음" };
+    }
+    return { type: "", reason: "체결 없음" };
   }
 
   function suggestUpdown(state, d) {
