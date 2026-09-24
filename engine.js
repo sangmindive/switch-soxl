@@ -582,11 +582,13 @@
         var prevD = previousTradingDate(cursor);
         var prevPx = prices[prevD];
         if (!(isFiniteNumber(prevPx) && prevPx > 0)) {
-          if (last && last.date === prevD && last.price) prevPx = Number(last.price);
-          else if (cursor === closeDate) prevPx = Number(m.prevClose);
+          if (cursor === closeDate) prevPx = Number(m.prevClose);
+          else if (last && last.date === prevD && last.price) prevPx = Number(last.price);
           else prevPx = Number(m.prevPrevClose);
         }
-        if (!(isFiniteNumber(prevPx) && prevPx > 0) && last && last.price) prevPx = Number(last.price);
+        if (!(isFiniteNumber(prevPx) && prevPx > 0) && isFiniteNumber(Number(m.prevClose)) && Number(m.prevClose) > 0) {
+          prevPx = Number(m.prevClose);
+        }
         if (!(isFiniteNumber(prevPx) && prevPx > 0)) prevPx = prices[cursor];
         return {
           date: cursor,
