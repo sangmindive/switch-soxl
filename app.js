@@ -1505,7 +1505,7 @@
     tb.innerHTML = rows
       .map(function (r, i) {
         var chg = closeDayChange(rows, i);
-        var cls = chg > 0 ? "pos" : chg < 0 ? "neg" : "";
+        var cls = chg > 0 ? "neg" : chg < 0 ? "pos" : "";
         return (
           "<tr><td>" +
           r.date +
