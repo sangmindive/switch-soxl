@@ -1385,6 +1385,7 @@
       cycle: cycle,
     });
     persist();
+    clearManualForm("ud");
   }
 
   function addTtManual() {
@@ -1420,6 +1421,19 @@
       cycle: out.ttLast && out.ttLast.cycle ? out.ttLast.cycle : out.B8,
     });
     persist();
+    clearManualForm("tt");
+  }
+
+  function clearManualForm(which) {
+    var ids =
+      which === "tt"
+        ? ["nt-date", "nt-type", "nt-rank", "nt-price", "nt-qty"]
+        : ["nu-date", "nu-type", "nu-price", "nu-qty"];
+    for (var i = 0; i < ids.length; i++) {
+      var el = document.getElementById(ids[i]);
+      if (!el) continue;
+      el.value = el.tagName === "SELECT" ? "매수" : "";
+    }
   }
 
   var quoteBusy = false;
@@ -1459,19 +1473,50 @@
     return true;
   }
 
+  function closeDayChange(rows, i) {
+    var cur = Number(rows[i].close);
+    var prev = rows[i + 1] ? Number(rows[i + 1].close) : NaN;
+    if (!isFinite(cur) || !isFinite(prev) || prev <= 0) return null;
+    return (cur - prev) / prev;
+  }
+
+  function signedPct(n) {
+    if (n == null || Number.isNaN(n)) return "—";
+    var text = (Number(n) * 100).toFixed(2) + "%";
+    return n > 0 ? "+" + text : text;
+  }
+
   function renderCloseDb() {
     var rows = state.closeDb || [];
     var latest = rows[0];
-    fillText("v-closedb-latest", latest ? latest.date + " · " + money(latest.close) : "기록 없음");
+    var latestChg = rows.length > 1 ? closeDayChange(rows, 0) : null;
+    fillText(
+      "v-closedb-latest",
+      latest
+        ? latest.date + " · " + money(latest.close) + (latestChg == null ? "" : " · " + signedPct(latestChg))
+        : "기록 없음"
+    );
     var tb = document.getElementById("closedb-body");
     if (!tb) return;
     if (!rows.length) {
-      tb.innerHTML = "<tr><td colspan='2'>정규장 마감 후 자동으로 쌓입니다</td></tr>";
+      tb.innerHTML = "<tr><td colspan='3'>정규장 마감 후 자동으로 쌓입니다</td></tr>";
       return;
     }
     tb.innerHTML = rows
-      .map(function (r) {
-        return "<tr><td>" + r.date + "</td><td>" + money(r.close) + "</td></tr>";
+      .map(function (r, i) {
+        var chg = closeDayChange(rows, i);
+        var cls = chg > 0 ? "pos" : chg < 0 ? "neg" : "";
+        return (
+          "<tr><td>" +
+          r.date +
+          "</td><td>" +
+          money(r.close) +
+          "</td><td class='" +
+          cls +
+          "'>" +
+          signedPct(chg) +
+          "</td></tr>"
+        );
       })
       .join("");
   }
