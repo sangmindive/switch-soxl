@@ -347,6 +347,11 @@
         <p class="note">입력한 값만 저장됩니다. 수량은 내림, 매도 단가는 LP입니다.</p>
       </article>
       <article class="card">
+        <h2>장부 복구</h2>
+        <p class="note">2번 계좌가 0주로 보이면, 저장해 둔 state.json을 고릅니다. 고르면 그 장부로 바뀝니다.</p>
+        <input id="book-file" type="file" accept="application/json,.json" />
+      </article>
+      <article class="card">
         <h2>폰 · PC 동기화</h2>
         <p class="note">데이터가 있는 기기에서 연결을 만드세요. 나온 코드를 다른 기기에 붙여넣으면 체결·일지·종가가 같이 바뀝니다. 코드는 공유하지 마세요.</p>
         <div class="setting-row"><span class="k">상태</span><span id="sync-status">미연결</span></div>
@@ -398,6 +403,6 @@
   </div>
   <script src="engine.js?v=20260925a"></script>
   <script src="seed.js?v=20260924c"></script>
-  <script src="app.js?v=20260926b"></script>
+  <script src="app.js?v=20260926d"></script>
 </body>
 </html>
