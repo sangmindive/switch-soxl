@@ -713,6 +713,7 @@
     renderLadder("ud-ladder", out.udLadder, "ud", out);
     renderLadder("tt-ladder", out.ttLadder, "tt", out);
     renderSuggested(out);
+    renderKakaoPreview(out);
     renderRanks(out);
     renderUdLog();
     renderTtLog();
@@ -942,6 +943,91 @@
     document.getElementById("v-C54").textContent = canMove ? "랭크 " + out.C54 : "";
     document.getElementById("v-B54").textContent = canMove ? state.market.closeDate : "";
     document.getElementById("btn-transfer").disabled = !canMove;
+  }
+
+  function escHtml(s) {
+    return String(s == null ? "" : s)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+  }
+
+  function kakaoClock() {
+    var d = new Date();
+    var h = d.getHours();
+    var m = d.getMinutes();
+    var ap = h < 12 ? "오전" : "오후";
+    var hh = h % 12;
+    if (!hh) hh = 12;
+    return ap + " " + hh + ":" + (m < 10 ? "0" : "") + m;
+  }
+
+  function kakaoBody(bookName, row, date) {
+    var who = row.pot != null ? "포트 " + row.pot : "랭크 " + row.rank;
+    var acct = (state.accountId || "1") + "번 계좌";
+    return (
+      "Switch · " +
+      acct +
+      "\n" +
+      bookName +
+      " " +
+      row.type +
+      "\n" +
+      (date || row.date || "") +
+      "\n" +
+      money(row.price) +
+      "달러 × " +
+      row.qty +
+      "주\n금액 " +
+      money(row.amount) +
+      "달러\n" +
+      who +
+      " · 수수료 " +
+      money(row.fee) +
+      "달러"
+    );
+  }
+
+  function kakaoBubble(tag, text) {
+    return (
+      "<div class='kakao-tag'>" +
+      escHtml(tag) +
+      "</div><div class='kakao-me'><div class='kakao-bubble'>" +
+      escHtml(text) +
+      "</div><div class='kakao-time'>" +
+      escHtml(kakaoClock()) +
+      "</div></div>"
+    );
+  }
+
+  function renderKakaoPreview(out) {
+    var box = document.getElementById("kakao-chat");
+    if (!box) return;
+    var date = state.market.closeDate;
+    var html = "<div class='kakao-room'>나와의 채팅</div>";
+    var n = 0;
+    var ud = out.suggestedUd || {};
+    var tt = out.suggestedTt || {};
+    if (ud.type) {
+      html += kakaoBubble("반영하면 이 내용", kakaoBody("업다운", ud, ud.date || date));
+      n++;
+    }
+    if (tt.type) {
+      html += kakaoBubble("반영하면 이 내용", kakaoBody("떨사오팔", tt, tt.date || date));
+      n++;
+    }
+    var udDone = (state.updownTrades || [])[0];
+    var ttDone = (state.tteolTrades || [])[0];
+    if (!ud.type && udDone && udDone.date === date && udDone.qty) {
+      html += kakaoBubble("반영됨", kakaoBody("업다운", udDone, udDone.date));
+      n++;
+    }
+    if (!tt.type && ttDone && ttDone.date === date && ttDone.qty) {
+      html += kakaoBubble("반영됨", kakaoBody("떨사오팔", ttDone, ttDone.date));
+      n++;
+    }
+    if (!n) html += "<div class='kakao-empty'>오늘 체결이 없으면 말풍선이 없습니다.</div>";
+    box.innerHTML = html;
   }
 
   function sugHtml(title, sug, date) {

@@ -502,6 +502,56 @@ table.sheet tr.ladder-sell td { background: #fffafa; }
   z-index: 50;
 }
 
+.kakao-chat {
+  background: #bacee0;
+  border-radius: 16px;
+  padding: 14px 12px 16px;
+  min-height: 132px;
+}
+.kakao-room {
+  font-size: 13px;
+  font-weight: 800;
+  color: #1f2937;
+  margin-bottom: 8px;
+}
+.kakao-empty {
+  color: #1f2937;
+  text-align: center;
+  padding: 28px 10px;
+  font-weight: 650;
+}
+.kakao-me {
+  display: flex;
+  justify-content: flex-end;
+  align-items: flex-end;
+  gap: 6px;
+  margin-top: 10px;
+}
+.kakao-tag {
+  font-size: 10px;
+  font-weight: 700;
+  color: #1f2937;
+  margin: 0 4px 4px;
+  text-align: right;
+}
+.kakao-bubble {
+  max-width: 82%;
+  background: #fee500;
+  color: #111;
+  border-radius: 16px 4px 16px 16px;
+  padding: 10px 12px;
+  font-size: 13px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  font-weight: 650;
+}
+.kakao-time {
+  font-size: 10px;
+  font-weight: 700;
+  color: #334155;
+  flex: none;
+}
+
 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
 .form-row .wide { grid-column: 1 / -1; }
 .setting-row {
