@@ -535,7 +535,7 @@ table.sheet tr.ladder-sell td { background: #fffafa; }
   text-align: right;
 }
 .kakao-bubble {
-  max-width: 82%;
+  max-width: 100%;
   background: #fee500;
   color: #111;
   border-radius: 16px 4px 16px 16px;

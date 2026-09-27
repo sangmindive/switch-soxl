@@ -962,30 +962,23 @@
     return ap + " " + hh + ":" + (m < 10 ? "0" : "") + m;
   }
 
-  function kakaoBody(bookName, row, date) {
-    var who = row.pot != null ? "포트 " + row.pot : "랭크 " + row.rank;
-    var acct = (state.accountId || "1") + "번 계좌";
-    return (
-      "Switch · " +
-      acct +
-      "\n" +
-      bookName +
-      " " +
-      row.type +
-      "\n" +
-      (date || row.date || "") +
-      "\n" +
-      money(row.price) +
-      "달러 × " +
-      row.qty +
-      "주\n금액 " +
-      money(row.amount) +
-      "달러\n" +
-      who +
-      " · 수수료 " +
-      money(row.fee) +
-      "달러"
-    );
+  function kakaoPxQty(price, qty) {
+    if (price === "" || price == null) return "없음";
+    var q = qty === "" || qty == null ? "" : " × " + qty;
+    return money(price) + q;
+  }
+
+  function kakaoCrossBody(title, buyPrice, buyQty, steps, sellLines) {
+    var lines = ["Switch · " + (state.accountId || "1") + "번 계좌", title, "", "매수"];
+    lines.push(kakaoPxQty(buyPrice, buyQty));
+    for (var i = 0; i < (steps || []).length; i++) {
+      lines.push(i + 1 + "  " + kakaoPxQty(steps[i].price, steps[i].qty));
+    }
+    lines.push("");
+    lines.push("매도");
+    if (!sellLines.length) lines.push("없음");
+    else sellLines.forEach(function (line) { lines.push(line); });
+    return lines.join("\n");
   }
 
   function kakaoBubble(tag, text) {
@@ -1003,30 +996,20 @@
   function renderKakaoPreview(out) {
     var box = document.getElementById("kakao-chat");
     if (!box) return;
-    var date = state.market.closeDate;
+    var udSell = [];
+    if (out.F19 !== "" && out.F19 != null) udSell.push(kakaoPxQty(out.F19, out.E19));
+    var ttSell = (out.openRanks || []).map(function (r) {
+      return "#" + r.rank + "  " + kakaoPxQty(r.sellPrice, r.qty);
+    });
     var html = "<div class='kakao-room'>나와의 채팅</div>";
-    var n = 0;
-    var ud = out.suggestedUd || {};
-    var tt = out.suggestedTt || {};
-    if (ud.type) {
-      html += kakaoBubble("반영하면 이 내용", kakaoBody("업다운", ud, ud.date || date));
-      n++;
-    }
-    if (tt.type) {
-      html += kakaoBubble("반영하면 이 내용", kakaoBody("떨사오팔", tt, tt.date || date));
-      n++;
-    }
-    var udDone = (state.updownTrades || [])[0];
-    var ttDone = (state.tteolTrades || [])[0];
-    if (!ud.type && udDone && udDone.date === date && udDone.qty) {
-      html += kakaoBubble("반영됨", kakaoBody("업다운", udDone, udDone.date));
-      n++;
-    }
-    if (!tt.type && ttDone && ttDone.date === date && ttDone.qty) {
-      html += kakaoBubble("반영됨", kakaoBody("떨사오팔", ttDone, ttDone.date));
-      n++;
-    }
-    if (!n) html += "<div class='kakao-empty'>오늘 체결이 없으면 말풍선이 없습니다.</div>";
+    html += kakaoBubble(
+      "업다운 계단 대조",
+      kakaoCrossBody("업다운", out.C19, out.B19, out.udLadder, udSell)
+    );
+    html += kakaoBubble(
+      "떨사오팔 계단 대조",
+      kakaoCrossBody("떨사오팔", out.I19, out.H19, out.ttLadder, ttSell)
+    );
     box.innerHTML = html;
   }
 
