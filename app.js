@@ -11,12 +11,15 @@
   var statsYear = 2026;
   var pushTimer = null;
   var syncing = false;
+  var pushQueued = false;
 
   function bookOf(s) {
     return {
       settings: JSON.parse(JSON.stringify(s.settings)),
       updownTrades: JSON.parse(JSON.stringify(s.updownTrades || [])),
       tteolTrades: JSON.parse(JSON.stringify(s.tteolTrades || [])),
+      deletedUd: (s.deletedUd || []).slice(),
+      deletedTt: (s.deletedTt || []).slice(),
     };
   }
 
@@ -27,6 +30,8 @@
       settings: settings,
       updownTrades: [],
       tteolTrades: [],
+      deletedUd: [],
+      deletedTt: [],
     };
   }
 
@@ -56,6 +61,8 @@
     root.settings = active.settings;
     root.updownTrades = active.updownTrades || [];
     root.tteolTrades = active.tteolTrades || [];
+    root.deletedUd = active.deletedUd || [];
+    root.deletedTt = active.deletedTt || [];
     return root;
   }
 
@@ -74,6 +81,8 @@
     state.settings = book.settings;
     state.updownTrades = book.updownTrades;
     state.tteolTrades = book.tteolTrades;
+    state.deletedUd = book.deletedUd || [];
+    state.deletedTt = book.deletedTt || [];
     persist();
   }
 
@@ -226,10 +235,62 @@
       });
   }
 
-  function pickTrades(localList, remoteList, localRev, remoteRev) {
-    var localRows = localList || [];
-    var remoteRows = remoteList || [];
-    return (remoteRev > localRev ? remoteRows : localRows).slice();
+  function tradeKey(t) {
+    return [
+      t.date || "",
+      t.seq || 0,
+      t.type || "",
+      t.pot == null ? "" : t.pot,
+      t.rank == null ? "" : t.rank,
+      t.price == null ? "" : t.price,
+      t.qty == null ? "" : t.qty,
+    ].join("|");
+  }
+
+  function rememberDeleted(which, trades) {
+    var key = which === "tt" ? "deletedTt" : "deletedUd";
+    var cur = state[key] || [];
+    (trades || []).forEach(function (t) {
+      if (!t) return;
+      var k = tradeKey(t);
+      if (cur.indexOf(k) < 0) cur.push(k);
+    });
+    if (cur.length > 4000) cur = cur.slice(cur.length - 4000);
+    state[key] = cur;
+  }
+
+  function mergeIdList(a, b) {
+    var map = {};
+    (a || []).concat(b || []).forEach(function (k) {
+      if (k) map[k] = 1;
+    });
+    return Object.keys(map);
+  }
+
+  function mergeTradeLists(localList, remoteList, deleted) {
+    var drop = {};
+    (deleted || []).forEach(function (k) {
+      drop[k] = 1;
+    });
+    var map = {};
+    function put(list) {
+      (list || []).forEach(function (t) {
+        if (!t) return;
+        var k = tradeKey(t);
+        if (drop[k]) return;
+        map[k] = t;
+      });
+    }
+    put(remoteList);
+    put(localList);
+    return Object.keys(map)
+      .map(function (k) {
+        return map[k];
+      })
+      .sort(function (a, b) {
+        if ((a.date || "") !== (b.date || "")) return a.date < b.date ? 1 : -1;
+        return (b.seq || 0) - (a.seq || 0);
+      });
   }
 
   function applyCloseOnto(market, closes, localM, remoteM, localRev, remoteRev) {
@@ -265,14 +326,26 @@
       settings: book.settings || {},
       updownTrades: book.updownTrades || [],
       tteolTrades: book.tteolTrades || [],
+      deletedUd: (book.deletedUd || []).slice(),
+      deletedTt: (book.deletedTt || []).slice(),
     };
   }
 
   function mergeBook(localBook, remoteBook, localRev, remoteRev) {
     var base = remoteRev > localRev ? remoteBook : localBook;
     var next = JSON.parse(JSON.stringify(base || blankBook()));
-    next.updownTrades = pickTrades(localBook && localBook.updownTrades, remoteBook && remoteBook.updownTrades, localRev, remoteRev);
-    next.tteolTrades = pickTrades(localBook && localBook.tteolTrades, remoteBook && remoteBook.tteolTrades, localRev, remoteRev);
+    next.deletedUd = mergeIdList(localBook && localBook.deletedUd, remoteBook && remoteBook.deletedUd);
+    next.deletedTt = mergeIdList(localBook && localBook.deletedTt, remoteBook && remoteBook.deletedTt);
+    next.updownTrades = mergeTradeLists(
+      localBook && localBook.updownTrades,
+      remoteBook && remoteBook.updownTrades,
+      next.deletedUd
+    );
+    next.tteolTrades = mergeTradeLists(
+      localBook && localBook.tteolTrades,
+      remoteBook && remoteBook.tteolTrades,
+      next.deletedTt
+    );
     return next;
   }
 
@@ -382,14 +455,19 @@
         var remote = readRemoteState(gist);
         if (!remote) {
           syncing = false;
-          return false;
+          if (!pushQueued) return false;
+          pushQueued = false;
+          return pushRemote().then(function () {
+            return false;
+          });
         }
         var rec = reconcile(state, remote);
         state = rec.state;
         saveState();
         syncing = false;
         if (rec.changed) render();
-        if (!rec.push) return rec.changed;
+        if (!rec.push && !pushQueued) return rec.changed;
+        pushQueued = false;
         return pushRemote().then(function () {
           return true;
         });
@@ -402,8 +480,13 @@
 
   function pushRemote() {
     var cfg = loadSyncCfg();
-    if (!cfg.token || !cfg.gistId || syncing) return Promise.resolve();
+    if (!cfg.token || !cfg.gistId) return Promise.resolve();
+    if (syncing) {
+      pushQueued = true;
+      return Promise.resolve();
+    }
     syncing = true;
+    pushQueued = false;
     return fetch("https://api.github.com/gists/" + cfg.gistId, { headers: gistHeaders(cfg.token) })
       .then(readGistResponse)
       .then(function (gist) {
@@ -415,6 +498,7 @@
           if (!rec.push) {
             syncing = false;
             if (rec.changed) render();
+            if (pushQueued) return pushRemote();
             return;
           }
         }
@@ -426,6 +510,7 @@
       })
       .then(function () {
         syncing = false;
+        if (pushQueued) return pushRemote();
       })
       .catch(function (err) {
         syncing = false;
@@ -1223,12 +1308,16 @@
     document.getElementById("btn-reset").onclick = function () {
       var id = state.accountId || "1";
       if (!confirm(id + "번 계좌의 업다운·떨사오팔 거래 내역을 모두 지울까요? 원금과 설정은 남습니다.")) return;
+      rememberDeleted("ud", state.updownTrades);
+      rememberDeleted("tt", state.tteolTrades);
       state.updownTrades = [];
       state.tteolTrades = [];
       state.accounts[id] = {
         settings: state.settings,
         updownTrades: state.updownTrades,
         tteolTrades: state.tteolTrades,
+        deletedUd: state.deletedUd || [],
+        deletedTt: state.deletedTt || [],
       };
       persist();
       toast(id + "번 계좌 거래 내역을 지웠습니다");
@@ -1286,12 +1375,14 @@
     document.getElementById("ud-log").onclick = function (ev) {
       var i = ev.target.getAttribute("data-ud");
       if (i == null) return;
+      rememberDeleted("ud", [state.updownTrades[+i]]);
       state.updownTrades.splice(+i, 1);
       persist();
     };
     document.getElementById("tt-log").onclick = function (ev) {
       var i = ev.target.getAttribute("data-tt");
       if (i == null) return;
+      rememberDeleted("tt", [state.tteolTrades[+i]]);
       state.tteolTrades.splice(+i, 1);
       persist();
     };
@@ -1624,7 +1715,7 @@
     if (q.phase && q.phase !== "REG_MKT" && q.sessionDate && isFinite(q.lastClose) && q.lastClose > 0) {
       if (recordCloseDb(q.sessionDate, q.lastClose)) closeDirty = true;
     }
-    if (closeDirty) persist();
+    if (closeDirty) persist({ keepRev: true });
     else if (quoteDirty) persist({ sync: false, keepRev: true });
   }
 
