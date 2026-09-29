@@ -358,7 +358,11 @@
     var I8 = C8 ? H8 / C8 : 0;
 
     var avg = udLast && udLast.avg != null ? udLast.avg : 0;
-    var E13 = (m.price - avg) * C13 + D13;
+    var livePx = Number(m.price);
+    var closePx = Number(m.lastClose);
+    var profitPx = livePx;
+    if (m.phase && m.phase !== "REG_MKT" && isFiniteNumber(closePx) && closePx > 0) profitPx = closePx;
+    var E13 = (profitPx - avg) * C13 + D13;
     var F13 = C8 ? E13 / C8 : 0;
     var L13 = C8 ? K13 / C8 : 0;
 
@@ -401,7 +405,7 @@
     var udCost = (avg || 0) * (C13 || 0);
     var holdQty = (C13 || 0) + (I13 || 0);
     var combAvg = holdQty ? (udCost + ttCost) / holdQty : 0;
-    var mark = Number(m.price);
+    var mark = profitPx;
     var udEval = C13 ? (mark - avg) * C13 : 0;
     var udEvalPct = avg && C13 ? mark / avg - 1 : "";
     var ttAvg = I13 ? ttCost / I13 : 0;
