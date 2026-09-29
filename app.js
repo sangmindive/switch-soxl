@@ -236,6 +236,7 @@
   }
 
   function tradeKey(t) {
+    if (t && t.id) return "id:" + t.id;
     return [
       t.date || "",
       t.seq || 0,
@@ -1452,11 +1453,11 @@
     var msg =
       "업다운 " +
       (out.C13 || 0) +
-      "주 · 랭크 " +
+      "주와 떨사오팔 랭크 " +
       out.openRanks.length +
       "개를 " +
       price +
-      "에 전량 매도합니다. 기록은 남습니다.";
+      "에 함께 전량 매도합니다. 기록은 남습니다.";
     if (!confirm(msg)) return;
     var r = E.liquidateAll(state, { date: date, price: price, qty: qty });
     persist();
@@ -1487,6 +1488,7 @@
     if (type === "매수" && !last) pot = 1;
     var cycle = prevHold === 0 && (type === "매수" || type === "떨") ? (last ? last.cycle + 1 : 1) : last ? last.cycle : 1;
     state.updownTrades.unshift({
+      id: E.newTradeId(),
       date: date,
       seq: 1,
       type: type,
@@ -1526,6 +1528,7 @@
       }
     }
     state.tteolTrades.unshift({
+      id: E.newTradeId(),
       date: date,
       seq: 1,
       type: type,

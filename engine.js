@@ -8,6 +8,12 @@
 
   var SEC_RATE = 0.0000229; // 0.00229%
   var SEC_MIN = 0.01;
+  var tradeIdN = 0;
+
+  function newTradeId() {
+    tradeIdN += 1;
+    return Date.now().toString(36) + tradeIdN.toString(36);
+  }
 
   function isFiniteNumber(n) {
     return typeof n === "number" && Number.isFinite(n);
@@ -844,6 +850,7 @@
     var fillDate = sug.date || state.market.closeDate;
     if (which === "tteol") {
       state.tteolTrades.unshift({
+        id: newTradeId(),
         date: fillDate,
         seq: nextSeq(state.tteolTrades, fillDate),
         type: sug.type,
@@ -857,6 +864,7 @@
       });
     } else {
       state.updownTrades.unshift({
+        id: newTradeId(),
         date: fillDate,
         seq: nextSeq(state.updownTrades, fillDate),
         type: sug.type,
@@ -894,6 +902,7 @@
     var avg = pos.price;
 
     state.updownTrades.unshift({
+      id: newTradeId(),
       date: date,
       seq: nextSeq(state.updownTrades, date),
       type: "떨",
@@ -910,6 +919,7 @@
     });
 
     state.tteolTrades.unshift({
+      id: newTradeId(),
       date: date,
       seq: nextSeq(state.tteolTrades, date),
       type: "매도",
@@ -948,6 +958,7 @@
       var sec = secFee(amount);
       var pnl = amount - pos.price * qty - ((pos.fee || 0) + fee + sec);
       state.tteolTrades.unshift({
+        id: newTradeId(),
         date: date,
         seq: nextSeq(state.tteolTrades, date),
         type: "매도",
@@ -979,6 +990,7 @@
     }
 
     state.updownTrades.unshift({
+      id: newTradeId(),
       date: date,
       seq: nextSeq(state.updownTrades, date),
       type: "매도",
@@ -1037,6 +1049,7 @@
     networkDays: networkDays,
     defaultSettings: defaultSettings,
     defaultMarket: defaultMarket,
+    newTradeId: newTradeId,
     compute: compute,
     previousTradingDate: previousTradingDate,
     nextTradingDate: nextTradingDate,
