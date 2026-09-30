@@ -366,8 +366,7 @@
     var avg = udLast && udLast.avg != null ? udLast.avg : 0;
     var livePx = Number(m.price);
     var closePx = Number(m.lastClose);
-    var profitPx = livePx;
-    if (m.phase && m.phase !== "REG_MKT" && isFiniteNumber(closePx) && closePx > 0) profitPx = closePx;
+    var profitPx = isFiniteNumber(closePx) && closePx > 0 ? closePx : livePx;
     var E13 = (profitPx - avg) * C13 + D13;
     var F13 = C8 ? E13 / C8 : 0;
     var L13 = C8 ? K13 / C8 : 0;
