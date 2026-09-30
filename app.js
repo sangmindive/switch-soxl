@@ -679,6 +679,10 @@
   }
 
   function render() {
+    if (repairCopiedClose()) {
+      persist();
+      return;
+    }
     var out = E.compute(state);
     renderAccountSeg();
     if (out.repairedTt) saveState();
@@ -1564,6 +1568,7 @@
     for (var i = 0; i < m.closeHistory.length; i++) {
       if (m.closeHistory[i].date === date) {
         if (near(m.closeHistory[i].close, close, 1e-6)) return false;
+        if (!closeRevisionOk(m.closeHistory[i].close, close)) return false;
         m.closeHistory[i].close = close;
         return true;
       }
@@ -1582,6 +1587,7 @@
     for (var i = 0; i < state.closeDb.length; i++) {
       if (state.closeDb[i].date === date) {
         if (near(state.closeDb[i].close, close, 1e-6)) return false;
+        if (!closeRevisionOk(state.closeDb[i].close, close)) return false;
         state.closeDb[i].close = close;
         return true;
       }
@@ -1591,6 +1597,68 @@
       return a.date < b.date ? 1 : -1;
     });
     return true;
+  }
+
+  function closeRevisionOk(oldClose, nextClose) {
+    return Math.abs(Number(oldClose) - Number(nextClose)) <= 0.05;
+  }
+
+  function patchCloseRow(list, date, close) {
+    if (!list) return false;
+    for (var i = 0; i < list.length; i++) {
+      if (list[i].date !== date) continue;
+      if (near(list[i].close, close, 1e-6)) return false;
+      list[i].close = close;
+      return true;
+    }
+    return false;
+  }
+
+  function restorePrevClose(sessionDate, lastClose, prevClose) {
+    if (!sessionDate || !isFinite(lastClose) || !isFinite(prevClose) || prevClose <= 0) return false;
+    if (near(lastClose, prevClose, 1e-4)) return false;
+    var prevDate = E.previousTradingDate(sessionDate);
+    if (!prevDate) return false;
+    var changed = false;
+    function restore(list) {
+      if (!list) return;
+      for (var i = 0; i < list.length; i++) {
+        if (list[i].date !== prevDate) continue;
+        if (!near(list[i].close, lastClose, 1e-4)) continue;
+        list[i].close = prevClose;
+        changed = true;
+      }
+    }
+    restore(state.closeDb);
+    restore(state.market && state.market.closeHistory);
+    if (
+      state.market &&
+      state.market.prevCloseDate === prevDate &&
+      near(state.market.prevClose, lastClose, 1e-4)
+    ) {
+      state.market.prevClose = prevClose;
+      changed = true;
+    }
+    return changed;
+  }
+
+  function repairCopiedClose() {
+    var changed = false;
+    var by = {};
+    (state.closeDb || []).forEach(function (r) {
+      if (r && r.date) by[r.date] = r;
+    });
+    var d28 = by["2026-09-28"];
+    var d29 = by["2026-09-29"];
+    if (d28 && d29 && near(d28.close, 147, 0.02) && near(d29.close, 147, 0.02)) {
+      if (patchCloseRow(state.closeDb, "2026-09-28", 142.29)) changed = true;
+      if (state.market && patchCloseRow(state.market.closeHistory, "2026-09-28", 142.29)) changed = true;
+      if (state.market && state.market.prevCloseDate === "2026-09-28" && near(state.market.prevClose, 147, 0.02)) {
+        state.market.prevClose = 142.29;
+        changed = true;
+      }
+    }
+    return changed;
   }
 
   function closeDayChange(rows, i) {
@@ -1669,6 +1737,7 @@
       isFinite(q.lastClose) &&
       q.lastClose > 0;
     if (canRollClose) {
+      if (restorePrevClose(q.sessionDate, q.lastClose, q.prevClose)) closeDirty = true;
       var expectedPrev = E.previousTradingDate(q.sessionDate);
       if (rememberClose(state.market, q.sessionDate, q.lastClose)) closeDirty = true;
       if (expectedPrev && isFinite(q.prevClose) && q.prevClose > 0) {
