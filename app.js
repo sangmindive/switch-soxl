@@ -714,7 +714,7 @@
     document.getElementById("hero-tt-sell").textContent = out.openRanks.length
       ? out.openRanks
           .map(function (r) {
-            return "#" + r.rank + " " + money(r.sellPrice);
+            return "#" + r.rank + " " + money(r.sellPrice) + " × " + r.qty;
           })
           .join(" · ")
       : "보유 랭크 없음";
@@ -1007,15 +1007,12 @@
     if (!rows.length) html += "<tr><td colspan='5'>정액 주문 0 · 추가 계단 없음</td></tr>";
     if (kind === "ud") {
       html += ladderRow("매도", "sell", out.F19, out.F19 === "" ? "empty" : "sell", out.E19, "", "");
+    } else if (!out.openRanks.length) {
+      html += ladderRow("매도", "sell", "", "empty", "", "", "");
     } else {
-      var ttSell = out.openRanks.length
-        ? out.openRanks
-            .map(function (r) {
-              return "#" + r.rank + " " + money(r.sellPrice);
-            })
-            .join(" · ")
-        : "";
-      html += ladderRow("매도", "sell", ttSell, ttSell ? "sell" : "empty", "", "", "");
+      out.openRanks.forEach(function (r) {
+        html += ladderRow("매도 #" + r.rank, "sell", r.sellPrice, "sell", r.qty, "", "");
+      });
     }
     tb.innerHTML = html;
   }
