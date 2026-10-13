@@ -763,6 +763,8 @@
     fillText("v-G8", out.G8);
     fillText("v-H8", money(out.H8));
     fillText("v-I8", pct(out.I8));
+    fillText("v-ud-daybuy", money(out.udDayBuy));
+    fillText("v-tt-daybuy", out.ttDayBuy === "" ? "없음" : money(out.ttDayBuy));
     fillText("v-B13", out.B13);
     fillText("v-C13", out.C13);
     fillText("v-D13", money(out.D13));

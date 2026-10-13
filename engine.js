@@ -187,6 +187,15 @@
     return 41;
   }
 
+  function dayBuyCash(basePx, baseQty, rows) {
+    var n = 0;
+    if (basePx !== "" && basePx != null && Number(baseQty) > 0) n += Number(basePx) * Number(baseQty);
+    (rows || []).forEach(function (r) {
+      n += Number(r.price) * Number(r.qty);
+    });
+    return n;
+  }
+
   function buildLadder(baseQty, oneShot, stepQty, steps, basePrice) {
     var rows = [];
     if (!steps || !stepQty || !baseQty || !oneShot || !basePrice) return rows;
@@ -401,6 +410,8 @@
 
     var udLadder = buildLadder(B19, D16, s.udStepQty, s.udLadderCount, C19);
     var ttLadder = I19 === "" ? [] : buildLadder(H19, J16, s.tteolStepQty, s.tteolLadderCount, I19);
+    var udDayBuy = dayBuyCash(C19, B19, udLadder);
+    var ttDayBuy = I19 === "" ? "" : dayBuyCash(I19, H19, ttLadder);
 
     var ttCost = 0;
     for (var ti = 0; ti < openRanks.length; ti++) {
@@ -508,6 +519,8 @@
       ttAvg: ttAvg,
       ttEval: ttEval,
       ttEvalPct: ttEvalPct,
+      udDayBuy: udDayBuy,
+      ttDayBuy: ttDayBuy,
       udLadder: udLadder,
       ttLadder: ttLadder,
       openRanks: openRanks.map(function (r) {
