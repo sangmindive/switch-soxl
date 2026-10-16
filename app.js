@@ -711,13 +711,18 @@
     document.getElementById("hero-ud-sell-qty").textContent = out.E19 === "" ? "" : out.E19;
     document.getElementById("hero-tt-buy-px").textContent = out.I19 === "" ? "없음" : money(out.I19);
     document.getElementById("hero-tt-buy-qty").textContent = out.H19 === "" ? "" : out.H19;
-    document.getElementById("hero-tt-sell").textContent = out.openRanks.length
-      ? out.openRanks
-          .map(function (r) {
-            return "#" + r.rank + " " + money(r.sellPrice) + " × " + r.qty;
-          })
-          .join(" · ")
-      : "보유 랭크 없음";
+    var ttSellEl = document.getElementById("hero-tt-sell");
+    if (!out.openRanks.length) {
+      ttSellEl.className = "tt-sell-list empty";
+      ttSellEl.textContent = "보유 랭크 없음";
+    } else {
+      ttSellEl.className = "tt-sell-list";
+      ttSellEl.innerHTML = out.openRanks
+        .map(function (r) {
+          return "<span class='tt-sell-line'>#" + r.rank + " " + money(r.sellPrice) + " x " + r.qty + "</span>";
+        })
+        .join("");
+    }
 
     document.getElementById("hero-ud-buy-px").className = "v buy";
     document.getElementById("hero-ud-sell-px").className = out.F19 === "" ? "v empty" : "v sell";

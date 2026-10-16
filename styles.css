@@ -244,6 +244,17 @@ body {
 }
 .price-box .k { font-size: 12px; }
 .price-box .v { font-size: 22px; margin-top: 4px; }
+.tt-sell-list {
+  margin-top: 6px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  font-size: 14px;
+  line-height: 1.45;
+  letter-spacing: -0.03em;
+  color: var(--red);
+}
+.tt-sell-list .tt-sell-line { display: block; white-space: nowrap; }
+.tt-sell-list.empty { color: #9ca3af; font-weight: 600; }
 
 .seg {
   display: flex;
