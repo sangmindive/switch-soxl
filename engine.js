@@ -214,24 +214,50 @@
     return rows;
   }
 
+  function cycleEq(a, b) {
+    var na = Number(a);
+    var nb = Number(b);
+    if (Number.isFinite(na) && Number.isFinite(nb)) return na === nb;
+    return a === b;
+  }
+
+  function tradeAmount(t) {
+    if (t && t.amount != null && t.amount !== "" && isFiniteNumber(Number(t.amount))) return Number(t.amount);
+    return (Number(t && t.price) || 0) * (Number(t && t.qty) || 0);
+  }
+
+  function deployedCash(t) {
+    var fee = Number(t && t.fee) || 0;
+    var amount = tradeAmount(t);
+    if (!t) return 0;
+    if (t.type === "매수" || t.type === "떨") return amount + fee;
+    if (t.type === "매도") return -amount + fee;
+    return fee;
+  }
+
   function seedUsedUpdown(trades, cycle) {
     return sum(trades, function (t) {
-      if (t.cycle !== cycle) return 0;
-      var fee = t.fee || 0;
-      if (t.type === "매수" || t.type === "떨") return (t.amount || 0) + fee;
-      if (t.type === "매도") return -(t.amount || 0) + fee;
-      return fee;
+      if (!cycleEq(t.cycle, cycle)) return 0;
+      return deployedCash(t);
     });
   }
 
-  function seedUsedTteol(trades, cycle) {
-    return sum(trades, function (t) {
-      if (t.cycle !== cycle) return 0;
-      var fee = t.fee || 0;
-      if (t.type === "매수") return (t.amount || 0) + fee;
-      if (t.type === "매도") return -(t.amount || 0) + fee;
-      return fee;
+  function seedUsedTteol(trades, cycle, openRanks) {
+    var used = sum(trades, function (t) {
+      if (!cycleEq(t.cycle, cycle)) return 0;
+      return deployedCash(t);
     });
+    (openRanks || []).forEach(function (r) {
+      if (cycleEq(r.cycle, cycle)) return;
+      used += deployedCash({
+        type: "매수",
+        amount: r.amount,
+        price: r.price,
+        qty: r.qty,
+        fee: r.fee,
+      });
+    });
+    return used;
   }
 
   function computeLp(state, derived) {
@@ -366,7 +392,7 @@
 
     var C8 = s.capital + I3;
     var E16 = seedUsedUpdown(ud, B8);
-    var K16 = seedUsedTteol(tt, B8);
+    var K16 = seedUsedTteol(tt, B8, openRanks);
     var D8 = C8 - E16 - K16;
     var E8 = C8 ? 1 - D8 / C8 : 0;
     var G8 = C13 + I13;
