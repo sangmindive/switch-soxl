@@ -57,6 +57,11 @@
     if (!root.accounts["2"] || !root.accounts["2"].settings) root.accounts["2"] = blankBook();
     if (root.accountId !== "1" && root.accountId !== "2") root.accountId = "1";
     if (root.settings && root.updownTrades) root.accounts[root.accountId] = bookOf(root);
+    ["1", "2"].forEach(function (id) {
+      if (root.accounts[id] && root.accounts[id].settings) {
+        root.accounts[id].settings.applySheetF8Limit = true;
+      }
+    });
     var active = root.accounts[root.accountId];
     root.settings = active.settings;
     root.updownTrades = active.updownTrades || [];

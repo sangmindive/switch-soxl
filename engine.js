@@ -120,7 +120,7 @@
       buyBlocked: false,
       udStepQty: 3,
       tteolStepQty: 3,
-      applySheetF8Limit: false,
+      applySheetF8Limit: true,
       autoTransfer: false,
     };
   }
@@ -404,7 +404,7 @@
     var E19 = B13 ? excelRoundDown(C13 / B13, 0) : "";
     var F19 = C13 === 0 ? "" : D19;
 
-    var sheetF8Blocks = s.applySheetF8Limit && F8 >= J3 - 1;
+    var sheetF8Blocks = F8 >= J3 - 1;
     var I19 = sheetF8Blocks ? "" : excelRound(m.lastClose - 0.01, 2);
     var H19 = I19 === "" ? "" : excelRoundDown(J16 / I19, 0);
 
@@ -755,7 +755,7 @@
       if (d.ttLast && d.ttLast.date === m.closeDate) {
         return { type: "", reason: "당일 떨 체결 있음" };
       }
-      if (s.applySheetF8Limit && d.F8 >= d.J3 - 1) {
+      if (d.F8 >= d.J3 - 1) {
         if (!(d.udLast && d.udLast.date === m.closeDate)) {
           return { type: "", reason: "시트 F8≥J3−1 제한" };
         }
