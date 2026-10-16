@@ -777,11 +777,13 @@
     fillText("v-tt-daybuy", out.ttDayBuy === "" ? "없음" : money(out.ttDayBuy));
     fillText("v-B13", out.B13);
     fillText("v-C13", out.C13);
+    fillText("v-C13-head", out.C13);
     fillText("v-D13", money(out.D13));
     fillText("v-E13", money(out.E13));
     fillText("v-F13", pct(out.F13));
     fillText("v-H13", out.H13);
     fillText("v-I13", out.I13);
+    fillText("v-tt-hold", out.I13);
     fillText("v-J13", money(out.J13));
     fillText("v-K13", money(out.K13));
     fillText("v-L13", pct(out.L13));
