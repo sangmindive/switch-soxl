@@ -178,13 +178,14 @@
     return open;
   }
 
-  function firstEmptyRank(openRanks) {
+  function firstEmptyRank(openRanks, maxRank) {
     var used = {};
     openRanks.forEach(function (r) {
       used[r.rank] = true;
     });
-    for (var i = 1; i <= 40; i++) if (!used[i]) return i;
-    return 41;
+    var cap = maxRank > 0 ? maxRank : 40;
+    for (var i = 1; i <= cap; i++) if (!used[i]) return i;
+    return "";
   }
 
   function dayBuyCash(basePx, baseQty, rows) {
@@ -390,9 +391,7 @@
     }
 
     var D16 = excelRoundDown(J3 ? C8 / J3 : 0, 2);
-    var profitForReinvest = E13 + K13 < 0 ? 0 : E13 + K13;
-    var J16raw = !I16 ? D16 : D16 + (profitForReinvest * s.reinvest) / I16;
-    var J16 = Math.min(J16raw, D8 - D16);
+    var J16 = !I16 ? D16 : D16 + (K13 * s.reinvest) / I16;
     var F16 = E16 + K16 ? E16 / (E16 + K16) : 0;
     var L16 = E16 + K16 ? K16 / (E16 + K16) : 0;
 
@@ -760,8 +759,9 @@
           return { type: "", reason: "시트 F8≥J3−1 제한" };
         }
       }
+      rank = firstEmptyRank(d.openRanks, d.I16);
+      if (!rank) return { type: "", reason: "랭크 분할 가득" };
       type = "매수";
-      rank = firstEmptyRank(d.openRanks);
     } else {
       var hit = null;
       for (var i = 0; i < d.sellTargets.length; i++) {
