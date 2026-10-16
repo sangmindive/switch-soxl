@@ -672,7 +672,8 @@
     if (d.B13 === 0) {
       if (m.lastClose <= m.prevClose * 1.1) type = "매수";
     } else if (s.buyBlocked) {
-      if (m.lastClose >= (d.F19 || m.lastClose)) type = "매도";
+      if (m.lastClose <= m.prevClose) type = "매수";
+      else type = "매도";
     } else {
       if (m.lastClose <= d.C19) type = "매수";
       else if (d.F19 !== "" && m.lastClose >= d.F19) type = "매도";
@@ -743,7 +744,6 @@
   function suggestTteol(state, d) {
     var m = state.market;
     var s = state.settings;
-    if (s.buyBlocked) return { type: "", reason: "C16 매수 불가" };
     if (d.ttLast && d.ttLast.date === m.closeDate && d.ttLast.type === "매수") {
       /* 당일 매수 있으면 같은 날 그 랭크 매도만 금지. 다른 랭크 매도는 가능 */
     }
@@ -751,6 +751,7 @@
     var type = "";
     var rank = "";
     if (m.lastClose <= m.prevClose - 0.01) {
+      if (s.buyBlocked) return { type: "", reason: "C16 매수 불가" };
       if (d.ttLast && d.ttLast.date === m.closeDate) {
         return { type: "", reason: "당일 떨 체결 있음" };
       }
