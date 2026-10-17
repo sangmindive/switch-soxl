@@ -1098,49 +1098,45 @@
     document.getElementById("rank-body").innerHTML = html;
   }
 
-  function logPnlView(t) {
-    var n = Number(t.pnl);
-    var hasPnl = t.type === "매도" && t.pnl !== "" && t.pnl != null && Number.isFinite(n);
-    if (hasPnl) {
-      return {
-        kind: "손익",
-        text: (n >= 0 ? "+" : "") + money(n),
-        cls: n >= 0 ? "pos" : "neg",
-      };
-    }
-    return { kind: "금액", text: money(t.amount), cls: "" };
+  function logTypeClass(type) {
+    if (type === "매도") return "sell";
+    if (type === "떨") return "tteol";
+    return "";
+  }
+
+  function logSep() {
+    return "<span class='log-dot'>·</span>";
+  }
+
+  function logLine(parts, delAttr, idx) {
+    return (
+      "<article class='log-row'><div class='log-line'>" +
+      parts.join(logSep()) +
+      "</div><button class='btn ghost log-del' " +
+      delAttr +
+      "='" +
+      idx +
+      "'>삭제</button></article>"
+    );
   }
 
   function renderUdLog() {
     var html = state.updownTrades
       .map(function (t, idx) {
-        var view = logPnlView(t);
-        return (
-          "<article class='log-card'><header><div><strong>SOXL</strong> <span class='pill " +
-          (t.type === "매도" ? "sell" : t.type === "떨" ? "tteol" : "") +
-          "'>" +
-          t.type +
-          "</span></div><button class='btn ghost' data-ud='" +
-          idx +
-          "'>삭제</button></header><div class='k'>" +
-          view.kind +
-          "</div><div class='log-amt " +
-          view.cls +
-          "'>" +
-          view.text +
-          "</div><div class='log-meta'>" +
-          t.date +
-          " · 포트 " +
-          t.pot +
-          " · " +
-          money(t.price) +
-          " × " +
-          t.qty +
-          " · 보유 " +
-          t.holdQty +
-          " · C" +
-          t.cycle +
-          "</div></article>"
+        var avg = t.avg == null || t.avg === "" ? "—" : money(t.avg);
+        var hold = t.holdQty == null || t.holdQty === "" ? "—" : t.holdQty;
+        return logLine(
+          [
+            "<span>" + t.date + "</span>",
+            "<span class='pill " + logTypeClass(t.type) + "'>" + t.type + "</span>",
+            "<span>포트" + t.pot + "</span>",
+            "<span>" + money(t.price) + "</span>",
+            "<span>" + t.qty + "주</span>",
+            "<span>총 보유 " + hold + "</span>",
+            "<span>" + avg + "</span>",
+          ],
+          "data-ud",
+          idx
         );
       })
       .join("");
@@ -1150,31 +1146,16 @@
   function renderTtLog() {
     var html = state.tteolTrades
       .map(function (t, idx) {
-        var view = logPnlView(t);
-        return (
-          "<article class='log-card'><header><div><strong>SOXL 랭크 " +
-          t.rank +
-          "</strong> <span class='pill " +
-          (t.type === "매도" ? "sell" : "") +
-          "'>" +
-          t.type +
-          "</span></div><button class='btn ghost' data-tt='" +
-          idx +
-          "'>삭제</button></header><div class='k'>" +
-          view.kind +
-          "</div><div class='log-amt " +
-          view.cls +
-          "'>" +
-          view.text +
-          "</div><div class='log-meta'>" +
-          t.date +
-          " · " +
-          money(t.price) +
-          " × " +
-          t.qty +
-          " · C" +
-          t.cycle +
-          "</div></article>"
+        return logLine(
+          [
+            "<span>" + t.date + "</span>",
+            "<span class='pill " + logTypeClass(t.type) + "'>" + t.type + "</span>",
+            "<span>랭크" + t.rank + "</span>",
+            "<span>" + money(t.price) + "</span>",
+            "<span>" + t.qty + "주</span>",
+          ],
+          "data-tt",
+          idx
         );
       })
       .join("");

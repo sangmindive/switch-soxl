@@ -401,21 +401,30 @@ table.sheet tr.ladder-buy td { background: #f8faff; }
 table.sheet tr.ladder-sell td { background: #fffafa; }
 .grid-wrap { overflow-x: auto; }
 
-.log-card {
+.log-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   background: #fff;
   border: 1px solid var(--line);
-  border-radius: 16px;
-  padding: 14px;
-  margin-bottom: 10px;
+  border-radius: 12px;
+  padding: 8px 10px;
+  margin-bottom: 6px;
 }
-.log-card header {
+.log-line {
+  flex: 1;
+  min-width: 0;
   display: flex;
-  justify-content: space-between;
+  flex-wrap: wrap;
   align-items: center;
-  margin-bottom: 8px;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
 }
-.log-meta { color: var(--muted); font-size: 12px; }
-.log-amt { font-weight: 800; font-size: 18px; letter-spacing: -0.03em; }
+.log-dot { color: var(--muted); font-weight: 500; }
+.log-del { flex: 0 0 auto; padding: 4px 8px; font-size: 12px; }
+.log-row .pill { padding: 2px 7px; }
 .type-매수 { color: var(--blue); }
 .type-매도 { color: var(--red); }
 .type-떨 { color: #c2410c; }
