@@ -1155,7 +1155,8 @@
         );
       })
       .join("");
-    document.getElementById("ud-log").innerHTML = html;
+    document.getElementById("ud-log").innerHTML =
+      html || "<div class='log-row'><div class='log-line'><span class='empty'>기록 없음</span></div></div>";
   }
 
   function tteolHoldStats(trades) {
@@ -1214,7 +1215,8 @@
         );
       })
       .join("");
-    document.getElementById("tt-log").innerHTML = html;
+    document.getElementById("tt-log").innerHTML =
+      html || "<div class='log-row'><div class='log-line'><span class='empty'>기록 없음</span></div></div>";
   }
 
   function matchedPreset(s) {

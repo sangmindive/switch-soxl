@@ -12,7 +12,7 @@
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="apple-touch-icon" href="icon-192.png" />
   <link rel="icon" href="icon-192.png" />
-  <link rel="stylesheet" href="styles.css?v=20261018j" />
+  <link rel="stylesheet" href="styles.css?v=20261018k" />
 </head>
 <body>
   <div class="app">
@@ -208,25 +208,13 @@
             <p class="note">청산은 업다운과 떨사오팔을 모두 전량 매도합니다. 기록은 남습니다.</p>
           </div>
         </article>
-        <p class="log-legend">포트 · 체결 단가 · 매매 수량 · 보유 수량 · 평단</p>
-        <div id="ud-log"></div>
+        <article class="card log-sheet">
+          <p class="log-legend">포트 · 체결 단가 · 매매 수량 · 보유 수량 · 평단</p>
+          <div id="ud-log"></div>
+        </article>
       </div>
       <div id="log-tt" class="hidden">
         <p class="journal-col-title">떨사오팔</p>
-        <article class="card rank-card">
-          <button type="button" class="rank-toggle" id="btn-rank-table" aria-expanded="false">
-            <span id="rank-toggle-label">랭크 표 열기</span>
-            <span class="rank-arrow" aria-hidden="true">▼</span>
-          </button>
-          <div id="rank-table-wrap" class="hidden">
-            <div class="grid-wrap">
-              <table class="sheet">
-                <thead><tr><th>랭크</th><th>매수일</th><th>보유일</th><th>단가</th><th>수량</th><th>매도</th></tr></thead>
-                <tbody id="rank-body"></tbody>
-              </table>
-            </div>
-          </div>
-        </article>
         <article class="card rank-card">
           <button type="button" class="rank-toggle" id="btn-add-tt-form" aria-expanded="false">
             <span>행 추가</span>
@@ -247,8 +235,24 @@
             <p class="note">청산은 포트·랭크를 전량 매도합니다. 기록은 남습니다.</p>
           </div>
         </article>
-        <p class="log-legend">랭크 · 체결 단가 · 매매 수량 · 보유 수량 · 평단</p>
-        <div id="tt-log"></div>
+        <article class="card rank-card">
+          <button type="button" class="rank-toggle" id="btn-rank-table" aria-expanded="false">
+            <span id="rank-toggle-label">랭크 표 열기</span>
+            <span class="rank-arrow" aria-hidden="true">▼</span>
+          </button>
+          <div id="rank-table-wrap" class="hidden">
+            <div class="grid-wrap">
+              <table class="sheet">
+                <thead><tr><th>랭크</th><th>매수일</th><th>보유일</th><th>단가</th><th>수량</th><th>매도</th></tr></thead>
+                <tbody id="rank-body"></tbody>
+              </table>
+            </div>
+          </div>
+        </article>
+        <article class="card log-sheet">
+          <p class="log-legend">랭크 · 체결 단가 · 매매 수량 · 보유 수량 · 평단</p>
+          <div id="tt-log"></div>
+        </article>
       </div>
       </div>
     </section>
@@ -434,6 +438,6 @@
   </div>
   <script src="engine.js?v=20261016d"></script>
   <script src="seed.js?v=20260924c"></script>
-  <script src="app.js?v=20261018g"></script>
+  <script src="app.js?v=20261018h"></script>
 </body>
 </html>

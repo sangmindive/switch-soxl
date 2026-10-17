@@ -472,23 +472,27 @@ table.sheet tr.ladder-sell td { background: #fffafa; }
   .journal-col-title { display: block; }
 }
 .log-legend {
-  margin: 10px 4px 8px;
-  padding: 8px 12px;
+  margin: 0;
+  padding: 10px 12px;
   font-size: 12px;
   font-weight: 600;
   color: var(--muted);
   letter-spacing: -0.02em;
+  border-bottom: 1px solid var(--line-strong);
 }
+.log-sheet { padding: 0; overflow: hidden; }
+.log-sheet .log-row:last-child { border-bottom: 0; }
 
 .log-row {
   display: flex;
   align-items: center;
   gap: 8px;
   background: #fff;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  padding: 8px 10px;
-  margin-bottom: 6px;
+  border: 0;
+  border-bottom: 1px solid var(--line-strong);
+  border-radius: 0;
+  padding: 10px 12px;
+  margin-bottom: 0;
 }
 .log-line {
   flex: 1;
