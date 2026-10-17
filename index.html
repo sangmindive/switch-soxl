@@ -12,7 +12,7 @@
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="apple-touch-icon" href="icon-192.png" />
   <link rel="icon" href="icon-192.png" />
-  <link rel="stylesheet" href="styles.css?v=20261018k" />
+  <link rel="stylesheet" href="styles.css?v=20261018l" />
 </head>
 <body>
   <div class="app">
@@ -188,8 +188,8 @@
       </div>
       <div class="journal-split">
       <div id="log-ud">
-        <p class="journal-col-title">업다운</p>
-        <article class="card rank-card">
+        <p class="journal-col-title j-ud-title">업다운</p>
+        <article class="card rank-card j-ud-add">
           <button type="button" class="rank-toggle" id="btn-add-ud-form" aria-expanded="false">
             <span>행 추가</span>
             <span class="rank-arrow" aria-hidden="true">▼</span>
@@ -208,14 +208,15 @@
             <p class="note">청산은 업다운과 떨사오팔을 모두 전량 매도합니다. 기록은 남습니다.</p>
           </div>
         </article>
-        <article class="card log-sheet">
+        <div class="journal-rank-slot j-ud-rank" aria-hidden="true"></div>
+        <article class="card log-sheet j-ud-sheet">
           <p class="log-legend">포트 · 체결 단가 · 매매 수량 · 보유 수량 · 평단</p>
           <div id="ud-log"></div>
         </article>
       </div>
       <div id="log-tt" class="hidden">
-        <p class="journal-col-title">떨사오팔</p>
-        <article class="card rank-card">
+        <p class="journal-col-title j-tt-title">떨사오팔</p>
+        <article class="card rank-card j-tt-add">
           <button type="button" class="rank-toggle" id="btn-add-tt-form" aria-expanded="false">
             <span>행 추가</span>
             <span class="rank-arrow" aria-hidden="true">▼</span>
@@ -235,7 +236,7 @@
             <p class="note">청산은 포트·랭크를 전량 매도합니다. 기록은 남습니다.</p>
           </div>
         </article>
-        <article class="card rank-card">
+        <article class="card rank-card j-tt-rank">
           <button type="button" class="rank-toggle" id="btn-rank-table" aria-expanded="false">
             <span id="rank-toggle-label">랭크 표 열기</span>
             <span class="rank-arrow" aria-hidden="true">▼</span>
@@ -249,7 +250,7 @@
             </div>
           </div>
         </article>
-        <article class="card log-sheet">
+        <article class="card log-sheet j-tt-sheet">
           <p class="log-legend">랭크 · 체결 단가 · 매매 수량 · 보유 수량 · 평단</p>
           <div id="tt-log"></div>
         </article>
