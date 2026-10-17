@@ -1158,9 +1158,47 @@
     document.getElementById("ud-log").innerHTML = html;
   }
 
+  function tteolHoldStats(trades) {
+    var items = (trades || []).map(function (t, idx) {
+      return { t: t, idx: idx };
+    });
+    items.sort(function (a, b) {
+      if (a.t.date !== b.t.date) return a.t.date < b.t.date ? -1 : 1;
+      var ds = (a.t.seq || 0) - (b.t.seq || 0);
+      if (ds) return ds;
+      return b.idx - a.idx;
+    });
+    var byRank = {};
+    var lastAvg = 0;
+    var stats = new Array(items.length);
+    items.forEach(function (item) {
+      var t = item.t;
+      if (t.type === "매수") {
+        byRank[t.rank] = { price: Number(t.price) || 0, qty: Number(t.qty) || 0 };
+      } else if (t.type === "매도") {
+        delete byRank[t.rank];
+      }
+      var hold = 0;
+      var cost = 0;
+      Object.keys(byRank).forEach(function (k) {
+        var r = byRank[k];
+        hold += r.qty;
+        cost += r.price * r.qty;
+      });
+      var avg = hold ? cost / hold : lastAvg;
+      if (hold) lastAvg = avg;
+      stats[item.idx] = { holdQty: hold, avg: avg };
+    });
+    return stats;
+  }
+
   function renderTtLog() {
+    var stats = tteolHoldStats(state.tteolTrades);
     var html = state.tteolTrades
       .map(function (t, idx) {
+        var st = stats[idx] || {};
+        var avg = st.avg == null || st.avg === "" ? "—" : usd(st.avg);
+        var hold = st.holdQty == null || st.holdQty === "" ? "—" : st.holdQty;
         return logLine(
           [
             "<span>" + t.date + "</span>",
@@ -1168,6 +1206,8 @@
             "<span>" + t.rank + "</span>",
             "<span>" + usd(t.price) + "</span>",
             "<span>" + t.qty + "주</span>",
+            "<span>보유 " + hold + "</span>",
+            "<span>" + avg + "</span>",
           ],
           "data-tt",
           idx

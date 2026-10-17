@@ -60,6 +60,18 @@ body {
     gap: 12px;
   }
   .loc-fills .fill-block { margin-top: 0; }
+  .journal-seg { display: none; }
+  .journal-split {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    align-items: start;
+  }
+  .journal-col-title { display: block; }
+  #page-journal #log-ud.hidden,
+  #page-journal #log-tt.hidden {
+    display: block !important;
+  }
 }
 
 .topbar {
@@ -297,6 +309,9 @@ body {
   cursor: pointer;
 }
 .seg button.active { background: #fff; color: var(--blue); box-shadow: var(--shadow); }
+@media (min-width: 980px) {
+  #page-journal .journal-seg { display: none; }
+}
 
 .field { display: flex; flex-direction: column; gap: 4px; }
 .field label { font-size: 12px; color: var(--muted); font-weight: 600; }
@@ -446,6 +461,16 @@ table.sheet tr.ladder-sell td { background: #fffafa; }
 }
 #rank-table-wrap { padding: 0 12px 12px; }
 .add-form-wrap { padding: 0 16px 14px; }
+.journal-col-title {
+  display: none;
+  margin: 0 4px 8px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ink);
+}
+@media (min-width: 980px) {
+  .journal-col-title { display: block; }
+}
 .log-legend {
   margin: 10px 4px 8px;
   padding: 8px 12px;
