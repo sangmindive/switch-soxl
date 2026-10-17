@@ -429,9 +429,7 @@ table.sheet tr.ladder-sell td { background: #fffafa; }
 .rank-arrow {
   color: var(--muted);
   font-size: 12px;
-  transition: transform 0.15s ease;
 }
-.rank-toggle[aria-expanded="true"] .rank-arrow { transform: rotate(180deg); }
 #rank-table-wrap { padding: 0 12px 12px; }
 
 .log-row {
