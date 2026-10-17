@@ -410,6 +410,30 @@ table.sheet tr.ladder-buy td { background: #f8faff; }
 table.sheet tr.ladder-sell td { background: #fffafa; }
 .grid-wrap { overflow-x: auto; }
 
+.rank-card { padding: 0; }
+.rank-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border: 0;
+  background: transparent;
+  padding: 14px 16px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ink);
+  cursor: pointer;
+  text-align: left;
+}
+.rank-arrow {
+  color: var(--muted);
+  font-size: 12px;
+  transition: transform 0.15s ease;
+}
+.rank-toggle[aria-expanded="true"] .rank-arrow { transform: rotate(180deg); }
+#rank-table-wrap { padding: 0 12px 12px; }
+
 .log-row {
   display: flex;
   align-items: center;

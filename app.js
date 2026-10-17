@@ -1075,27 +1075,37 @@
   }
 
   function renderRanks(out) {
-    var html = "";
-    for (var i = 1; i <= 20; i++) {
-      var r = out.openRanks.filter(function (x) {
-        return x.rank === i;
-      })[0];
-      html +=
-        "<tr><td>" +
-        i +
-        "</td><td>" +
-        (r ? r.buyDate : "") +
-        "</td><td>" +
-        (r ? r.holdDays : "") +
-        "</td><td>" +
-        (r ? money(r.price) : "") +
-        "</td><td>" +
-        (r ? r.qty : "") +
-        "</td><td class='sell'>" +
-        (r ? money(r.sellPrice) : "") +
-        "</td></tr>";
-    }
+    var ranks = (out.openRanks || []).slice().sort(function (a, b) {
+      return (a.rank || 0) - (b.rank || 0);
+    });
+    var html = ranks
+      .map(function (r) {
+        return (
+          "<tr><td>" +
+          r.rank +
+          "</td><td>" +
+          (r.buyDate || "") +
+          "</td><td>" +
+          (r.holdDays || "") +
+          "</td><td>" +
+          money(r.price) +
+          "</td><td>" +
+          r.qty +
+          "</td><td class='sell'>" +
+          money(r.sellPrice) +
+          "</td></tr>"
+        );
+      })
+      .join("");
+    if (!html) html = "<tr><td colspan='6' class='empty'>보유 랭크 없음</td></tr>";
     document.getElementById("rank-body").innerHTML = html;
+    var n = ranks.length;
+    var btn = document.getElementById("btn-rank-table");
+    var open = btn.getAttribute("aria-expanded") === "true";
+    document.getElementById("rank-toggle-label").textContent = open
+      ? "랭크 표 접기 · " + n
+      : "랭크 표 열기 · " + n;
+    btn.querySelector(".rank-arrow").textContent = open ? "▲" : "▼";
   }
 
   function logTypeClass(type) {
@@ -1261,6 +1271,12 @@
         document.getElementById("log-tt").classList.toggle("hidden", b.dataset.log !== "tt");
       };
     });
+    document.getElementById("btn-rank-table").onclick = function () {
+      var open = this.getAttribute("aria-expanded") !== "true";
+      this.setAttribute("aria-expanded", open ? "true" : "false");
+      document.getElementById("rank-table-wrap").classList.toggle("hidden", !open);
+      render();
+    };
     [
       "set-symbol",
       "set-capital",

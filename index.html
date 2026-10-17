@@ -12,7 +12,7 @@
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="apple-touch-icon" href="icon-192.png" />
   <link rel="icon" href="icon-192.png" />
-  <link rel="stylesheet" href="styles.css?v=20261018c" />
+  <link rel="stylesheet" href="styles.css?v=20261018d" />
 </head>
 <body>
   <div class="app">
@@ -204,13 +204,18 @@
         <div id="ud-log"></div>
       </div>
       <div id="log-tt" class="hidden">
-        <article class="card">
-          <h2>랭크 1–20</h2>
-          <div class="grid-wrap">
-            <table class="sheet">
-              <thead><tr><th>랭크</th><th>매수일</th><th>보유일</th><th>단가</th><th>수량</th><th>매도</th></tr></thead>
-              <tbody id="rank-body"></tbody>
-            </table>
+        <article class="card rank-card">
+          <button type="button" class="rank-toggle" id="btn-rank-table" aria-expanded="false">
+            <span id="rank-toggle-label">랭크 표 열기</span>
+            <span class="rank-arrow" aria-hidden="true">▼</span>
+          </button>
+          <div id="rank-table-wrap" class="hidden">
+            <div class="grid-wrap">
+              <table class="sheet">
+                <thead><tr><th>랭크</th><th>매수일</th><th>보유일</th><th>단가</th><th>수량</th><th>매도</th></tr></thead>
+                <tbody id="rank-body"></tbody>
+              </table>
+            </div>
           </div>
         </article>
         <article class="card">
@@ -410,6 +415,6 @@
   </div>
   <script src="engine.js?v=20261016d"></script>
   <script src="seed.js?v=20260924c"></script>
-  <script src="app.js?v=20261018a"></script>
+  <script src="app.js?v=20261018b"></script>
 </body>
 </html>
