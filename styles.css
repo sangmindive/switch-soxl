@@ -46,7 +46,20 @@ body {
     overflow: hidden;
     min-height: calc(100vh - 64px);
   }
-  .desktop-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .desktop-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    align-items: start;
+    margin-bottom: 12px;
+  }
+  .desktop-grid > .card { margin-bottom: 0; }
+  .loc-fills {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  .loc-fills .fill-block { margin-top: 0; }
 }
 
 .topbar {
@@ -347,6 +360,7 @@ input:focus, select:focus { outline: 2px solid #bfdbfe; border-color: var(--blue
 .btn.primary, .btn.buy { background: var(--blue); color: #fff; }
 .fill-block { margin-top: 12px; }
 .fill-block .btn { width: 100%; }
+.loc-fills .fill-block:first-child { margin-top: 0; }
 .loc-data {
   margin-top: 8px;
   padding: 12px 14px;
