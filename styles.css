@@ -431,6 +431,15 @@ table.sheet tr.ladder-sell td { background: #fffafa; }
   font-size: 12px;
 }
 #rank-table-wrap { padding: 0 12px 12px; }
+.add-form-wrap { padding: 0 16px 14px; }
+.log-legend {
+  margin: 10px 4px 8px;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  letter-spacing: -0.02em;
+}
 
 .log-row {
   display: flex;

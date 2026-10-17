@@ -1271,12 +1271,18 @@
         document.getElementById("log-tt").classList.toggle("hidden", b.dataset.log !== "tt");
       };
     });
-    document.getElementById("btn-rank-table").onclick = function () {
-      var open = this.getAttribute("aria-expanded") !== "true";
-      this.setAttribute("aria-expanded", open ? "true" : "false");
-      document.getElementById("rank-table-wrap").classList.toggle("hidden", !open);
-      render();
-    };
+    function bindFold(btnId, wrapId, after) {
+      document.getElementById(btnId).onclick = function () {
+        var open = this.getAttribute("aria-expanded") !== "true";
+        this.setAttribute("aria-expanded", open ? "true" : "false");
+        document.getElementById(wrapId).classList.toggle("hidden", !open);
+        this.querySelector(".rank-arrow").textContent = open ? "▲" : "▼";
+        if (after) after();
+      };
+    }
+    bindFold("btn-rank-table", "rank-table-wrap", render);
+    bindFold("btn-add-ud-form", "add-ud-wrap");
+    bindFold("btn-add-tt-form", "add-tt-wrap");
     [
       "set-symbol",
       "set-capital",
