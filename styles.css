@@ -431,7 +431,9 @@ table.sheet tr.ladder-sell td { background: #fffafa; }
   font-size: 12px;
 }
 #rank-table-wrap { padding: 0 12px 12px; }
-.add-form-wrap { padding: 0 16px 14px; }
+.add-form-wrap { padding: 0 16px 8px; }
+.add-btn-wrap { padding: 0 16px 14px; }
+.add-btn-wrap .btn { width: 100%; }
 .log-legend {
   margin: 10px 4px 8px;
   padding: 8px 12px;

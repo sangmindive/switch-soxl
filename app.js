@@ -592,6 +592,11 @@
     });
   }
 
+  function usd(n, d) {
+    var s = money(n, d);
+    return s ? "$" + s : "";
+  }
+
   function pct(n) {
     if (n === "" || n == null || Number.isNaN(n)) return "";
     return (Number(n) * 100).toFixed(2) + "%";
@@ -1133,16 +1138,16 @@
   function renderUdLog() {
     var html = state.updownTrades
       .map(function (t, idx) {
-        var avg = t.avg == null || t.avg === "" ? "—" : money(t.avg);
+        var avg = t.avg == null || t.avg === "" ? "—" : usd(t.avg);
         var hold = t.holdQty == null || t.holdQty === "" ? "—" : t.holdQty;
         return logLine(
           [
             "<span>" + t.date + "</span>",
             "<span class='pill " + logTypeClass(t.type) + "'>" + t.type + "</span>",
-            "<span>포트" + t.pot + "</span>",
-            "<span>" + money(t.price) + "</span>",
+            "<span>" + t.pot + "</span>",
+            "<span>" + usd(t.price) + "</span>",
             "<span>" + t.qty + "주</span>",
-            "<span>총 보유 " + hold + "</span>",
+            "<span>보유 " + hold + "</span>",
             "<span>" + avg + "</span>",
           ],
           "data-ud",
@@ -1160,8 +1165,8 @@
           [
             "<span>" + t.date + "</span>",
             "<span class='pill " + logTypeClass(t.type) + "'>" + t.type + "</span>",
-            "<span>랭크" + t.rank + "</span>",
-            "<span>" + money(t.price) + "</span>",
+            "<span>" + t.rank + "</span>",
+            "<span>" + usd(t.price) + "</span>",
             "<span>" + t.qty + "주</span>",
           ],
           "data-tt",
