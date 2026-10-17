@@ -415,13 +415,17 @@ table.sheet tr.ladder-sell td { background: #fffafa; }
   flex: 1;
   min-width: 0;
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
-  gap: 6px;
-  font-size: 13px;
+  gap: 5px;
+  font-size: 12px;
   font-weight: 600;
   letter-spacing: -0.02em;
+  overflow-x: auto;
+  white-space: nowrap;
+  scrollbar-width: none;
 }
+.log-line::-webkit-scrollbar { display: none; }
 .log-dot { color: var(--muted); font-weight: 500; }
 .log-del { flex: 0 0 auto; padding: 4px 8px; font-size: 12px; }
 .log-row .pill { padding: 2px 7px; }
