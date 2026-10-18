@@ -1593,14 +1593,15 @@
     return "<span class='log-dot'>·</span>";
   }
 
-  function logLine(dateText, restParts, delAttr, idx) {
+  function logLine(dateText, restParts, delAttr, idx, side) {
+    var d = logEdit(side, idx, "date", dateText, "date");
     return (
       "<article class='log-row'><div class='log-main'>" +
       "<div class='log-date'>" +
-      dateText +
+      d +
       "</div><div class='log-line'>" +
       "<span class='log-date-inline'>" +
-      dateText +
+      d +
       "</span><span class='log-date-inline log-dot'>·</span>" +
       restParts.join(logSep()) +
       "</div></div><button class='btn ghost log-del' " +
@@ -1609,6 +1610,184 @@
       idx +
       "'>삭제</button></article>"
     );
+  }
+
+  function logEdit(side, idx, key, shown, kind) {
+    return (
+      "<span class='log-edit' data-side='" +
+      side +
+      "' data-i='" +
+      idx +
+      "' data-k='" +
+      key +
+      "' data-kind='" +
+      (kind || "num") +
+      "'>" +
+      shown +
+      "</span>"
+    );
+  }
+
+  function parseEditValue(kind, raw, key) {
+    var s = String(raw == null ? "" : raw).trim();
+    if (kind === "date") {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+      return null;
+    }
+    if (kind === "type") {
+      if (s === "매수" || s === "매도" || s === "떨" || s === "이관") return s;
+      return null;
+    }
+    s = s.replace(/[$,주원%]/g, "").replace(/,/g, "").trim();
+    var n = parseFloat(s);
+    if (!isFinite(n)) return null;
+    if (key === "qty" || key === "holdQty" || key === "pot" || key === "rank") return Math.round(n);
+    return n;
+  }
+
+  function applyLogEdit(side, idx, key, raw) {
+    var kind = key === "date" ? "date" : key === "type" ? "type" : "num";
+    var val = parseEditValue(kind, raw, key);
+    if (val == null) {
+      toast("값을 확인하세요");
+      render();
+      return;
+    }
+    if (side === "esc") {
+      var esc = loadEscape();
+      if (!esc || !esc.trades || !esc.trades[idx]) return;
+      pushLastSnap();
+      var et = esc.trades[idx];
+      if (key === "price") {
+        et.price = val;
+        et.amount = (Number(et.price) || 0) * (Number(et.qty) || 0);
+      } else if (key === "qty") {
+        et.qty = val;
+        et.amount = (Number(et.price) || 0) * val;
+      } else if (key === "holdQty") {
+        et.holdQty = val;
+        if (et.avg) et.cost = Number(et.avg) * val;
+      } else if (key === "avg") {
+        et.avg = val;
+        if (et.holdQty) et.cost = val * Number(et.holdQty);
+      } else {
+        et[key] = val;
+      }
+      saveEscape(esc, { noUndo: true });
+      render();
+      toast("일지 수정");
+      return;
+    }
+    var list = side === "tt" ? state.tteolTrades : state.updownTrades;
+    var t = list && list[idx];
+    if (!t) return;
+    pushLastSnap();
+    if (key === "price") {
+      t.price = val;
+      t.amount = (Number(t.price) || 0) * (Number(t.qty) || 0);
+      if (state.settings && state.settings.fee) t.fee = E.excelRoundDown(t.amount * state.settings.fee, 2);
+    } else if (key === "qty") {
+      t.qty = val;
+      t.amount = (Number(t.price) || 0) * val;
+      if (state.settings && state.settings.fee) t.fee = E.excelRoundDown(t.amount * state.settings.fee, 2);
+    } else if (key === "holdQty") {
+      t.holdQty = val;
+      if (t.avg) t.cost = Number(t.avg) * val;
+    } else if (key === "avg") {
+      t.avg = val;
+      if (t.holdQty) t.cost = val * Number(t.holdQty);
+    } else {
+      t[key] = val;
+    }
+    persist({ noUndo: true });
+    toast("일지 수정");
+  }
+
+  function finishLogInput(input, save) {
+    if (!input || input.getAttribute("data-done") === "1") return;
+    input.setAttribute("data-done", "1");
+    var side = input.getAttribute("data-side");
+    var idx = parseInt(input.getAttribute("data-i"), 10);
+    var key = input.getAttribute("data-k");
+    var raw = input.value;
+    if (save) applyLogEdit(side, idx, key, raw);
+    else render();
+  }
+
+  function startLogEdit(span) {
+    if (!span || !span.classList || !span.classList.contains("log-edit")) return;
+    if (span.querySelector("input,select")) return;
+    var kind = span.getAttribute("data-kind") || "num";
+    var key = span.getAttribute("data-k");
+    var side = span.getAttribute("data-side");
+    var idx = span.getAttribute("data-i");
+    var cur = span.textContent.trim();
+    var el;
+    if (kind === "type") {
+      el = document.createElement("select");
+      var opts = side === "esc" ? ["이관", "매수", "매도"] : side === "tt" ? ["매수", "매도"] : ["매수", "매도", "떨"];
+      opts.forEach(function (o) {
+        var op = document.createElement("option");
+        op.value = o;
+        op.textContent = o;
+        el.appendChild(op);
+      });
+      var now = cur.replace(/[·\s]/g, "");
+      el.value = opts.indexOf(now) >= 0 ? now : opts[0];
+    } else {
+      el = document.createElement("input");
+      el.type = kind === "date" ? "date" : "text";
+      el.inputMode = kind === "date" ? "text" : "decimal";
+      el.value = kind === "date" ? cur : cur.replace(/[$,주]/g, "").trim();
+    }
+    el.className = "log-edit-in";
+    el.setAttribute("data-side", side);
+    el.setAttribute("data-i", idx);
+    el.setAttribute("data-k", key);
+    span.textContent = "";
+    span.appendChild(el);
+    el.focus();
+    if (el.select) el.select();
+    el.addEventListener("keydown", function (ev) {
+      if (ev.key === "Enter") {
+        ev.preventDefault();
+        finishLogInput(el, true);
+      }
+      if (ev.key === "Escape") {
+        ev.preventDefault();
+        finishLogInput(el, false);
+      }
+    });
+    el.addEventListener("change", function () {
+      if (kind === "type") finishLogInput(el, true);
+    });
+    el.addEventListener("blur", function () {
+      setTimeout(function () {
+        if (document.activeElement !== el) finishLogInput(el, true);
+      }, 0);
+    });
+  }
+
+  var lastLogTap = { t: 0, el: null };
+  function onJournalLogEvent(ev) {
+    if (ev.target.closest && ev.target.closest(".log-del")) return;
+    var span = ev.target.closest ? ev.target.closest(".log-edit") : null;
+    if (!span) return;
+    if (ev.type === "dblclick") {
+      ev.preventDefault();
+      startLogEdit(span);
+      return;
+    }
+    if (ev.type === "touchend") {
+      var now = Date.now();
+      if (lastLogTap.el === span && now - lastLogTap.t < 420) {
+        ev.preventDefault();
+        startLogEdit(span);
+        lastLogTap = { t: 0, el: null };
+      } else {
+        lastLogTap = { t: now, el: span };
+      }
+    }
   }
 
   function renderUdLog() {
@@ -1625,15 +1804,16 @@
           return logLine(
             t.date,
             [
-              "<span class='pill " + logTypeClass(t.type) + "'>" + t.type + "</span>",
-              "<span>" + t.pot + "</span>",
-              "<span>" + usd(t.type === "이관" ? t.avg : t.price) + "</span>",
-              "<span>" + t.qty + "주</span>",
-              "<span>보유 " + hold + "</span>",
-              "<span>" + avg + "</span>",
+              logEdit("esc", idx, "type", "<span class='pill " + logTypeClass(t.type) + "'>" + t.type + "</span>", "type"),
+              logEdit("esc", idx, "pot", String(t.pot), "num"),
+              logEdit("esc", idx, t.type === "이관" ? "avg" : "price", usd(t.type === "이관" ? t.avg : t.price), "num"),
+              logEdit("esc", idx, "qty", t.qty + "주", "num"),
+              "<span>보유 " + logEdit("esc", idx, "holdQty", String(hold), "num") + "</span>",
+              logEdit("esc", idx, "avg", avg, "num"),
             ],
             "data-ud",
-            idx
+            idx,
+            "esc"
           );
         })
         .join("");
@@ -1648,15 +1828,16 @@
         return logLine(
           t.date,
           [
-            "<span class='pill " + logTypeClass(t.type) + "'>" + t.type + "</span>",
-            "<span>" + t.pot + "</span>",
-            "<span>" + usd(t.price) + "</span>",
-            "<span>" + t.qty + "주</span>",
-            "<span>보유 " + hold + "</span>",
-            "<span>" + avg + "</span>",
+            logEdit("ud", idx, "type", "<span class='pill " + logTypeClass(t.type) + "'>" + t.type + "</span>", "type"),
+            logEdit("ud", idx, "pot", String(t.pot), "num"),
+            logEdit("ud", idx, "price", usd(t.price), "num"),
+            logEdit("ud", idx, "qty", t.qty + "주", "num"),
+            "<span>보유 " + logEdit("ud", idx, "holdQty", String(hold), "num") + "</span>",
+            logEdit("ud", idx, "avg", avg, "num"),
           ],
           "data-ud",
-          idx
+          idx,
+          "ud"
         );
       })
       .join("");
@@ -1713,15 +1894,16 @@
         return logLine(
           t.date,
           [
-            "<span class='pill " + logTypeClass(t.type) + "'>" + t.type + "</span>",
-            "<span>" + t.rank + "</span>",
-            "<span>" + usd(t.price) + "</span>",
-            "<span>" + t.qty + "주</span>",
+            logEdit("tt", idx, "type", "<span class='pill " + logTypeClass(t.type) + "'>" + t.type + "</span>", "type"),
+            logEdit("tt", idx, "rank", String(t.rank), "num"),
+            logEdit("tt", idx, "price", usd(t.price), "num"),
+            logEdit("tt", idx, "qty", t.qty + "주", "num"),
             "<span>보유 " + hold + "</span>",
             "<span>" + avg + "</span>",
           ],
           "data-tt",
-          idx
+          idx,
+          "tt"
         );
       })
       .join("");
@@ -1979,6 +2161,10 @@
       persist();
       toast(r.ok ? "떨 이관 랭크 " + r.rank : r.reason);
     };
+    document.getElementById("ud-log").ondblclick = onJournalLogEvent;
+    document.getElementById("ud-log").addEventListener("touchend", onJournalLogEvent, { passive: false });
+    document.getElementById("tt-log").ondblclick = onJournalLogEvent;
+    document.getElementById("tt-log").addEventListener("touchend", onJournalLogEvent, { passive: false });
     document.getElementById("ud-log").onclick = function (ev) {
       var i = ev.target.getAttribute("data-ud");
       if (i == null) return;

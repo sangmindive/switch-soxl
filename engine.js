@@ -306,98 +306,6 @@
     return (Number(buy.price) || 0) * (Number(buy.qty) || 0);
   }
 
-  function assignIfChanged(t, key, value) {
-    var old = t[key];
-    if (typeof value === "number" && isFiniteNumber(Number(old)) && Math.abs(Number(old) - value) < 1e-6) return false;
-    if (old === value) return false;
-    t[key] = value;
-    return true;
-  }
-
-  function refreshUpdownByCycle(trades) {
-    var oldest = (trades || []).slice().sort(function (a, b) {
-      if (a.date !== b.date) return a.date < b.date ? -1 : 1;
-      return (a.seq || 0) - (b.seq || 0);
-    });
-    var seen = {};
-    var cycles = [];
-    oldest.forEach(function (t) {
-      var c = t.cycle;
-      if (!seen[c]) {
-        seen[c] = [];
-        cycles.push(c);
-      }
-      seen[c].push(t);
-    });
-    var changed = false;
-    cycles.forEach(function (c) {
-      var qty = 0;
-      var port = 0;
-      var cost = 0;
-      var avg = 0;
-      seen[c].forEach(function (t) {
-        var price = Number(t.price) || 0;
-        var q = Number(t.qty) || 0;
-        var amount = t.amount != null && t.amount !== "" ? Number(t.amount) : price * q;
-        if (t.type === "매수" || t.type === "떨") {
-          port += 1;
-          qty += q;
-          cost += amount;
-          avg = qty ? cost / qty : 0;
-          if (assignIfChanged(t, "pot", port)) changed = true;
-          if (assignIfChanged(t, "holdQty", qty)) changed = true;
-          if (assignIfChanged(t, "cost", cost)) changed = true;
-          if (assignIfChanged(t, "avg", avg)) changed = true;
-        } else if (t.type === "매도") {
-          var sellPot = port || 1;
-          var prevAvg = avg;
-          qty -= q;
-          if (qty < 0) qty = 0;
-          cost = prevAvg * qty;
-          port = qty ? Math.max(port - 1, 0) : 0;
-          if (assignIfChanged(t, "pot", sellPot)) changed = true;
-          if (assignIfChanged(t, "holdQty", qty)) changed = true;
-          if (assignIfChanged(t, "cost", cost)) changed = true;
-          if (assignIfChanged(t, "avg", prevAvg)) changed = true;
-          avg = prevAvg;
-        }
-      });
-    });
-    return changed;
-  }
-
-  function compactTteolRanksByCycle(trades) {
-    var oldest = (trades || []).slice().sort(function (a, b) {
-      if (a.date !== b.date) return a.date < b.date ? -1 : 1;
-      return (a.seq || 0) - (b.seq || 0);
-    });
-    var maps = {};
-    var counts = {};
-    oldest.forEach(function (t) {
-      if (t.type !== "매수") return;
-      var c = t.cycle;
-      if (!maps[c]) {
-        maps[c] = {};
-        counts[c] = 0;
-      }
-      if (maps[c][t.rank] == null) {
-        counts[c] += 1;
-        maps[c][t.rank] = counts[c];
-      }
-    });
-    var changed = false;
-    (trades || []).forEach(function (t) {
-      var m = maps[t.cycle];
-      if (!m) return;
-      var next = m[t.rank];
-      if (next != null && t.rank !== next) {
-        t.rank = next;
-        changed = true;
-      }
-    });
-    return changed;
-  }
-
   function repairTteolPnls(trades) {
     var repaired = false;
     var byRank = {};
@@ -428,11 +336,9 @@
   function compute(state, opts) {
     var s = state.settings;
     var m = state.market;
-    var compactedTt = compactTteolRanksByCycle(state.tteolTrades || []);
-    var refreshedUd = refreshUpdownByCycle(state.updownTrades || []);
     var ud = sortNewestFirst(state.updownTrades || []);
     var tt = sortNewestFirst(state.tteolTrades || []);
-    var repairedTt = repairTteolPnls(tt) || compactedTt || refreshedUd;
+    var repairedTt = repairTteolPnls(tt);
     state.updownTrades = ud;
     state.tteolTrades = tt;
 
