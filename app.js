@@ -19,6 +19,8 @@
   var pushTimer = null;
   var syncing = false;
   var pushQueued = false;
+  var pullQueued = false;
+  var firstSyncDone = false;
 
   function bookOf(s) {
     return {
@@ -534,12 +536,16 @@
   }
 
   function gistBody() {
+    stashActive();
+    var files = {
+      "switch-v3-state.json": { content: JSON.stringify(state) },
+    };
+    var esc = loadEscape();
+    if (esc) files[ESCAPE_FILE] = { content: JSON.stringify(esc) };
     return {
       description: "Switch SOXL device sync",
       public: false,
-      files: {
-        "switch-v3-state.json": { content: JSON.stringify(state) },
-      },
+      files: files,
     };
   }
 
@@ -667,18 +673,16 @@
   }
 
   function mergeBook(localBook, remoteBook, localRev, remoteRev) {
+    if (remoteRev > localRev && remoteBook && remoteBook.settings) {
+      return JSON.parse(JSON.stringify(remoteBook));
+    }
+    if (localRev > remoteRev && localBook && localBook.settings) {
+      return JSON.parse(JSON.stringify(localBook));
+    }
     var base = remoteRev > localRev ? remoteBook : localBook;
     var next = JSON.parse(JSON.stringify(base || blankBook()));
-    if (remoteRev > localRev) {
-      next.deletedUd = ((remoteBook && remoteBook.deletedUd) || []).slice();
-      next.deletedTt = ((remoteBook && remoteBook.deletedTt) || []).slice();
-    } else if (localRev > remoteRev) {
-      next.deletedUd = ((localBook && localBook.deletedUd) || []).slice();
-      next.deletedTt = ((localBook && localBook.deletedTt) || []).slice();
-    } else {
-      next.deletedUd = mergeIdList(localBook && localBook.deletedUd, remoteBook && remoteBook.deletedUd);
-      next.deletedTt = mergeIdList(localBook && localBook.deletedTt, remoteBook && remoteBook.deletedTt);
-    }
+    next.deletedUd = mergeIdList(localBook && localBook.deletedUd, remoteBook && remoteBook.deletedUd);
+    next.deletedTt = mergeIdList(localBook && localBook.deletedTt, remoteBook && remoteBook.deletedTt);
     next.updownTrades = mergeTradeLists(
       localBook && localBook.updownTrades,
       remoteBook && remoteBook.updownTrades,
@@ -834,9 +838,22 @@
     }, 700);
   }
 
+  function markSyncReady() {
+    if (firstSyncDone) return;
+    firstSyncDone = true;
+    schedulePush();
+  }
+
   function pullRemote() {
     var cfg = loadSyncCfg();
-    if (!cfg.token || !cfg.gistId || syncing) return Promise.resolve(false);
+    if (!cfg.token || !cfg.gistId) {
+      markSyncReady();
+      return Promise.resolve(false);
+    }
+    if (syncing) {
+      pullQueued = true;
+      return Promise.resolve(false);
+    }
     syncing = true;
     return fetch("https://api.github.com/gists/" + cfg.gistId, { headers: gistHeaders(cfg.token) })
       .then(readGistResponse)
@@ -845,7 +862,12 @@
         var remote = readRemoteState(gist);
         if (!remote) {
           syncing = false;
+          markSyncReady();
           if (escChanged) render();
+          if (pullQueued) {
+            pullQueued = false;
+            return pullRemote();
+          }
           if (!pushQueued) return escChanged;
           pushQueued = false;
           return pushRemote().then(function () {
@@ -856,8 +878,13 @@
         state = rec.state;
         saveState();
         syncing = false;
+        markSyncReady();
         if (rec.changed || escChanged) render();
         lastSnap = captureSnap();
+        if (pullQueued) {
+          pullQueued = false;
+          return pullRemote();
+        }
         if (!rec.push && !pushQueued) return rec.changed;
         pushQueued = false;
         return pushRemote().then(function () {
@@ -866,6 +893,7 @@
       })
       .catch(function (err) {
         syncing = false;
+        markSyncReady();
         throw err;
       });
   }
@@ -903,10 +931,16 @@
       })
       .then(function () {
         syncing = false;
+        markSyncReady();
+        if (pullQueued) {
+          pullQueued = false;
+          return pullRemote();
+        }
         if (pushQueued) return pushRemote();
       })
       .catch(function (err) {
         syncing = false;
+        markSyncReady();
         throw err;
       });
   }
@@ -1068,7 +1102,7 @@
     lastSnap = captureSnap();
     render();
     updateUndoBtn();
-    if (!(opts && opts.sync === false)) schedulePush();
+    if (firstSyncDone && !(opts && opts.sync === false)) schedulePush();
   }
 
   function barKey(side) {
@@ -2522,16 +2556,31 @@
   }
 
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("sw.js?v=5").catch(function () {});
+    navigator.serviceWorker.register("sw.js?v=6").catch(function () {});
   }
 
+  function syncNow() {
+    fetchQuote();
+    pullRemote().catch(function () {});
+  }
   document.addEventListener("visibilitychange", function () {
-    if (!document.hidden) {
-      fetchQuote();
-      pullRemote().catch(function () {});
-    }
+    if (!document.hidden) syncNow();
+  });
+  window.addEventListener("pageshow", function () {
+    syncNow();
+  });
+  window.addEventListener("focus", function () {
+    syncNow();
   });
   window.addEventListener("storage", function (ev) {
+    if (ev.key === KEY && ev.newValue) {
+      try {
+        state = attachAccounts(JSON.parse(ev.newValue));
+        lastSnap = captureSnap();
+        render();
+      } catch (e) {}
+      return;
+    }
     if (ev.key !== ESCAPE_KEY) return;
     if (isEscapeView()) render();
   });
@@ -2546,6 +2595,7 @@
   updateUndoBtn();
   fetchQuote();
   pullRemote().catch(function () {});
+  setTimeout(markSyncReady, 8000);
   setInterval(fetchQuote, 15000);
   setInterval(function () {
     pullRemote().catch(function () {});
