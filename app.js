@@ -732,10 +732,19 @@
 
   function ingestEscapeGist(gist) {
     var file = gist && gist.files && gist.files[ESCAPE_FILE];
-    if (!file || !file.content) return;
+    if (!file || !file.content) return false;
     try {
-      localStorage.setItem(ESCAPE_KEY, file.content);
+      var remote = JSON.parse(file.content);
+      var local = loadEscape();
+      var lr = Number(local && local.rev) || 0;
+      var rr = Number(remote && remote.rev) || 0;
+      if (rr > lr) {
+        localStorage.setItem(ESCAPE_KEY, file.content);
+        return true;
+      }
+      if (lr > rr) scheduleEscapePush();
     } catch (e) {}
+    return false;
   }
 
   var escapePushTimer = null;
@@ -763,21 +772,22 @@
     return fetch("https://api.github.com/gists/" + cfg.gistId, { headers: gistHeaders(cfg.token) })
       .then(readGistResponse)
       .then(function (gist) {
-        ingestEscapeGist(gist);
+        var escChanged = ingestEscapeGist(gist);
         var remote = readRemoteState(gist);
         if (!remote) {
           syncing = false;
-          if (!pushQueued) return false;
+          if (escChanged) render();
+          if (!pushQueued) return escChanged;
           pushQueued = false;
           return pushRemote().then(function () {
-            return false;
+            return escChanged;
           });
         }
         var rec = reconcile(state, remote);
         state = rec.state;
         saveState();
         syncing = false;
-        if (rec.changed) render();
+        if (rec.changed || escChanged) render();
         if (!rec.push && !pushQueued) return rec.changed;
         pushQueued = false;
         return pushRemote().then(function () {
@@ -2427,6 +2437,10 @@
       fetchQuote();
       pullRemote().catch(function () {});
     }
+  });
+  window.addEventListener("storage", function (ev) {
+    if (ev.key !== ESCAPE_KEY) return;
+    if (isEscapeView()) render();
   });
 
   bind();

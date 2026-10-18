@@ -67,12 +67,8 @@
     <section id="page-orders" class="page">
       <article class="card">
         <div class="fill-block" style="margin-top:0">
-          <button class="btn primary wide" id="btn-fill-buy" type="button">업다운 매수 체결</button>
-          <div class="muted" id="sug-buy" style="margin-top:8px"></div>
-        </div>
-        <div class="fill-block">
-          <button class="btn sell wide" id="btn-fill-sell" type="button">업다운 매도 체결</button>
-          <div class="muted" id="sug-sell" style="margin-top:8px"></div>
+          <button class="btn primary wide" id="btn-fill-ud" type="button">업다운 체결 반영</button>
+          <div id="sug-ud"></div>
         </div>
       </article>
       <article class="card">
@@ -579,15 +575,27 @@
 
       var willBuy = c.started && c.buy !== "" && c.closePx <= c.buy;
       var willSell = c.started && c.sell !== "" && c.closePx >= c.sell;
-
-      document.getElementById("sug-buy").textContent = c.started
-        ? "매수 · " + usd(c.closePx) + " · " + c.buyQty + "주 · 포트" + (c.port ? c.port + 1 : 1)
-        : "탈출 시작 후 체결할 수 있습니다";
-      document.getElementById("sug-sell").textContent = !c.started
-        ? "탈출 시작 후 체결할 수 있습니다"
-        : (c.sellQty ? "매도 · " + usd(c.lp) + " · " + c.sellQty + "주 · 포트" + c.port : "보유 0 · 매도 없음");
-      document.getElementById("btn-fill-buy").disabled = !willBuy;
-      document.getElementById("btn-fill-sell").disabled = !willSell;
+      var fillBtn = document.getElementById("btn-fill-ud");
+      var sugEl = document.getElementById("sug-ud");
+      if (!c.started) {
+        sugEl.innerHTML = "<div class='note'>탈출 시작 후 체결할 수 있습니다</div>";
+        fillBtn.disabled = true;
+      } else if (willBuy && !willSell) {
+        sugEl.innerHTML =
+          "<div class='loc-data'><div class='loc-data-top'><strong>매수</strong></div>" +
+          "<div class='loc-data-amt pos'>" + money(c.closePx) + " × " + c.buyQty + "주</div>" +
+          "<div class='loc-data-meta'>포트 " + (c.port ? c.port + 1 : 1) + "</div></div>";
+        fillBtn.disabled = false;
+      } else if (willSell && !willBuy) {
+        sugEl.innerHTML =
+          "<div class='loc-data'><div class='loc-data-top'><strong>매도</strong></div>" +
+          "<div class='loc-data-amt neg'>" + money(c.lp) + " × " + c.sellQty + "주</div>" +
+          "<div class='loc-data-meta'>포트 " + c.port + "</div></div>";
+        fillBtn.disabled = false;
+      } else {
+        sugEl.innerHTML = "<div class='note'>업다운 제안 없음. 밴드 밖 (미체결)</div>";
+        fillBtn.disabled = true;
+      }
 
       var stepsEl = document.getElementById("v-esc-steps");
       var stepqEl = document.getElementById("v-esc-stepq");
@@ -632,6 +640,11 @@
       var closePx = c.closePx;
       var date = document.getElementById("p-date").value || d.date;
       if (!c.started) return toast("먼저 탈출 시작을 누르세요");
+      if (!type) {
+        if (c.buy !== "" && closePx <= c.buy) type = "매수";
+        else if (c.sell !== "" && closePx >= c.sell) type = "매도";
+        else return toast("밴드 밖 (미체결)");
+      }
       if (type === "매수") {
         if (!(closePx <= c.buy)) return toast("매수 조건 아님");
         var bq = c.buyQty;
@@ -726,8 +739,7 @@
     };
 
     document.getElementById("btn-esc-start").onclick = startEscape;
-    document.getElementById("btn-fill-buy").onclick = function () { applyFill("매수"); };
-    document.getElementById("btn-fill-sell").onclick = function () { applyFill("매도"); };
+    document.getElementById("btn-fill-ud").onclick = function () { applyFill(); };
     document.getElementById("btn-add").onclick = function () {
       var type = document.getElementById("j-type").value;
       var price = parseFloat(document.getElementById("j-price").value);
@@ -781,6 +793,14 @@
       if (document.hidden) return;
       pullRemote().catch(function () {});
     });
+    window.addEventListener("storage", function (ev) {
+      if (ev.key !== KEY) return;
+      fillForm(load());
+      render();
+    });
+    setInterval(function () {
+      pullRemote().catch(function () {});
+    }, 20000);
   </script>
 </body>
 </html>
