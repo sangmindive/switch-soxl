@@ -29,12 +29,6 @@
     </header>
 
     <section id="page-home" class="page active">
-      <article class="card">
-        <div class="k">오늘 종가</div>
-        <div class="field" style="margin-top:8px">
-          <input id="p-close" type="number" step="0.01" />
-        </div>
-      </article>
       <div class="desktop-grid">
         <article class="card">
           <h2>매수 <span class="pill">LOC</span></h2>
@@ -55,11 +49,6 @@
           <div class="row"><span class="k">체결 조건</span><span class="v" id="o-sell-if">—</span></div>
         </article>
       </div>
-      <article class="card">
-        <h2>서식이 오늘 내는 신호</h2>
-        <p id="o-signal" style="margin:0;font-weight:700"></p>
-        <p class="note" id="o-signal-note"></p>
-      </article>
       <article class="card">
         <h2>시드 · 평단</h2>
         <div class="row"><span class="k">보유</span><span class="v" id="h-hold">—</span></div>
@@ -150,6 +139,7 @@
           <div class="field"><label>포트 분할</label><input id="p-split" type="number" step="1" /></div>
           <div class="field"><label>시작 포트</label><input id="p-port" type="number" step="1" /></div>
           <div class="field"><label>직전 체결가</label><input id="p-last" type="number" step="0.01" /></div>
+          <div class="field"><label>오늘 종가</label><input id="p-close" type="number" step="0.01" /></div>
         </div>
         <button class="btn primary wide" id="btn-esc-start" type="button" style="margin-top:12px">탈출 시작</button>
         <div class="row"><span class="k">동기화</span><span id="sync-status">확인 중</span></div>
@@ -260,7 +250,8 @@
         if (t.type === "이관") {
           live.qty = Number(t.holdQty != null ? t.holdQty : t.qty) || 0;
           live.avg = Number(t.avg) || 0;
-          live.cost = live.qty && live.avg ? round(live.qty * live.avg, 2) : 0;
+          live.cost = t.cost != null && t.cost !== "" ? Number(t.cost) : Number(d.cost);
+          if (!live.cost && live.qty && live.avg) live.cost = round(live.qty * live.avg, 2);
           live.port = Number(t.pot) || 0;
           live.last = Number(t.lp) || Number(d.last) || 0;
         } else if (t.type === "매수") {
@@ -373,6 +364,19 @@
       d.last = n("p-last");
       d.steps = n("p-steps");
       d.stepq = n("p-stepq");
+      var t0 = d.trades && d.trades[0];
+      if (t0 && t0.type === "이관") {
+        t0.cost = d.cost;
+        t0.avg = d.avg;
+        t0.price = d.avg;
+        t0.lp = d.last;
+        if (d.trades.length === 1) {
+          t0.date = d.date;
+          t0.qty = d.qty;
+          t0.holdQty = d.qty;
+          t0.pot = d.port;
+        }
+      }
       persist(d);
     }
     function readRemoteEscape(gist) {
@@ -575,29 +579,6 @@
 
       var willBuy = c.started && c.buy !== "" && c.closePx <= c.buy;
       var willSell = c.started && c.sell !== "" && c.closePx >= c.sell;
-      var sig = document.getElementById("o-signal");
-      var note = document.getElementById("o-signal-note");
-      if (!c.started) {
-        sig.textContent = "탈출 시작 전";
-        sig.style.color = "#6b7280";
-        note.textContent = "설정에 이관 값을 넣고 탈출 시작을 누르세요.";
-      } else if (willBuy && !willSell) {
-        sig.textContent = "매수";
-        sig.style.color = "#2563eb";
-        note.textContent = "종가가 매수 지정가 이하입니다.";
-      } else if (willSell && !willBuy) {
-        sig.textContent = "매도";
-        sig.style.color = "#ef4444";
-        note.textContent = "종가가 매도 지정가(LP) 이상입니다.";
-      } else if (!willBuy && !willSell) {
-        sig.textContent = "없음 (밴드 밖)";
-        sig.style.color = "#6b7280";
-        note.textContent = "종가가 매수 단가와 LP 사이에 있습니다.";
-      } else {
-        sig.textContent = "매수·매도 둘 다";
-        sig.style.color = "#111827";
-        note.textContent = "같은 종가에서 두 조건이 겹칩니다.";
-      }
 
       document.getElementById("sug-buy").textContent = c.started
         ? "매수 · " + usd(c.closePx) + " · " + c.buyQty + "주 · 포트" + (c.port ? c.port + 1 : 1)
@@ -689,6 +670,7 @@
         qty: d.qty,
         holdQty: d.qty,
         avg: d.avg,
+        cost: d.cost,
         lp: d.last
       }];
       persist(d);
@@ -773,18 +755,6 @@
       persist(d);
       render();
     };
-    document.getElementById("p-qty").addEventListener("input", function () {
-      if (linking) return;
-      var q = n("p-qty");
-      var a = n("p-avg");
-      if (q && a) document.getElementById("p-cost").value = round(q * a, 2);
-    });
-    document.getElementById("p-avg").addEventListener("input", function () {
-      if (linking) return;
-      var q = n("p-qty");
-      var a = n("p-avg");
-      if (q && a) document.getElementById("p-cost").value = round(q * a, 2);
-    });
     document.querySelectorAll("input, select").forEach(function (el) {
       el.addEventListener("input", function () {
         if (linking) return;
