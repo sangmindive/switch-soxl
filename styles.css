@@ -105,6 +105,14 @@ body {
   }
   .app.esc-view .j-ud-add { grid-column: 1; grid-row: 1; }
   .app.esc-view .j-ud-sheet { grid-column: 1; grid-row: 2; }
+  .app.esc-view #page-journal #log-tt,
+  .app.esc-view #page-journal #log-tt.hidden,
+  .app.esc-view .j-tt-title,
+  .app.esc-view .j-tt-add,
+  .app.esc-view .j-tt-rank,
+  .app.esc-view .j-tt-sheet {
+    display: none !important;
+  }
 }
 
 .topbar {

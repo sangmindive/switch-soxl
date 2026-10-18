@@ -256,12 +256,31 @@
     var be = c.qty ? c.cost / c.qty : 0;
     setTxt("swesc-eval", c.started ? money(evalAmt) + " · " + pct(evalPct) : "—");
     setTxt("swesc-be", c.started && c.closePx ? money(be) + " (" + pct(be / c.closePx - 1) + ")" : "—");
-    setTxt("sug-swesc-buy", c.started ? "매수 · " + usd(c.closePx) + " · " + c.buyQty + "주 · 포트" + (c.port ? c.port + 1 : 1) : "탈출 시작 후 체결할 수 있습니다");
-    setTxt("sug-swesc-sell", !c.started ? "탈출 시작 후 체결할 수 있습니다" : (c.sellQty ? "매도 · " + usd(c.lp) + " · " + c.sellQty + "주 · 포트" + c.port : "보유 0 · 매도 없음"));
-    var buyBtn = document.getElementById("btn-swesc-fill-buy");
-    var sellBtn = document.getElementById("btn-swesc-fill-sell");
-    if (buyBtn) buyBtn.disabled = !willBuy;
-    if (sellBtn) sellBtn.disabled = !willSell;
+    var sugEl = document.getElementById("sug-swesc-ud");
+    var fillBtn = document.getElementById("btn-swesc-fill-ud");
+    if (!c.started) {
+      if (sugEl) sugEl.innerHTML = "<div class='note'>탈출 시작 후 체결할 수 있습니다</div>";
+      if (fillBtn) fillBtn.disabled = true;
+    } else if (willBuy && !willSell) {
+      if (sugEl) {
+        sugEl.innerHTML =
+          "<div class='loc-data'><div class='loc-data-top'><strong>매수</strong></div>" +
+          "<div class='loc-data-amt pos'>" + money(c.closePx) + " × " + c.buyQty + "주</div>" +
+          "<div class='loc-data-meta'>포트 " + (c.port ? c.port + 1 : 1) + "</div></div>";
+      }
+      if (fillBtn) fillBtn.disabled = false;
+    } else if (willSell && !willBuy) {
+      if (sugEl) {
+        sugEl.innerHTML =
+          "<div class='loc-data'><div class='loc-data-top'><strong>매도</strong></div>" +
+          "<div class='loc-data-amt neg'>" + money(c.lp) + " × " + c.sellQty + "주</div>" +
+          "<div class='loc-data-meta'>포트 " + c.port + "</div></div>";
+      }
+      if (fillBtn) fillBtn.disabled = false;
+    } else {
+      if (sugEl) sugEl.innerHTML = "<div class='note'>업다운 제안 없음. 밴드 밖 (미체결)</div>";
+      if (fillBtn) fillBtn.disabled = true;
+    }
     setTxt("swesc-steps", String(c.steps || 0));
     setTxt("swesc-stepq", String(c.stepq || 0));
     var rows = [];
@@ -296,6 +315,11 @@
     var c = escapeCalc(esc);
     var closePx = c.closePx;
     var date = (state.market && state.market.closeDate) || esc.date;
+    if (!type) {
+      if (c.started && c.buy !== "" && closePx <= c.buy) type = "매수";
+      else if (c.started && c.sell !== "" && closePx >= c.sell) type = "매도";
+      else return toast("밴드 밖 (미체결)");
+    }
     if (type === "매수") {
       if (!(c.started && closePx <= c.buy)) return toast("매수 조건 아님");
       if (!c.buyQty) return toast("수량 0");
@@ -1791,10 +1815,8 @@
         toast("코드를 길게 눌러 복사하세요");
       }
     };
-    var swescBuy = document.getElementById("btn-swesc-fill-buy");
-    var swescSell = document.getElementById("btn-swesc-fill-sell");
-    if (swescBuy) swescBuy.onclick = function () { applyEscapeFill("매수"); };
-    if (swescSell) swescSell.onclick = function () { applyEscapeFill("매도"); };
+    var swescUd = document.getElementById("btn-swesc-fill-ud");
+    if (swescUd) swescUd.onclick = function () { applyEscapeFill(); };
     document.getElementById("btn-fill-ud").onclick = function () {
       var r = E.applySuggested(state, "ud");
       maybeAutoTransfer();
