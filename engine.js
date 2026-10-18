@@ -306,6 +306,38 @@
     return (Number(buy.price) || 0) * (Number(buy.qty) || 0);
   }
 
+  function compactTteolRanksByCycle(trades) {
+    var oldest = (trades || []).slice().sort(function (a, b) {
+      if (a.date !== b.date) return a.date < b.date ? -1 : 1;
+      return (a.seq || 0) - (b.seq || 0);
+    });
+    var maps = {};
+    var counts = {};
+    oldest.forEach(function (t) {
+      if (t.type !== "매수") return;
+      var c = t.cycle;
+      if (!maps[c]) {
+        maps[c] = {};
+        counts[c] = 0;
+      }
+      if (maps[c][t.rank] == null) {
+        counts[c] += 1;
+        maps[c][t.rank] = counts[c];
+      }
+    });
+    var changed = false;
+    (trades || []).forEach(function (t) {
+      var m = maps[t.cycle];
+      if (!m) return;
+      var next = m[t.rank];
+      if (next != null && t.rank !== next) {
+        t.rank = next;
+        changed = true;
+      }
+    });
+    return changed;
+  }
+
   function repairTteolPnls(trades) {
     var repaired = false;
     var byRank = {};
@@ -336,9 +368,10 @@
   function compute(state, opts) {
     var s = state.settings;
     var m = state.market;
+    var compactedTt = compactTteolRanksByCycle(state.tteolTrades || []);
     var ud = sortNewestFirst(state.updownTrades || []);
     var tt = sortNewestFirst(state.tteolTrades || []);
-    var repairedTt = repairTteolPnls(tt);
+    var repairedTt = repairTteolPnls(tt) || compactedTt;
     state.updownTrades = ud;
     state.tteolTrades = tt;
 

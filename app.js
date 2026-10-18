@@ -1157,8 +1157,10 @@
     }
     renderAccountSeg();
     if (out.repairedTt && !isEscapeView()) {
+      state.rev = Date.now();
       saveState();
       lastSnap = captureSnap();
+      if (firstSyncDone) schedulePush();
     }
     var s = state.settings;
     var m = state.market;
