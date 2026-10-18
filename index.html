@@ -29,8 +29,8 @@
 
     <div class="account-bar">
       <div class="seg account-seg" id="account-seg">
-        <button type="button" data-account="1">1번 계좌</button>
-        <button type="button" data-account="2">2번 계좌</button>
+        <button type="button" data-side="left">1번 계좌</button>
+        <button type="button" data-side="right">2번 계좌</button>
       </div>
     </div>
 
@@ -349,6 +349,27 @@
       <article class="card">
         <h2>계좌</h2>
         <p class="note">1번과 2번은 원금·일지가 따로입니다. 2번 계좌 원금은 0에서 시작합니다.</p>
+        <div class="setting-row"><span class="k">위 왼쪽</span>
+          <select id="set-bar-left">
+            <option value="acc1">1번 계좌</option>
+            <option value="acc2">2번 계좌</option>
+            <option value="escape-home">탈출 홈</option>
+            <option value="escape-orders">탈출 주문</option>
+            <option value="escape-journal">탈출 일지</option>
+            <option value="escape-settings">탈출 설정</option>
+          </select>
+        </div>
+        <div class="setting-row"><span class="k">위 오른쪽</span>
+          <select id="set-bar-right">
+            <option value="acc1">1번 계좌</option>
+            <option value="acc2">2번 계좌</option>
+            <option value="escape-home">탈출 홈</option>
+            <option value="escape-orders">탈출 주문</option>
+            <option value="escape-journal">탈출 일지</option>
+            <option value="escape-settings">탈출 설정</option>
+          </select>
+        </div>
+        <p class="note">홈 위 두 칸입니다. 계좌는 장부를 바꾸고, 탈출은 그 탭으로 갑니다.</p>
         <div class="fill-block">
           <button class="btn ghost" id="btn-reset" type="button">거래 내역 리셋</button>
         </div>
@@ -439,6 +460,6 @@
   </div>
   <script src="engine.js?v=20261016d"></script>
   <script src="seed.js?v=20260924c"></script>
-  <script src="app.js?v=20261018i"></script>
+  <script src="app.js?v=20261018j"></script>
 </body>
 </html>

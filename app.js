@@ -5,6 +5,14 @@
   var S = window.SwitchSeed;
   var KEY = "switch-v3-state";
   var SYNC_KEY = "switch-v3-sync";
+  var BAR_SLOTS = {
+    acc1: { label: "1번 계좌" },
+    acc2: { label: "2번 계좌" },
+    "escape-home": { label: "탈출 홈", href: "escape-preview.html#home" },
+    "escape-orders": { label: "탈출 주문", href: "escape-preview.html#orders" },
+    "escape-journal": { label: "탈출 일지", href: "escape-preview.html#journal" },
+    "escape-settings": { label: "탈출 설정", href: "escape-preview.html#settings" },
+  };
   var state = loadState();
   var tab = "home";
   var statsMode = "month";
@@ -56,6 +64,8 @@
     }
     if (!root.accounts["2"] || !root.accounts["2"].settings) root.accounts["2"] = blankBook();
     if (root.accountId !== "1" && root.accountId !== "2") root.accountId = "1";
+    if (!BAR_SLOTS[root.barLeft]) root.barLeft = "acc1";
+    if (!BAR_SLOTS[root.barRight]) root.barRight = "acc2";
     if (root.settings && root.updownTrades) root.accounts[root.accountId] = bookOf(root);
     ["1", "2"].forEach(function (id) {
       if (root.accounts[id] && root.accounts[id].settings) {
@@ -396,6 +406,8 @@
     next.accounts["1"] = mergeBook(local.accounts["1"], remote.accounts["1"], localRev, remoteRev);
     next.accounts["2"] = mergeBook(local.accounts["2"], remote.accounts["2"], localRev, remoteRev);
     next.accountId = local.accountId || "1";
+    next.barLeft = (remoteRev > localRev ? remote.barLeft : local.barLeft) || local.barLeft || remote.barLeft || "acc1";
+    next.barRight = (remoteRev > localRev ? remote.barRight : local.barRight) || local.barRight || remote.barRight || "acc2";
     next.settings = next.accounts[next.accountId].settings;
     next.updownTrades = next.accounts[next.accountId].updownTrades;
     next.tteolTrades = next.accounts[next.accountId].tteolTrades;
@@ -681,10 +693,30 @@
     if (!(opts && opts.sync === false)) schedulePush();
   }
 
+  function barKey(side) {
+    var key = side === "right" ? state.barRight : state.barLeft;
+    return BAR_SLOTS[key] ? key : side === "right" ? "acc2" : "acc1";
+  }
+
+  function barActive(key) {
+    if (key === "acc1") return (state.accountId || "1") === "1";
+    if (key === "acc2") return state.accountId === "2";
+    return false;
+  }
+
+  function activateBar(key) {
+    if (key === "acc1") return selectAccount("1");
+    if (key === "acc2") return selectAccount("2");
+    var slot = BAR_SLOTS[key];
+    if (slot && slot.href) location.href = slot.href;
+  }
+
   function renderAccountSeg() {
-    var id = state.accountId || "1";
     document.querySelectorAll("#account-seg button").forEach(function (b) {
-      b.classList.toggle("active", b.dataset.account === id);
+      var key = barKey(b.dataset.side);
+      var slot = BAR_SLOTS[key];
+      b.textContent = slot ? slot.label : key;
+      b.classList.toggle("active", barActive(key));
     });
   }
 
@@ -754,6 +786,10 @@
     document.getElementById("set-tt-steps").value = s.tteolLadderCount;
     document.getElementById("set-ud-qty").value = s.udStepQty;
     document.getElementById("set-tt-qty").value = s.tteolStepQty;
+    var barLeftEl = document.getElementById("set-bar-left");
+    var barRightEl = document.getElementById("set-bar-right");
+    if (barLeftEl) barLeftEl.value = barKey("left");
+    if (barRightEl) barRightEl.value = barKey("right");
     markPresetButtons();
     fillText("v-ud-orders", s.udLadderCount);
     fillText("v-ud-step", s.udStepQty);
@@ -1267,6 +1303,10 @@
     s.tteolLadderCount = parseInt(document.getElementById("set-tt-steps").value, 10) || 0;
     s.udStepQty = parseInt(document.getElementById("set-ud-qty").value, 10) || 0;
     s.tteolStepQty = parseInt(document.getElementById("set-tt-qty").value, 10) || 0;
+    var barLeft = document.getElementById("set-bar-left").value;
+    var barRight = document.getElementById("set-bar-right").value;
+    state.barLeft = BAR_SLOTS[barLeft] ? barLeft : "acc1";
+    state.barRight = BAR_SLOTS[barRight] ? barRight : "acc2";
     persist();
   }
 
@@ -1349,6 +1389,8 @@
       "set-tt-steps",
       "set-ud-qty",
       "set-tt-qty",
+      "set-bar-left",
+      "set-bar-right",
     ].forEach(function (id) {
       document.getElementById(id).addEventListener("change", readSettingsFromForm);
     });
@@ -1374,8 +1416,8 @@
     };
     document.getElementById("account-seg").onclick = function (ev) {
       var btn = ev.target.closest("button");
-      if (!btn || !btn.dataset.account) return;
-      selectAccount(btn.dataset.account);
+      if (!btn || !btn.dataset.side) return;
+      activateBar(barKey(btn.dataset.side));
     };
     document.getElementById("btn-reset").onclick = function () {
       var id = state.accountId || "1";
