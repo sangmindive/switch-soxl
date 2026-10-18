@@ -139,7 +139,8 @@
           <div class="field"><label>계단 수</label><input id="p-steps" type="number" step="1" /></div>
           <div class="field"><label>계단 주수</label><input id="p-stepq" type="number" step="1" /></div>
         </div>
-        <p class="note">일지와 설정은 이 브라우저에만 저장됩니다. Switch 본 장부는 바꾸지 않습니다.</p>
+        <div class="row"><span class="k">동기화</span><span id="sync-status">확인 중</span></div>
+        <p class="note">Switch 설정에서 연결한 같은 코드를 씁니다. 다시 넣을 필요 없습니다. Switch 본 장부(업다운·떨)는 바뀌지 않습니다.</p>
       </article>
     </section>
 
@@ -165,8 +166,13 @@
   <div id="toast" class="toast"></div>
   <script>
     var KEY = "switch-escape-v1";
+    var SYNC_KEY = "switch-v3-sync";
+    var ESCAPE_FILE = "switch-escape-v1.json";
     var TABS = { home: 1, orders: 1, journal: 1, settings: 1 };
     var linking = false;
+    var pushTimer = null;
+    var syncing = false;
+    var pushQueued = false;
 
     function n(id) { return Number(document.getElementById(id).value); }
     function round(x, d) {
@@ -227,19 +233,80 @@
         ]
       };
     }
+    function loadSyncCfg() {
+      try {
+        var cfg = JSON.parse(localStorage.getItem(SYNC_KEY) || "{}");
+        if (cfg && cfg.token && cfg.gistId) return cfg;
+      } catch (e) {}
+      return { token: "", gistId: "" };
+    }
+    function gistHeaders(token) {
+      return {
+        Accept: "application/vnd.github+json",
+        Authorization: "Bearer " + token,
+        "Content-Type": "application/json",
+        "X-GitHub-Api-Version": "2022-11-28",
+      };
+    }
+    function gistApiError(r, data) {
+      var msg = (data && data.message) || ("HTTP " + r.status);
+      if (r.status === 401) return "토큰이 잘못됐거나 만료됐습니다.";
+      if (r.status === 403 || /resource not accessible|gists/i.test(msg)) {
+        return "Gists 권한이 없습니다.";
+      }
+      return msg;
+    }
+    function readGistResponse(r) {
+      return r.json().catch(function () { return {}; }).then(function (data) {
+        if (!r.ok) throw new Error(gistApiError(r, data));
+        return data;
+      });
+    }
+    function renderSyncUi() {
+      var el = document.getElementById("sync-status");
+      if (!el) return;
+      var cfg = loadSyncCfg();
+      if (cfg.token && cfg.gistId) {
+        el.textContent = "연결됨 · Switch와 같음";
+        el.className = "pos";
+      } else {
+        el.textContent = "미연결 · Switch 설정에서 먼저 연결";
+        el.className = "";
+      }
+    }
+    function hydrate(o) {
+      var d = defaults();
+      if (!o || typeof o !== "object") return d;
+      Object.keys(d).forEach(function (k) {
+        if (o[k] != null) d[k] = o[k];
+      });
+      if (o.rev != null) d.rev = o.rev;
+      return d;
+    }
+    function hasLocal() {
+      return !!localStorage.getItem(KEY);
+    }
     function load() {
       try {
         var raw = localStorage.getItem(KEY);
         if (!raw) return defaults();
-        var o = JSON.parse(raw);
-        var d = defaults();
-        Object.keys(d).forEach(function (k) {
-          if (o[k] != null) d[k] = o[k];
-        });
-        return d;
+        return hydrate(JSON.parse(raw));
       } catch (e) {
         return defaults();
       }
+    }
+    function writeLocal(d) {
+      localStorage.setItem(KEY, JSON.stringify(d));
+    }
+    function persist(d) {
+      d.rev = Date.now();
+      writeLocal(d);
+      schedulePush();
+    }
+    function applyLoaded(d) {
+      writeLocal(d);
+      fillForm(d);
+      render();
     }
     function saveFromForm() {
       var d = load();
@@ -256,10 +323,105 @@
       d.last = n("p-last");
       d.steps = n("p-steps");
       d.stepq = n("p-stepq");
-      localStorage.setItem(KEY, JSON.stringify(d));
+      persist(d);
     }
-    function saveState(d) {
-      localStorage.setItem(KEY, JSON.stringify(d));
+    function readRemoteEscape(gist) {
+      var file = gist && gist.files && gist.files[ESCAPE_FILE];
+      if (!file || !file.content) return null;
+      try {
+        return hydrate(JSON.parse(file.content));
+      } catch (e) {
+        return null;
+      }
+    }
+    function reconcile(local, remote) {
+      if (!remote) return { state: local, push: hasLocal(), changed: false };
+      if (!hasLocal()) return { state: remote, push: false, changed: true };
+      var lr = Number(local.rev) || 0;
+      var rr = Number(remote.rev) || 0;
+      if (rr > lr) return { state: remote, push: false, changed: true };
+      if (lr > rr) return { state: local, push: true, changed: false };
+      return { state: local, push: false, changed: false };
+    }
+    function schedulePush() {
+      var cfg = loadSyncCfg();
+      if (!cfg.token || !cfg.gistId) return;
+      clearTimeout(pushTimer);
+      pushTimer = setTimeout(function () {
+        pushRemote().catch(function (err) {
+          toast("동기화 실패 · " + (err.message || "네트워크"));
+        });
+      }, 700);
+    }
+    function pullRemote() {
+      var cfg = loadSyncCfg();
+      if (!cfg.token || !cfg.gistId || syncing) return Promise.resolve(false);
+      syncing = true;
+      return fetch("https://api.github.com/gists/" + cfg.gistId, { headers: gistHeaders(cfg.token) })
+        .then(readGistResponse)
+        .then(function (gist) {
+          var remote = readRemoteEscape(gist);
+          if (!remote) {
+            syncing = false;
+            if (hasLocal()) return pushRemote().then(function () { return false; });
+            return false;
+          }
+          var rec = reconcile(load(), remote);
+          if (rec.changed) applyLoaded(rec.state);
+          else writeLocal(rec.state);
+          syncing = false;
+          if (rec.push || pushQueued) {
+            pushQueued = false;
+            return pushRemote().then(function () { return rec.changed; });
+          }
+          return rec.changed;
+        })
+        .catch(function (err) {
+          syncing = false;
+          throw err;
+        });
+    }
+    function pushRemote() {
+      var cfg = loadSyncCfg();
+      if (!cfg.token || !cfg.gistId) return Promise.resolve();
+      if (syncing) {
+        pushQueued = true;
+        return Promise.resolve();
+      }
+      if (!hasLocal()) return Promise.resolve();
+      syncing = true;
+      pushQueued = false;
+      var local = load();
+      return fetch("https://api.github.com/gists/" + cfg.gistId, { headers: gistHeaders(cfg.token) })
+        .then(readGistResponse)
+        .then(function (gist) {
+          var remote = readRemoteEscape(gist);
+          if (remote) {
+            var rec = reconcile(local, remote);
+            if (rec.changed) applyLoaded(rec.state);
+            if (!rec.push) {
+              syncing = false;
+              if (pushQueued) return pushRemote();
+              return;
+            }
+            local = rec.state;
+          }
+          var body = { files: {} };
+          body.files[ESCAPE_FILE] = { content: JSON.stringify(local) };
+          return fetch("https://api.github.com/gists/" + cfg.gistId, {
+            method: "PATCH",
+            headers: gistHeaders(cfg.token),
+            body: JSON.stringify(body),
+          }).then(readGistResponse);
+        })
+        .then(function () {
+          syncing = false;
+          if (pushQueued) return pushRemote();
+        })
+        .catch(function (err) {
+          syncing = false;
+          throw err;
+        });
     }
     function fillForm(d) {
       linking = true;
@@ -452,7 +614,7 @@
         d.last = closePx;
       }
       d.close = closePx;
-      saveState(d);
+      persist(d);
       fillForm(d);
       render();
       toast(type + " 반영");
@@ -488,7 +650,7 @@
       d.avg = round(avg, 4);
       d.port = type === "매수" ? pot : Math.max(0, d.port - 1);
       d.last = price;
-      saveState(d);
+      persist(d);
       fillForm(d);
       render();
       toast("행 추가");
@@ -498,7 +660,7 @@
       if (!btn) return;
       var d = load();
       d.trades.splice(+btn.getAttribute("data-i"), 1);
-      saveState(d);
+      persist(d);
       render();
     };
     document.getElementById("p-qty").addEventListener("input", function () {
@@ -517,9 +679,6 @@
       el.addEventListener("input", function () {
         if (linking) return;
         saveFromForm();
-        var d = load();
-        d.trades = load().trades;
-        saveState(d);
         render();
       });
     });
@@ -529,6 +688,19 @@
     var h = (location.hash || "").replace(/^#/, "");
     setTab(TABS[h] ? h : "home");
     render();
+    renderSyncUi();
+    pullRemote()
+      .then(function (changed) {
+        renderSyncUi();
+        if (changed) toast("다른 기기 데이터를 불러왔습니다");
+      })
+      .catch(function (err) {
+        toast("동기화 실패 · " + (err.message || "네트워크"));
+      });
+    document.addEventListener("visibilitychange", function () {
+      if (document.hidden) return;
+      pullRemote().catch(function () {});
+    });
   </script>
 </body>
 </html>
