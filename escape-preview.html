@@ -623,27 +623,35 @@
       document.getElementById("o-eval").textContent = c.started ? money(evalAmt) + " · " + pct(evalPct) : "—";
       document.getElementById("o-be").textContent = c.started && c.closePx ? money(be) + " (" + pct(be / c.closePx - 1) + ")" : "—";
 
-      var rows = [];
+      var html = "";
       if (c.started && c.buy !== "") {
-        rows.push({ i: 0, px: c.buy, q: c.buyQty, cum: c.buyQty });
+        html +=
+          "<tr class='ladder-buy'><td class='buy'>매수</td><td class='buy'>" +
+          money(c.buy) + "</td><td>" + c.buyQty + "</td><td>" + c.buyQty + "</td><td>" + pct(0) + "</td></tr>";
         var cum = c.buyQty;
         var i;
         var steps = n("p-steps");
         var stepq = n("p-stepq");
         for (i = 1; i <= steps && stepq; i++) {
           cum += stepq;
-          rows.push({ i: i, px: down2(c.shot / cum), q: stepq, cum: cum });
+          var px = down2(c.shot / cum);
+          html +=
+            "<tr class='ladder-step'><td>" + i + "</td><td class='buy'>" +
+            money(px) + "</td><td>" + stepq + "</td><td>" + cum + "</td><td>" +
+            pct(c.buy ? px / c.buy - 1 : 0) + "</td></tr>";
         }
+        if (!steps) html += "<tr><td colspan='5'>정액 주문 0 · 추가 계단 없음</td></tr>";
+      } else {
+        html += "<tr class='ladder-buy'><td class='buy'>매수</td><td class='empty'>없음</td><td></td><td></td><td></td></tr>";
       }
-      document.getElementById("ladder-body").innerHTML = rows
-        .map(function (r) {
-          return (
-            "<tr><td>" + (r.i === 0 ? "매수" : r.i) + "</td><td class='buy'>" +
-            money(r.px) + "</td><td>" + r.q + "</td><td>" + r.cum + "</td><td>" +
-            pct(r.px / c.buy - 1) + "</td></tr>"
-          );
-        })
-        .join("");
+      if (c.sell === "") {
+        html += "<tr class='ladder-sell'><td class='sell'>매도</td><td class='empty'>없음</td><td></td><td></td><td></td></tr>";
+      } else {
+        html +=
+          "<tr class='ladder-sell'><td class='sell'>매도</td><td class='sell'>" +
+          money(c.sell) + "</td><td>" + c.sellQty + "</td><td></td><td></td></tr>";
+      }
+      document.getElementById("ladder-body").innerHTML = html;
       renderLog();
     }
     function applyFill(type) {

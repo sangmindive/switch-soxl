@@ -295,27 +295,32 @@
     }
     setTxt("swesc-steps", String(c.steps || 0));
     setTxt("swesc-stepq", String(c.stepq || 0));
-    var rows = [];
-    if (c.started && c.buy !== "") {
-      rows.push({ i: 0, px: c.buy, q: c.buyQty, cum: c.buyQty });
-      var cum = c.buyQty;
-      var i;
-      for (i = 1; i <= c.steps && c.stepq; i++) {
-        cum += c.stepq;
-        rows.push({ i: i, px: down2(c.shot / cum), q: c.stepq, cum: cum });
-      }
-    }
     var tb = document.getElementById("swesc-ladder");
     if (tb) {
-      tb.innerHTML = rows
-        .map(function (r) {
-          return (
-            "<tr><td>" + (r.i === 0 ? "매수" : r.i) + "</td><td class='buy'>" +
-            money(r.px) + "</td><td>" + r.q + "</td><td>" + r.cum + "</td><td>" +
-            pct(r.px / c.buy - 1) + "</td></tr>"
-          );
-        })
-        .join("");
+      var html = "";
+      if (c.started && c.buy !== "") {
+        html += ladderRow("매수", "buy", c.buy, "buy", c.buyQty, c.buyQty, 0);
+        var cum = c.buyQty;
+        var i;
+        for (i = 1; i <= c.steps && c.stepq; i++) {
+          cum += c.stepq;
+          var px = down2(c.shot / cum);
+          html += ladderRow(i, "", px, "buy", c.stepq, cum, c.buy ? px / c.buy - 1 : "");
+        }
+        if (!c.steps) html += "<tr><td colspan='5'>정액 주문 0 · 추가 계단 없음</td></tr>";
+      } else {
+        html += ladderRow("매수", "buy", "", "empty", "", "", "");
+      }
+      html += ladderRow(
+        "매도",
+        "sell",
+        c.sell === "" ? "" : c.sell,
+        c.sell === "" ? "empty" : "sell",
+        c.sell === "" ? "" : c.sellQty,
+        "",
+        ""
+      );
+      tb.innerHTML = html;
     }
   }
   function applyEscapeFill(type) {
