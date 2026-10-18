@@ -12,7 +12,7 @@
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="apple-touch-icon" href="icon-192.png" />
   <link rel="icon" href="icon-192.png" />
-  <link rel="stylesheet" href="styles.css?v=20261018o" />
+  <link rel="stylesheet" href="styles.css?v=20261018p" />
 </head>
 <body>
   <div class="app">
@@ -24,7 +24,10 @@
           <small>Switch Journal · SOXL LOC</small>
         </div>
       </div>
-      <a class="btn ghost top-escape" href="escape-preview.html">탈출</a>
+      <div class="top-actions">
+        <button type="button" class="btn ghost top-escape" id="btn-undo" disabled>되돌리기</button>
+        <a class="btn ghost top-escape" href="escape-preview.html">탈출</a>
+      </div>
     </header>
 
     <div class="account-bar">
@@ -521,8 +524,8 @@
       <div class="num-pop-grid" id="num-pop-grid"></div>
     </div>
   </div>
-  <script src="engine.js?v=20261016d"></script>
+  <script src="engine.js?v=20261018s"></script>
   <script src="seed.js?v=20260924c"></script>
-  <script src="app.js?v=20261018r"></script>
+  <script src="app.js?v=20261018s"></script>
 </body>
 </html>

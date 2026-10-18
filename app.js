@@ -105,9 +105,53 @@
     return null;
   }
 
-  function saveEscape(esc) {
+  var undoStack = [];
+  var lastSnap = null;
+
+  function captureSnap() {
+    stashActive();
+    return {
+      state: JSON.parse(JSON.stringify(state)),
+      escape: localStorage.getItem(ESCAPE_KEY),
+    };
+  }
+  function pushLastSnap() {
+    if (!lastSnap) return;
+    undoStack.push(lastSnap);
+    if (undoStack.length > 40) undoStack.shift();
+    updateUndoBtn();
+  }
+  function updateUndoBtn() {
+    var btn = document.getElementById("btn-undo");
+    if (!btn) return;
+    btn.disabled = !undoStack.length;
+  }
+  function restoreSnap(snap) {
+    state = attachAccounts(JSON.parse(JSON.stringify(snap.state)));
+    if (snap.escape == null) localStorage.removeItem(ESCAPE_KEY);
+    else localStorage.setItem(ESCAPE_KEY, snap.escape);
+    saveState();
+    lastSnap = captureSnap();
+    schedulePush();
+    scheduleEscapePush();
+    render();
+    updateUndoBtn();
+  }
+  function undoLast() {
+    var snap = undoStack.pop();
+    if (!snap) {
+      toast("되돌릴 작업 없음");
+      return;
+    }
+    restoreSnap(snap);
+    toast("되돌렸습니다");
+  }
+
+  function saveEscape(esc, opts) {
+    if (!(opts && opts.noUndo)) pushLastSnap();
     esc.rev = Date.now();
     localStorage.setItem(ESCAPE_KEY, JSON.stringify(esc));
+    lastSnap = captureSnap();
     scheduleEscapePush();
   }
 
@@ -804,6 +848,7 @@
         saveState();
         syncing = false;
         if (rec.changed || escChanged) render();
+        lastSnap = captureSnap();
         if (!rec.push && !pushQueued) return rec.changed;
         pushQueued = false;
         return pushRemote().then(function () {
@@ -833,6 +878,7 @@
           var rec = reconcile(state, remote);
           state = rec.state;
           saveState();
+          lastSnap = captureSnap();
           if (!rec.push) {
             syncing = false;
             if (rec.changed) render();
@@ -1007,9 +1053,12 @@
   }
 
   function persist(opts) {
+    if (!(opts && (opts.noUndo || opts.keepRev))) pushLastSnap();
     if (!(opts && opts.keepRev)) state.rev = Date.now();
     saveState();
+    lastSnap = captureSnap();
     render();
+    updateUndoBtn();
     if (!(opts && opts.sync === false)) schedulePush();
   }
 
@@ -1064,7 +1113,10 @@
       out.C54 = "";
     }
     renderAccountSeg();
-    if (out.repairedTt) saveState();
+    if ((out.repairedTt || out.replayed) && !isEscapeView()) {
+      saveState();
+      lastSnap = captureSnap();
+    }
     var s = state.settings;
     var m = state.market;
     var p = parityOk(out);
@@ -1514,6 +1566,20 @@
     );
   }
 
+  function logPortOrder(trades, key) {
+    return (trades || [])
+      .map(function (t, idx) {
+        return { t: t, idx: idx };
+      })
+      .sort(function (a, b) {
+        var pa = Number(a.t[key]) || 0;
+        var pb = Number(b.t[key]) || 0;
+        if (pa !== pb) return pb - pa;
+        if (a.t.date !== b.t.date) return a.t.date < b.t.date ? 1 : -1;
+        return (b.t.seq || 0) - (a.t.seq || 0);
+      });
+  }
+
   function renderUdLog() {
     if (isEscapeView()) {
       var esc = loadEscape();
@@ -1544,8 +1610,9 @@
         htmlEsc || "<div class='log-row'><div class='log-line'><span class='empty'>기록 없음</span></div></div>";
       return;
     }
-    var html = state.updownTrades
-      .map(function (t, idx) {
+    var html = logPortOrder(state.updownTrades, "pot")
+      .map(function (item) {
+        var t = item.t;
         var avg = t.avg == null || t.avg === "" ? "—" : usd(t.avg);
         var hold = t.holdQty == null || t.holdQty === "" ? "—" : t.holdQty;
         return logLine(
@@ -1559,7 +1626,7 @@
             "<span>" + avg + "</span>",
           ],
           "data-ud",
-          idx
+          item.idx
         );
       })
       .join("");
@@ -1608,8 +1675,10 @@
       return;
     }
     var stats = tteolHoldStats(state.tteolTrades);
-    var html = state.tteolTrades
-      .map(function (t, idx) {
+    var html = logPortOrder(state.tteolTrades, "rank")
+      .map(function (item) {
+        var t = item.t;
+        var idx = item.idx;
         var st = stats[idx] || {};
         var avg = st.avg == null || st.avg === "" ? "—" : usd(st.avg);
         var hold = st.holdQty == null || st.holdQty === "" ? "—" : st.holdQty;
@@ -1698,6 +1767,17 @@
   }
 
   function bind() {
+    document.getElementById("btn-undo").onclick = function () {
+      undoLast();
+    };
+    document.addEventListener("keydown", function (ev) {
+      var z = ev.key === "z" || ev.key === "Z";
+      if (!(z && (ev.ctrlKey || ev.metaKey)) || ev.altKey || ev.shiftKey) return;
+      var tag = (ev.target && ev.target.tagName) || "";
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || (ev.target && ev.target.isContentEditable)) return;
+      ev.preventDefault();
+      undoLast();
+    });
     document.querySelectorAll(".nav-item").forEach(function (b) {
       b.onclick = function () {
         setTab(b.dataset.tab);
@@ -2468,6 +2548,8 @@
     setTab(tabFromUrl());
   });
   render();
+  lastSnap = captureSnap();
+  updateUndoBtn();
   fetchQuote();
   pullRemote().catch(function () {});
   setInterval(fetchQuote, 15000);

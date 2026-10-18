@@ -40,9 +40,12 @@ body {
 .app.esc-view .switch-book { display: none; }
 .app.esc-view .escape-book { display: contents; }
 .app.esc-view .journal-seg,
-.app.esc-view #log-tt,
 .app.esc-view .j-ud-title,
 .app.esc-view .j-ud-rank,
+.app.esc-view .j-tt-title,
+.app.esc-view .j-tt-add,
+.app.esc-view .j-tt-rank,
+.app.esc-view .j-tt-sheet,
 .app.esc-view #btn-liq-ud,
 .app.esc-view #add-ud-wrap .note { display: none !important; }
 .app.esc-view #nu-type option[value="떨"] { display: none; }
@@ -138,14 +141,23 @@ body {
 }
 .brand h1 { margin: 0; font-size: 22px; letter-spacing: -0.04em; }
 .brand small { display: block; color: var(--muted); font-size: 11px; font-weight: 500; }
-.top-escape {
+.top-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   flex: 0 0 auto;
   margin-top: 4px;
+}
+.top-escape {
+  flex: 0 0 auto;
   padding: 8px 12px;
   font-size: 13px;
   font-weight: 700;
   text-decoration: none;
   color: var(--ink);
+}
+#btn-undo:disabled {
+  opacity: 0.35;
 }
 .account-bar { padding: 0 16px 4px; }
 .account-seg { margin: 0; }
