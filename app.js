@@ -1123,11 +1123,17 @@
     return "<span class='log-dot'>·</span>";
   }
 
-  function logLine(parts, delAttr, idx) {
+  function logLine(dateText, restParts, delAttr, idx) {
     return (
-      "<article class='log-row'><div class='log-line'>" +
-      parts.join(logSep()) +
-      "</div><button class='btn ghost log-del' " +
+      "<article class='log-row'><div class='log-main'>" +
+      "<div class='log-date'>" +
+      dateText +
+      "</div><div class='log-line'>" +
+      "<span class='log-date-inline'>" +
+      dateText +
+      "</span><span class='log-date-inline log-dot'>·</span>" +
+      restParts.join(logSep()) +
+      "</div></div><button class='btn ghost log-del' " +
       delAttr +
       "='" +
       idx +
@@ -1141,8 +1147,8 @@
         var avg = t.avg == null || t.avg === "" ? "—" : usd(t.avg);
         var hold = t.holdQty == null || t.holdQty === "" ? "—" : t.holdQty;
         return logLine(
+          t.date,
           [
-            "<span>" + t.date + "</span>",
             "<span class='pill " + logTypeClass(t.type) + "'>" + t.type + "</span>",
             "<span>" + t.pot + "</span>",
             "<span>" + usd(t.price) + "</span>",
@@ -1201,8 +1207,8 @@
         var avg = st.avg == null || st.avg === "" ? "—" : usd(st.avg);
         var hold = st.holdQty == null || st.holdQty === "" ? "—" : st.holdQty;
         return logLine(
+          t.date,
           [
-            "<span>" + t.date + "</span>",
             "<span class='pill " + logTypeClass(t.type) + "'>" + t.type + "</span>",
             "<span>" + t.rank + "</span>",
             "<span>" + usd(t.price) + "</span>",

@@ -507,8 +507,12 @@ table.sheet tr.ladder-sell td { background: #fffafa; }
   padding: 10px 12px;
   margin-bottom: 0;
 }
-.log-line {
+.log-main {
   flex: 1;
+  min-width: 0;
+}
+.log-date { display: none; }
+.log-line {
   min-width: 0;
   display: flex;
   flex-wrap: nowrap;
@@ -525,6 +529,25 @@ table.sheet tr.ladder-sell td { background: #fffafa; }
 .log-dot { color: var(--muted); font-weight: 500; }
 .log-del { flex: 0 0 auto; padding: 4px 8px; font-size: 12px; }
 .log-row .pill { padding: 2px 7px; }
+@media (max-width: 979px) {
+  .log-row { align-items: flex-start; padding: 8px 10px; }
+  .log-date {
+    display: block;
+    margin-bottom: 3px;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--ink);
+  }
+  .log-date-inline { display: none; }
+  .log-line {
+    font-size: 11px;
+    gap: 3px;
+    letter-spacing: -0.03em;
+    overflow: hidden;
+  }
+  .log-row .pill { padding: 1px 5px; font-size: 10px; }
+  .log-del { padding: 3px 6px; font-size: 11px; }
+}
 .type-매수 { color: var(--blue); }
 .type-매도 { color: var(--red); }
 .type-떨 { color: #c2410c; }
