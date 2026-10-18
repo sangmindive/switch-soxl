@@ -1566,20 +1566,6 @@
     );
   }
 
-  function logPortOrder(trades, key) {
-    return (trades || [])
-      .map(function (t, idx) {
-        return { t: t, idx: idx };
-      })
-      .sort(function (a, b) {
-        var pa = Number(a.t[key]) || 0;
-        var pb = Number(b.t[key]) || 0;
-        if (pa !== pb) return pb - pa;
-        if (a.t.date !== b.t.date) return a.t.date < b.t.date ? 1 : -1;
-        return (b.t.seq || 0) - (a.t.seq || 0);
-      });
-  }
-
   function renderUdLog() {
     if (isEscapeView()) {
       var esc = loadEscape();
@@ -1610,9 +1596,8 @@
         htmlEsc || "<div class='log-row'><div class='log-line'><span class='empty'>기록 없음</span></div></div>";
       return;
     }
-    var html = logPortOrder(state.updownTrades, "pot")
-      .map(function (item) {
-        var t = item.t;
+    var html = state.updownTrades
+      .map(function (t, idx) {
         var avg = t.avg == null || t.avg === "" ? "—" : usd(t.avg);
         var hold = t.holdQty == null || t.holdQty === "" ? "—" : t.holdQty;
         return logLine(
@@ -1626,7 +1611,7 @@
             "<span>" + avg + "</span>",
           ],
           "data-ud",
-          item.idx
+          idx
         );
       })
       .join("");
@@ -1675,10 +1660,8 @@
       return;
     }
     var stats = tteolHoldStats(state.tteolTrades);
-    var html = logPortOrder(state.tteolTrades, "rank")
-      .map(function (item) {
-        var t = item.t;
-        var idx = item.idx;
+    var html = state.tteolTrades
+      .map(function (t, idx) {
         var st = stats[idx] || {};
         var avg = st.avg == null || st.avg === "" ? "—" : usd(st.avg);
         var hold = st.holdQty == null || st.holdQty === "" ? "—" : st.holdQty;
