@@ -166,12 +166,13 @@
     return (sign * Math.floor(Math.abs(v) * 100 + 1e-10)) / 100;
   }
   function replayEscape(d) {
-    var live = { qty: 0, avg: 0, cost: 0, port: 0, last: 0, started: false };
+    var live = { qty: 0, avg: 0, cost: 0, port: 0, last: 0, started: false, lastDate: "" };
     var trades = (d && d.trades) || [];
     var i;
     for (i = 0; i < trades.length; i++) {
       var t = trades[i];
       live.started = true;
+      if (t.date) live.lastDate = t.date;
       if (t.type === "이관") {
         live.qty = Number(t.holdQty != null ? t.holdQty : t.qty) || 0;
         live.avg = Number(t.avg) || 0;
@@ -209,7 +210,7 @@
     if (!live.started) {
       return {
         started: false, qty: 0, avg: 0, cost: 0, split: split, port: 0, closePx: closePx,
-        cap: cap, shot: shot, lp: 0, buy: "", sell: "", buyQty: 0, sellQty: 0, steps: Number(esc && esc.steps) || 0, stepq: Number(esc && esc.stepq) || 0,
+        cap: cap, shot: shot, lp: 0, buy: "", sell: "", buyQty: 0, sellQty: 0, steps: Number(esc && esc.steps) || 0, stepq: Number(esc && esc.stepq) || 0, lastDate: "",
       };
     }
     var lp = live.last;
@@ -221,7 +222,16 @@
       started: true, qty: live.qty, avg: live.avg, cost: live.cost, split: split, port: live.port,
       closePx: closePx, cap: cap, shot: shot, lp: lp, buy: buy, sell: sell, buyQty: buyQty, sellQty: sellQty,
       steps: Number(esc && esc.steps) || 0, stepq: Number(esc && esc.stepq) || 0,
+      lastDate: live.lastDate || "",
     };
+  }
+  function escapeFillType(esc, c, closeDate) {
+    if (!c || !c.started) return "";
+    if (closeDate && c.lastDate && c.lastDate === closeDate) return "";
+    var closePx = round2(c.closePx);
+    if (c.buy !== "" && closePx <= round2(c.buy)) return "매수";
+    if (c.sell !== "" && closePx > round2(c.sell)) return "매도";
+    return "";
   }
   function setTxt(id, text) {
     var el = document.getElementById(id);
@@ -230,8 +240,10 @@
   function renderEscapePanels() {
     var esc = loadEscape() || {};
     var c = escapeCalc(esc);
-    var willBuy = c.started && c.buy !== "" && c.closePx <= c.buy;
-    var willSell = c.started && c.sell !== "" && c.closePx >= c.sell;
+    var closeDate = (state.market && state.market.closeDate) || esc.date;
+    var fillKind = escapeFillType(esc, c, closeDate);
+    var willBuy = fillKind === "매수";
+    var willSell = fillKind === "매도";
     setTxt("swesc-buy", c.buy === "" ? "—" : money(c.buy));
     setTxt("swesc-sell", c.sell === "" ? "—" : money(c.sell));
     setTxt("swesc-buy-qty", c.started ? c.buyQty + "주" : "—");
@@ -273,7 +285,7 @@
       if (sugEl) {
         sugEl.innerHTML =
           "<div class='loc-data'><div class='loc-data-top'><strong>매도</strong></div>" +
-          "<div class='loc-data-amt neg'>" + money(c.lp) + " × " + c.sellQty + "주</div>" +
+          "<div class='loc-data-amt neg'>" + money(c.closePx) + " × " + c.sellQty + "주</div>" +
           "<div class='loc-data-meta'>포트 " + c.port + "</div></div>";
       }
       if (fillBtn) fillBtn.disabled = false;
@@ -316,12 +328,11 @@
     var closePx = c.closePx;
     var date = (state.market && state.market.closeDate) || esc.date;
     if (!type) {
-      if (c.started && c.buy !== "" && closePx <= c.buy) type = "매수";
-      else if (c.started && c.sell !== "" && closePx >= c.sell) type = "매도";
-      else return toast("밴드 밖 (미체결)");
+      type = escapeFillType(esc, c, date);
+      if (!type) return toast("밴드 밖 (미체결)");
     }
     if (type === "매수") {
-      if (!(c.started && closePx <= c.buy)) return toast("매수 조건 아님");
+      if (escapeFillType(esc, c, date) !== "매수") return toast("매수 조건 아님");
       if (!c.buyQty) return toast("수량 0");
       var hold = c.qty + c.buyQty;
       var cost = c.cost + closePx * c.buyQty;
@@ -329,7 +340,7 @@
       var pot = c.port ? c.port + 1 : 1;
       esc.trades.push({ date: date, type: "매수", pot: pot, price: closePx, qty: c.buyQty, holdQty: hold, avg: avg, cost: round2(cost) });
     } else {
-      if (!(c.started && c.sell !== "" && closePx >= c.sell)) return toast("매도 조건 아님");
+      if (escapeFillType(esc, c, date) !== "매도") return toast("매도 조건 아님");
       if (!c.sellQty) return toast("수량 0");
       var hold2 = c.qty - c.sellQty;
       if (hold2 < 0) hold2 = 0;

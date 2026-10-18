@@ -237,12 +237,13 @@
       };
     }
     function replay(d) {
-      var live = { qty: 0, avg: 0, cost: 0, port: 0, last: 0, started: false };
+      var live = { qty: 0, avg: 0, cost: 0, port: 0, last: 0, started: false, lastDate: "" };
       var trades = (d && d.trades) || [];
       var i;
       for (i = 0; i < trades.length; i++) {
         var t = trades[i];
         live.started = true;
+        if (t.date) live.lastDate = t.date;
         if (t.type === "이관") {
           live.qty = Number(t.holdQty != null ? t.holdQty : t.qty) || 0;
           live.avg = Number(t.avg) || 0;
@@ -500,7 +501,7 @@
       if (!live.started) {
         return {
           started: false, qty: 0, avg: 0, cost: 0, split: split, port: 0, closePx: closePx,
-          lastPx: 0, cap: cap, shot: shot, lp: 0, buy: "", sell: "", buyQty: 0, sellQty: 0
+          lastPx: 0, cap: cap, shot: shot, lp: 0, buy: "", sell: "", buyQty: 0, sellQty: 0, lastDate: ""
         };
       }
       var lp = live.last;
@@ -511,8 +512,16 @@
       return {
         started: true, qty: live.qty, avg: live.avg, cost: live.cost, split: split, port: live.port,
         closePx: closePx, lastPx: lp, cap: cap, shot: shot, lp: lp, buy: buy, sell: sell,
-        buyQty: buyQty, sellQty: sellQty
+        buyQty: buyQty, sellQty: sellQty, lastDate: live.lastDate || ""
       };
+    }
+    function fillType(d, c, closeDate) {
+      if (!c || !c.started) return "";
+      if (closeDate && c.lastDate && c.lastDate === closeDate) return "";
+      var closePx = round(c.closePx, 2);
+      if (c.buy !== "" && closePx <= round(c.buy, 2)) return "매수";
+      if (c.sell !== "" && closePx > round(c.sell, 2)) return "매도";
+      return "";
     }
     function setTab(name) {
       if (!TABS[name]) name = "home";
@@ -552,6 +561,7 @@
         html || "<div class='log-row'><div class='log-line'><span class='empty'>기록 없음</span></div></div>";
     }
     function render() {
+      var d = load();
       var c = calc();
       var used = c.cost;
       var left = c.cap - used;
@@ -573,8 +583,10 @@
       document.getElementById("h-hold").textContent = c.qty ? c.qty + "주 · " + usd(c.avg) : "0주";
       document.getElementById("h-port").textContent = c.started ? String(c.port) : "0";
 
-      var willBuy = c.started && c.buy !== "" && c.closePx <= c.buy;
-      var willSell = c.started && c.sell !== "" && c.closePx >= c.sell;
+      var closeDate = document.getElementById("p-date").value || d.date;
+      var fillKind = fillType(d, c, closeDate);
+      var willBuy = fillKind === "매수";
+      var willSell = fillKind === "매도";
       var fillBtn = document.getElementById("btn-fill-ud");
       var sugEl = document.getElementById("sug-ud");
       if (!c.started) {
@@ -589,7 +601,7 @@
       } else if (willSell && !willBuy) {
         sugEl.innerHTML =
           "<div class='loc-data'><div class='loc-data-top'><strong>매도</strong></div>" +
-          "<div class='loc-data-amt neg'>" + money(c.lp) + " × " + c.sellQty + "주</div>" +
+          "<div class='loc-data-amt neg'>" + money(c.closePx) + " × " + c.sellQty + "주</div>" +
           "<div class='loc-data-meta'>포트 " + c.port + "</div></div>";
         fillBtn.disabled = false;
       } else {
@@ -641,12 +653,11 @@
       var date = document.getElementById("p-date").value || d.date;
       if (!c.started) return toast("먼저 탈출 시작을 누르세요");
       if (!type) {
-        if (c.buy !== "" && closePx <= c.buy) type = "매수";
-        else if (c.sell !== "" && closePx >= c.sell) type = "매도";
-        else return toast("밴드 밖 (미체결)");
+        type = fillType(d, c, date);
+        if (!type) return toast("밴드 밖 (미체결)");
       }
       if (type === "매수") {
-        if (!(closePx <= c.buy)) return toast("매수 조건 아님");
+        if (fillType(d, c, date) !== "매수") return toast("매수 조건 아님");
         var bq = c.buyQty;
         if (!bq) return toast("수량 0");
         var hold = c.qty + bq;
@@ -655,7 +666,7 @@
         var pot = c.port ? c.port + 1 : 1;
         d.trades.push({ date: date, type: "매수", pot: pot, price: closePx, qty: bq, holdQty: hold, avg: avg });
       } else {
-        if (!(c.sell !== "" && closePx >= c.sell)) return toast("매도 조건 아님");
+        if (fillType(d, c, date) !== "매도") return toast("매도 조건 아님");
         var sq = c.sellQty;
         if (!sq) return toast("수량 0");
         var hold2 = c.qty - sq;
