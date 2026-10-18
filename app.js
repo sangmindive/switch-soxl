@@ -1514,7 +1514,10 @@
       var esc = loadEscape();
       var rows = (esc && esc.trades) || [];
       var htmlEsc = rows
-        .map(function (t, idx) {
+        .slice()
+        .reverse()
+        .map(function (t, revIdx) {
+          var idx = rows.length - 1 - revIdx;
           var avg = t.avg == null || t.avg === "" ? "—" : usd(t.avg);
           var hold = t.holdQty == null || t.holdQty === "" ? "—" : t.holdQty;
           return logLine(
