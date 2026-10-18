@@ -154,32 +154,167 @@
     return escapeToViewState(loadEscape());
   }
 
-  function applyEscapeUdFill() {
+  function round2(x) {
+    return E.excelRound(Number(x), 2);
+  }
+  function down0(x) {
+    return Math.floor(Number(x) + 1e-12);
+  }
+  function down2(x) {
+    var v = Number(x);
+    var sign = v < 0 ? -1 : 1;
+    return (sign * Math.floor(Math.abs(v) * 100 + 1e-10)) / 100;
+  }
+  function replayEscape(d) {
+    var live = { qty: 0, avg: 0, cost: 0, port: 0, last: 0, started: false };
+    var trades = (d && d.trades) || [];
+    var i;
+    for (i = 0; i < trades.length; i++) {
+      var t = trades[i];
+      live.started = true;
+      if (t.type === "이관") {
+        live.qty = Number(t.holdQty != null ? t.holdQty : t.qty) || 0;
+        live.avg = Number(t.avg) || 0;
+        live.cost = t.cost != null && t.cost !== "" ? Number(t.cost) : Number(d.cost);
+        if (!live.cost && live.qty && live.avg) live.cost = round2(live.qty * live.avg);
+        live.port = Number(t.pot) || 0;
+        live.last = Number(t.lp) || Number(d.last) || 0;
+      } else if (t.type === "매수") {
+        var bq = Number(t.qty) || 0;
+        var bp = Number(t.price) || 0;
+        live.qty += bq;
+        live.cost = round2((live.cost || 0) + bp * bq);
+        live.avg = live.qty ? live.cost / live.qty : 0;
+        live.port = t.pot != null ? Number(t.pot) : live.port + 1;
+        live.last = bp;
+      } else if (t.type === "매도") {
+        var sq = Number(t.qty) || 0;
+        var sp = Number(t.price) || 0;
+        live.qty -= sq;
+        if (live.qty < 0) live.qty = 0;
+        live.cost = round2((live.avg || 0) * live.qty);
+        live.port = live.port ? live.port - 1 : 0;
+        live.last = sp;
+      }
+    }
+    return live;
+  }
+  function escapeCalc(esc) {
+    var live = replayEscape(esc || {});
+    var split = (esc && Number(esc.split)) || 15;
+    var cap = ((esc && Number(esc.old)) || 0) + ((esc && Number(esc.add)) || 0);
+    var shot = split ? round2(cap / split) : 0;
+    var closePx = Number(esc && esc.close);
+    if (!closePx) closePx = Number((state.market || {}).lastClose) || Number((state.market || {}).price) || 0;
+    if (!live.started) {
+      return {
+        started: false, qty: 0, avg: 0, cost: 0, split: split, port: 0, closePx: closePx,
+        cap: cap, shot: shot, lp: 0, buy: "", sell: "", buyQty: 0, sellQty: 0, steps: Number(esc && esc.steps) || 0, stepq: Number(esc && esc.stepq) || 0,
+      };
+    }
+    var lp = live.last;
+    var buy = live.port ? round2(lp * (1 - 0.002 * (20 / split) * live.port)) : round2(lp * 1.1);
+    var sell = live.qty ? lp : "";
+    var buyQty = buy ? down0(shot / buy) : 0;
+    var sellQty = live.port ? down0(live.qty / live.port) : 0;
+    return {
+      started: true, qty: live.qty, avg: live.avg, cost: live.cost, split: split, port: live.port,
+      closePx: closePx, cap: cap, shot: shot, lp: lp, buy: buy, sell: sell, buyQty: buyQty, sellQty: sellQty,
+      steps: Number(esc && esc.steps) || 0, stepq: Number(esc && esc.stepq) || 0,
+    };
+  }
+  function setTxt(id, text) {
+    var el = document.getElementById(id);
+    if (el) el.textContent = text;
+  }
+  function renderEscapePanels() {
+    var esc = loadEscape() || {};
+    var c = escapeCalc(esc);
+    var willBuy = c.started && c.buy !== "" && c.closePx <= c.buy;
+    var willSell = c.started && c.sell !== "" && c.closePx >= c.sell;
+    setTxt("swesc-buy", c.buy === "" ? "—" : money(c.buy));
+    setTxt("swesc-sell", c.sell === "" ? "—" : money(c.sell));
+    setTxt("swesc-buy-qty", c.started ? c.buyQty + "주" : "—");
+    setTxt("swesc-sell-qty", c.sellQty ? c.sellQty + "주" : "—");
+    setTxt("swesc-buy-port", c.started ? (c.port ? "포트" + (c.port + 1) : "포트1") : "—");
+    setTxt("swesc-sell-port", c.port ? "포트" + (c.port - 1) : "—");
+    setTxt("swesc-buy-gap", c.buy && c.lp ? "LP 대비 " + pct(c.buy / c.lp - 1) : "");
+    setTxt("swesc-sell-gap", c.sell && c.lp ? "LP 대비 " + pct(c.sell / c.lp - 1) : "");
+    setTxt("swesc-buy-if", c.buy === "" ? "—" : "종가 ≤ " + money(c.buy));
+    setTxt("swesc-sell-if", c.sell === "" ? "보유 0" : "종가 ≥ " + money(c.sell));
+    setTxt("swesc-hold", c.qty ? c.qty + "주 · " + usd(c.avg) : "0주");
+    setTxt("swesc-port", c.started ? String(c.port) : "0");
+    setTxt("swesc-cap", money(c.cap));
+    setTxt("swesc-shot", money(c.shot));
+    setTxt("swesc-used", money(c.cost));
+    var left = c.cap - c.cost;
+    setTxt("swesc-left", money(left));
+    setTxt("swesc-leftn", (c.shot ? down0(left / c.shot) : 0) + "회");
+    setTxt("swesc-lp", c.lp ? money(c.lp) + " · 직전 체결" : "—");
+    var evalAmt = c.qty * c.closePx;
+    var evalPct = c.cost ? evalAmt / c.cost - 1 : 0;
+    var be = c.qty ? c.cost / c.qty : 0;
+    setTxt("swesc-eval", c.started ? money(evalAmt) + " · " + pct(evalPct) : "—");
+    setTxt("swesc-be", c.started && c.closePx ? money(be) + " (" + pct(be / c.closePx - 1) + ")" : "—");
+    setTxt("sug-swesc-buy", c.started ? "매수 · " + usd(c.closePx) + " · " + c.buyQty + "주 · 포트" + (c.port ? c.port + 1 : 1) : "탈출 시작 후 체결할 수 있습니다");
+    setTxt("sug-swesc-sell", !c.started ? "탈출 시작 후 체결할 수 있습니다" : (c.sellQty ? "매도 · " + usd(c.lp) + " · " + c.sellQty + "주 · 포트" + c.port : "보유 0 · 매도 없음"));
+    var buyBtn = document.getElementById("btn-swesc-fill-buy");
+    var sellBtn = document.getElementById("btn-swesc-fill-sell");
+    if (buyBtn) buyBtn.disabled = !willBuy;
+    if (sellBtn) sellBtn.disabled = !willSell;
+    setTxt("swesc-steps", String(c.steps || 0));
+    setTxt("swesc-stepq", String(c.stepq || 0));
+    var rows = [];
+    if (c.started && c.buy !== "") {
+      rows.push({ i: 0, px: c.buy, q: c.buyQty, cum: c.buyQty });
+      var cum = c.buyQty;
+      var i;
+      for (i = 1; i <= c.steps && c.stepq; i++) {
+        cum += c.stepq;
+        rows.push({ i: i, px: down2(c.shot / cum), q: c.stepq, cum: cum });
+      }
+    }
+    var tb = document.getElementById("swesc-ladder");
+    if (tb) {
+      tb.innerHTML = rows
+        .map(function (r) {
+          return (
+            "<tr><td>" + (r.i === 0 ? "매수" : r.i) + "</td><td class='buy'>" +
+            money(r.px) + "</td><td>" + r.q + "</td><td>" + r.cum + "</td><td>" +
+            pct(r.px / c.buy - 1) + "</td></tr>"
+          );
+        })
+        .join("");
+    }
+  }
+  function applyEscapeFill(type) {
     var esc = loadEscape();
     if (!esc || !(esc.trades || []).length) {
       toast("탈출에서 먼저 시작하세요");
       return;
     }
-    var vs = escapeToViewState(esc);
-    var r = E.applySuggested(vs, "ud");
-    if (!r.ok) {
-      toast(r.reason);
-      return;
+    var c = escapeCalc(esc);
+    var closePx = c.closePx;
+    var date = (state.market && state.market.closeDate) || esc.date;
+    if (type === "매수") {
+      if (!(c.started && closePx <= c.buy)) return toast("매수 조건 아님");
+      if (!c.buyQty) return toast("수량 0");
+      var hold = c.qty + c.buyQty;
+      var cost = c.cost + closePx * c.buyQty;
+      var avg = hold ? cost / hold : 0;
+      var pot = c.port ? c.port + 1 : 1;
+      esc.trades.push({ date: date, type: "매수", pot: pot, price: closePx, qty: c.buyQty, holdQty: hold, avg: avg, cost: round2(cost) });
+    } else {
+      if (!(c.started && c.sell !== "" && closePx >= c.sell)) return toast("매도 조건 아님");
+      if (!c.sellQty) return toast("수량 0");
+      var hold2 = c.qty - c.sellQty;
+      if (hold2 < 0) hold2 = 0;
+      esc.trades.push({ date: date, type: "매도", pot: c.port, price: closePx, qty: c.sellQty, holdQty: hold2, avg: c.avg });
     }
-    var t = r.trade;
-    esc.trades.push({
-      date: t.date,
-      type: t.type,
-      pot: t.pot,
-      price: t.price,
-      qty: t.qty,
-      holdQty: t.holdQty,
-      avg: t.avg,
-      cost: t.cost,
-    });
+    esc.close = closePx;
     saveEscape(esc);
     render();
-    toast("업다운 " + t.type + " 반영 · " + (t.date || ""));
+    toast(type + " 반영");
   }
 
   function selectAccount(id) {
@@ -865,6 +1000,9 @@
       persist();
       return;
     }
+    var appEl = document.querySelector(".app");
+    if (appEl) appEl.classList.toggle("esc-view", isEscapeView());
+    if (isEscapeView()) renderEscapePanels();
     var src = displaySrc();
     var out = E.compute(src);
     if (isEscapeView()) {
@@ -1653,11 +1791,11 @@
         toast("코드를 길게 눌러 복사하세요");
       }
     };
+    var swescBuy = document.getElementById("btn-swesc-fill-buy");
+    var swescSell = document.getElementById("btn-swesc-fill-sell");
+    if (swescBuy) swescBuy.onclick = function () { applyEscapeFill("매수"); };
+    if (swescSell) swescSell.onclick = function () { applyEscapeFill("매도"); };
     document.getElementById("btn-fill-ud").onclick = function () {
-      if (isEscapeView()) {
-        applyEscapeUdFill();
-        return;
-      }
       var r = E.applySuggested(state, "ud");
       maybeAutoTransfer();
       persist();

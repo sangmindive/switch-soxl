@@ -36,6 +36,20 @@ body {
   position: relative;
   padding-bottom: calc(var(--nav-h) + 20px);
 }
+.escape-book { display: none; }
+.app.esc-view .switch-book { display: none; }
+.app.esc-view .escape-book { display: contents; }
+.app.esc-view .journal-seg,
+.app.esc-view #log-tt,
+.app.esc-view .j-ud-title,
+.app.esc-view .j-ud-rank,
+.app.esc-view #btn-liq-ud,
+.app.esc-view #add-ud-wrap .note { display: none !important; }
+.app.esc-view #nu-type option[value="떨"] { display: none; }
+.out-buy { color: var(--blue); }
+.out-sell { color: var(--red); }
+.price-xl { font-size: 28px; font-weight: 800; letter-spacing: -0.04em; }
+.muted { color: var(--muted); font-size: 12px; }
 @media (min-width: 980px) {
   body { background: #eef1f6; }
   .app {
@@ -84,6 +98,13 @@ body {
   .j-tt-rank { grid-column: 2; grid-row: 3; }
   .j-ud-sheet { grid-column: 1; grid-row: 4; }
   .j-tt-sheet { grid-column: 2; grid-row: 4; }
+  .app.esc-view .journal-split { grid-template-columns: 1fr; }
+  .app.esc-view #page-journal #log-ud,
+  .app.esc-view #page-journal #log-ud.hidden {
+    display: block !important;
+  }
+  .app.esc-view .j-ud-add { grid-column: 1; grid-row: 1; }
+  .app.esc-view .j-ud-sheet { grid-column: 1; grid-row: 2; }
 }
 
 .topbar {

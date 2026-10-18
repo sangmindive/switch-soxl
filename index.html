@@ -12,7 +12,7 @@
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="apple-touch-icon" href="icon-192.png" />
   <link rel="icon" href="icon-192.png" />
-  <link rel="stylesheet" href="styles.css?v=20261018m" />
+  <link rel="stylesheet" href="styles.css?v=20261018n" />
 </head>
 <body>
   <div class="app">
@@ -35,6 +35,7 @@
     </div>
 
     <section id="page-home" class="page active">
+      <div class="switch-book">
       <article class="card">
         <div class="k">현재가 / 등락률</div>
         <div class="quote-live">
@@ -122,6 +123,42 @@
         <div class="setting-row"><span class="k">떨사오팔 평단 / 평가손익 / 퍼센트</span><span class="avg-vals"><span id="v-tt-avg"></span><span class="sep">·</span><span id="v-tt-eval"></span><span class="sep">·</span><span id="v-tt-evalpct"></span></span></div>
       </article>
       <p class="credit">Made by_상민</p>
+      </div>
+      <div class="escape-book">
+        <div class="desktop-grid">
+          <article class="card">
+            <h2>매수 <span class="pill">LOC</span></h2>
+            <div class="k">지정가</div>
+            <div class="price-xl out-buy" id="swesc-buy">—</div>
+            <div class="muted" id="swesc-buy-gap"></div>
+            <div class="row"><span class="k">1회 수량</span><span class="v" id="swesc-buy-qty">—</span></div>
+            <div class="row"><span class="k">다음 포트</span><span class="v" id="swesc-buy-port">—</span></div>
+            <div class="row"><span class="k">체결 조건</span><span class="v" id="swesc-buy-if">—</span></div>
+          </article>
+          <article class="card">
+            <h2>매도 <span class="pill sell">LOC</span></h2>
+            <div class="k">지정가</div>
+            <div class="price-xl out-sell" id="swesc-sell">—</div>
+            <div class="muted" id="swesc-sell-gap"></div>
+            <div class="row"><span class="k">수량</span><span class="v" id="swesc-sell-qty">—</span></div>
+            <div class="row"><span class="k">매도 후 포트</span><span class="v" id="swesc-sell-port">—</span></div>
+            <div class="row"><span class="k">체결 조건</span><span class="v" id="swesc-sell-if">—</span></div>
+          </article>
+        </div>
+        <article class="card">
+          <h2>시드 · 평단</h2>
+          <div class="row"><span class="k">보유</span><span class="v" id="swesc-hold">—</span></div>
+          <div class="row"><span class="k">포트</span><span class="v" id="swesc-port">—</span></div>
+          <div class="row"><span class="k">총원금</span><span class="v" id="swesc-cap">—</span></div>
+          <div class="row"><span class="k">1회 매수금</span><span class="v" id="swesc-shot">—</span></div>
+          <div class="row"><span class="k">사용 시드</span><span class="v" id="swesc-used">—</span></div>
+          <div class="row"><span class="k">잔여 시드</span><span class="v" id="swesc-left">—</span></div>
+          <div class="row"><span class="k">남은 매수 횟수</span><span class="v" id="swesc-leftn">—</span></div>
+          <div class="row"><span class="k">LP</span><span class="v" id="swesc-lp">—</span></div>
+          <div class="row"><span class="k">평가액 / 평가</span><span class="v" id="swesc-eval">—</span></div>
+          <div class="row"><span class="k">본전까지 종가</span><span class="v" id="swesc-be">—</span></div>
+        </article>
+      </div>
     </section>
 
     <section id="page-closes" class="page">
@@ -198,7 +235,7 @@
             <div class="form-row">
               <div class="field"><label>Date</label><input id="nu-date" type="date" /></div>
               <div class="field"><label>구분</label>
-                <select id="nu-type"><option>매수</option><option>매도</option><option>떨</option></select>
+                <select id="nu-type"><option value="매수">매수</option><option value="매도">매도</option><option value="떨">떨</option></select>
               </div>
               <div class="field"><label>단가</label><input id="nu-price" type="number" step="0.01" /></div>
               <div class="field"><label>수량</label><input id="nu-qty" type="number" step="1" /></div>
@@ -259,6 +296,7 @@
     </section>
 
     <section id="page-orders" class="page">
+      <div class="switch-book">
       <article class="card">
         <div class="loc-fills">
           <div class="fill-block">
@@ -329,6 +367,41 @@
         <label class="check"><input type="checkbox" id="set-blocked" /> 매수 불가</label>
         <p class="note">원금이 소진되면 켭니다. LP는 종가, 업다운은 전일 대비, 떨 매수만 막습니다.</p>
       </article>
+      </div>
+      <div class="escape-book">
+        <article class="card">
+          <div class="fill-block" style="margin-top:0">
+            <button class="btn primary wide" id="btn-swesc-fill-buy" type="button">업다운 매수 체결</button>
+            <div class="muted" id="sug-swesc-buy" style="margin-top:8px"></div>
+          </div>
+          <div class="fill-block">
+            <button class="btn sell wide" id="btn-swesc-fill-sell" type="button">업다운 매도 체결</button>
+            <div class="muted" id="sug-swesc-sell" style="margin-top:8px"></div>
+          </div>
+        </article>
+        <article class="card">
+          <div class="card-head">
+            <h2>매수 계단</h2>
+            <div class="ladder-picks">
+              <button type="button" class="num-pick" data-key="udLadderCount" data-title="계단 수">
+                <span class="k">계단 수</span>
+                <strong id="swesc-steps">—</strong>
+              </button>
+              <button type="button" class="num-pick" data-key="udStepQty" data-title="계단 주수">
+                <span class="k">계단 주수</span>
+                <strong id="swesc-stepq">—</strong>
+              </button>
+            </div>
+          </div>
+          <div class="grid-wrap">
+            <table class="sheet">
+              <thead><tr><th>#</th><th>단가</th><th>수량</th><th>누적</th><th>하락률</th></tr></thead>
+              <tbody id="swesc-ladder"></tbody>
+            </table>
+          </div>
+          <p class="note">수량은 내림. 매수 단가 C19 기준으로 1회 매수금을 나눕니다.</p>
+        </article>
+      </div>
       <div class="hidden">
         <span id="v-B19"></span><span id="v-C19"></span><span id="v-D19"></span>
         <span id="v-E19"></span><span id="v-F19"></span><span id="v-H19"></span><span id="v-I19"></span>
@@ -454,6 +527,6 @@
   </div>
   <script src="engine.js?v=20261016d"></script>
   <script src="seed.js?v=20260924c"></script>
-  <script src="app.js?v=20261018l"></script>
+  <script src="app.js?v=20261018m"></script>
 </body>
 </html>
