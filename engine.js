@@ -144,65 +144,6 @@
     });
   }
 
-  function sortOldestFirst(trades) {
-    return trades.slice().sort(function (a, b) {
-      if (a.date !== b.date) return a.date < b.date ? -1 : 1;
-      return (a.seq || 0) - (b.seq || 0);
-    });
-  }
-
-  function assignTradeField(t, key, value) {
-    var old = t[key];
-    if (value === "" || value == null) {
-      if (old === "" || old == null) return false;
-      t[key] = value;
-      return true;
-    }
-    if (typeof value === "number" && isFiniteNumber(Number(old)) && Math.abs(Number(old) - value) < 1e-8) return false;
-    if (old === value) return false;
-    t[key] = value;
-    return true;
-  }
-
-  function replayUpdownTrades(trades) {
-    var list = sortOldestFirst(trades || []);
-    var qty = 0;
-    var port = 0;
-    var cost = 0;
-    var avg = 0;
-    var changed = false;
-    list.forEach(function (t) {
-      var price = Number(t.price) || 0;
-      var q = Number(t.qty) || 0;
-      var amount =
-        t.amount != null && t.amount !== "" && isFiniteNumber(Number(t.amount)) ? Number(t.amount) : price * q;
-      if (t.type === "매수" || t.type === "떨") {
-        if (qty === 0) port = 0;
-        port += 1;
-        qty += q;
-        cost = cost + amount;
-        avg = qty ? cost / qty : 0;
-        if (assignTradeField(t, "pot", port)) changed = true;
-        if (assignTradeField(t, "holdQty", qty)) changed = true;
-        if (assignTradeField(t, "cost", cost)) changed = true;
-        if (assignTradeField(t, "avg", avg)) changed = true;
-      } else if (t.type === "매도") {
-        var sellPot = port || 1;
-        var prevAvg = avg;
-        qty -= q;
-        if (qty < 0) qty = 0;
-        cost = prevAvg * qty;
-        port = qty ? Math.max(port - 1, 0) : 0;
-        if (assignTradeField(t, "pot", sellPot)) changed = true;
-        if (assignTradeField(t, "holdQty", qty)) changed = true;
-        if (assignTradeField(t, "cost", cost)) changed = true;
-        if (assignTradeField(t, "avg", prevAvg)) changed = true;
-        avg = prevAvg;
-      }
-    });
-    return changed;
-  }
-
   function rebuildTteolRanks(tteolTrades) {
     var byRank = {};
     var oldestFirst = tteolTrades.slice().sort(function (a, b) {
@@ -395,7 +336,6 @@
   function compute(state, opts) {
     var s = state.settings;
     var m = state.market;
-    var replayed = replayUpdownTrades(state.updownTrades || []);
     var ud = sortNewestFirst(state.updownTrades || []);
     var tt = sortNewestFirst(state.tteolTrades || []);
     var repairedTt = repairTteolPnls(tt);
@@ -628,7 +568,6 @@
       udLast: udLast,
       ttLast: ttLast,
       repairedTt: repairedTt,
-      replayed: replayed,
     };
   }
 

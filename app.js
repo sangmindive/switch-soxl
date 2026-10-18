@@ -128,6 +128,7 @@
   }
   function restoreSnap(snap) {
     state = attachAccounts(JSON.parse(JSON.stringify(snap.state)));
+    state.rev = Date.now();
     if (snap.escape == null) localStorage.removeItem(ESCAPE_KEY);
     else localStorage.setItem(ESCAPE_KEY, snap.escape);
     saveState();
@@ -668,8 +669,16 @@
   function mergeBook(localBook, remoteBook, localRev, remoteRev) {
     var base = remoteRev > localRev ? remoteBook : localBook;
     var next = JSON.parse(JSON.stringify(base || blankBook()));
-    next.deletedUd = mergeIdList(localBook && localBook.deletedUd, remoteBook && remoteBook.deletedUd);
-    next.deletedTt = mergeIdList(localBook && localBook.deletedTt, remoteBook && remoteBook.deletedTt);
+    if (remoteRev > localRev) {
+      next.deletedUd = ((remoteBook && remoteBook.deletedUd) || []).slice();
+      next.deletedTt = ((remoteBook && remoteBook.deletedTt) || []).slice();
+    } else if (localRev > remoteRev) {
+      next.deletedUd = ((localBook && localBook.deletedUd) || []).slice();
+      next.deletedTt = ((localBook && localBook.deletedTt) || []).slice();
+    } else {
+      next.deletedUd = mergeIdList(localBook && localBook.deletedUd, remoteBook && remoteBook.deletedUd);
+      next.deletedTt = mergeIdList(localBook && localBook.deletedTt, remoteBook && remoteBook.deletedTt);
+    }
     next.updownTrades = mergeTradeLists(
       localBook && localBook.updownTrades,
       remoteBook && remoteBook.updownTrades,
@@ -1113,7 +1122,7 @@
       out.C54 = "";
     }
     renderAccountSeg();
-    if ((out.repairedTt || out.replayed) && !isEscapeView()) {
+    if (out.repairedTt && !isEscapeView()) {
       saveState();
       lastSnap = captureSnap();
     }
@@ -1945,16 +1954,18 @@
         render();
         return;
       }
+      pushLastSnap();
       rememberDeleted("ud", [state.updownTrades[+i]]);
       state.updownTrades.splice(+i, 1);
-      persist();
+      persist({ noUndo: true });
     };
     document.getElementById("tt-log").onclick = function (ev) {
       var i = ev.target.getAttribute("data-tt");
       if (i == null) return;
+      pushLastSnap();
       rememberDeleted("tt", [state.tteolTrades[+i]]);
       state.tteolTrades.splice(+i, 1);
-      persist();
+      persist({ noUndo: true });
     };
     document.querySelectorAll(".num-pick").forEach(function (btn) {
       btn.onclick = function () {
