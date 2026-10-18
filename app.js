@@ -1243,6 +1243,7 @@
     fillText("v-B8", out.B8);
     fillText("v-C8", money(out.C8));
     fillText("v-D8", money(out.D8));
+    fillText("v-hold-total", (out.G8 || 0) + "주");
     fillText("v-E8", pct(out.E8));
     fillText("v-F8", out.F8);
     fillText("v-G8", out.G8);
