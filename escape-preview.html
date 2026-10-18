@@ -3,18 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Switch · 탈출 업다운 샘플</title>
-  <link rel="stylesheet" href="styles.css?v=escape1" />
+  <title>Switch · 탈출 업다운</title>
+  <link rel="stylesheet" href="styles.css?v=20261018m" />
   <style>
-    .preview-banner {
-      margin: 0 16px 12px;
-      padding: 10px 12px;
-      border-radius: 12px;
-      background: #fff7ed;
-      color: #9a3412;
-      font-size: 12px;
-      font-weight: 600;
-    }
     .form-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -26,7 +17,8 @@
     .price-xl { font-size: 28px; font-weight: 800; letter-spacing: -0.04em; }
     .muted { color: var(--muted); font-size: 12px; }
     .ladder-mini td, .ladder-mini th { font-size: 12px; }
-    .seg button { flex: 1; }
+    .start-card { padding: 0; }
+    .start-wrap { padding: 0 16px 14px; }
   </style>
 </head>
 <body>
@@ -36,44 +28,33 @@
         <div class="mark">E</div>
         <div>
           <h1>탈출 업다운</h1>
-          <small>샘플 · 장부와 따로 계산</small>
         </div>
       </div>
       <a class="btn ghost top-escape" href="index.html">돌아가기</a>
     </header>
-    <p class="preview-banner">일지·원금은 바꾸지 않습니다. 입력한 값으로 매수/매도만 보여 줍니다.</p>
 
     <section class="page active" style="display:block">
-      <article class="card">
-        <h2>샘플 불러오기</h2>
-        <div class="seg" id="preset-seg">
-          <button type="button" class="active" data-preset="acct2">계좌2 지금</button>
-          <button type="button" data-preset="y2024">2024 탈출완료</button>
-        </div>
-        <p class="note" id="preset-note"></p>
-      </article>
-
-      <article class="card">
-        <h2>시작 상태</h2>
-        <div class="form-grid">
-          <div class="field"><label>시작일</label><input id="p-date" type="date" /></div>
-          <div class="field"><label>종목</label><input id="p-symbol" value="SOXL" /></div>
-          <div class="field"><label>이관 수량</label><input id="p-qty" type="number" step="1" /></div>
-          <div class="field"><label>이관 평단</label><input id="p-avg" type="number" step="0.0001" /></div>
-          <div class="field wide"><label>이관 금액</label><input id="p-cost" type="number" step="0.01" /></div>
-          <div class="field"><label>기존 원금</label><input id="p-old" type="number" step="0.01" /></div>
-          <div class="field"><label>증액</label><input id="p-add" type="number" step="0.01" /></div>
-          <div class="field"><label>포트 분할</label><input id="p-split" type="number" step="1" /></div>
-          <div class="field"><label>시작 포트</label><input id="p-port" type="number" step="1" /></div>
-          <div class="field"><label>중간 포트</label><input id="p-mid" type="number" step="1" /></div>
-          <div class="field"><label>종가</label><input id="p-close" type="number" step="0.01" /></div>
-          <div class="field"><label>직전 체결가</label><input id="p-last" type="number" step="0.01" /></div>
-          <div class="field"><label>계단 수</label><input id="p-steps" type="number" step="1" /></div>
-          <div class="field"><label>계단 주수</label><input id="p-stepq" type="number" step="1" /></div>
-        </div>
-        <div class="seg" id="mode-seg" style="margin-top:12px">
-          <button type="button" class="active" data-mode="sheet">탈출 시트</button>
-          <button type="button" data-mode="switch">지금 Switch</button>
+      <article class="card start-card">
+        <button type="button" class="rank-toggle" id="btn-start" aria-expanded="true">
+          <span>시작 상태</span>
+          <span class="rank-arrow" aria-hidden="true">▲</span>
+        </button>
+        <div id="start-wrap" class="start-wrap">
+          <div class="form-grid">
+            <div class="field"><label>시작일</label><input id="p-date" type="date" value="2026-10-16" /></div>
+            <div class="field"><label>종목</label><input id="p-symbol" value="SOXL" /></div>
+            <div class="field"><label>이관 수량</label><input id="p-qty" type="number" step="1" value="557" /></div>
+            <div class="field"><label>이관 평단</label><input id="p-avg" type="number" step="0.0001" value="130.86" /></div>
+            <div class="field wide"><label>이관 금액</label><input id="p-cost" type="number" step="0.01" value="72889.02" /></div>
+            <div class="field"><label>기존 원금</label><input id="p-old" type="number" step="0.01" value="73000" /></div>
+            <div class="field"><label>증액</label><input id="p-add" type="number" step="0.01" value="73000" /></div>
+            <div class="field"><label>포트 분할</label><input id="p-split" type="number" step="1" value="15" /></div>
+            <div class="field"><label>시작 포트</label><input id="p-port" type="number" step="1" value="15" /></div>
+            <div class="field"><label>종가</label><input id="p-close" type="number" step="0.01" value="93.67" /></div>
+            <div class="field"><label>직전 체결가</label><input id="p-last" type="number" step="0.01" value="93.67" /></div>
+            <div class="field"><label>계단 수</label><input id="p-steps" type="number" step="1" value="10" /></div>
+            <div class="field"><label>계단 주수</label><input id="p-stepq" type="number" step="1" value="1" /></div>
+          </div>
         </div>
       </article>
 
@@ -120,22 +101,26 @@
         <h2>매수 계단</h2>
         <div class="grid-wrap">
           <table class="sheet ladder-mini">
-            <thead><tr><th>#</th><th>단가</th><th>수량</th><th>누적</th><th>LP 대비</th></tr></thead>
+            <thead><tr><th>#</th><th>단가</th><th>수량</th><th>누적</th><th>하락률</th></tr></thead>
             <tbody id="ladder-body"></tbody>
           </table>
         </div>
-        <p class="note">시트 C11: 누적 수량으로 1회 매수금을 나눈 단가. 수량은 내림.</p>
+        <p class="note">수량은 내림. 매수 단가 C19 기준으로 1회 매수금을 나눕니다.</p>
       </article>
     </section>
   </div>
   <script>
     function n(id) { return Number(document.getElementById(id).value); }
-    function s(id) { return document.getElementById(id).value; }
     function round(x, d) {
       var m = Math.pow(10, d == null ? 2 : d);
       return Math.round((Number(x) + Number.EPSILON) * m) / m;
     }
     function down(x) { return Math.floor(Number(x) + 1e-12); }
+    function down2(x) {
+      var v = Number(x);
+      var sign = v < 0 ? -1 : 1;
+      return (sign * Math.floor(Math.abs(v) * 100 + 1e-10)) / 100;
+    }
     function money(x, d) {
       if (x === "" || x == null || !isFinite(x)) return "—";
       return Number(x).toLocaleString("en-US", {
@@ -148,79 +133,8 @@
       return (x >= 0 ? "+" : "") + (x * 100).toFixed(2) + "%";
     }
 
-    var mode = "sheet";
     var linking = false;
 
-    var presets = {
-      acct2: {
-        note: "계좌2 업다운+떨을 한 덩어리로 합친 가정. 수량 504, 원가 약 72,859, 원금 73,000에 73,000 증액. 종가는 사이트 10/16 종가 93.67. LP는 옛 평단이 아니라 종가.",
-        date: "2026-10-17",
-        qty: 504,
-        avg: 144.5615,
-        cost: 72859.00,
-        old: 73000,
-        add: 73000,
-        split: 15,
-        port: 15,
-        mid: 5,
-        close: 93.67,
-        last: 144.56,
-        steps: 5,
-        stepq: 1,
-      },
-      y2024: {
-        note: "탈출완료 시트 첫 행. 318주 × 47.8311 = 15,210.29, 증액 22,790, 원금 38,000, 포트 15로 이관. 다음 수기 매수일 종가 자리로 27.52.",
-        date: "2024-01-01",
-        qty: 318,
-        avg: 47.8311,
-        cost: 15210.29,
-        old: 15210.29,
-        add: 22789.71,
-        split: 15,
-        port: 15,
-        mid: 5,
-        close: 27.52,
-        last: 47.8311,
-        steps: 5,
-        stepq: 1,
-      },
-    };
-
-    function fillPreset(name) {
-      var p = presets[name];
-      linking = true;
-      document.getElementById("p-date").value = p.date;
-      document.getElementById("p-symbol").value = "SOXL";
-      document.getElementById("p-qty").value = p.qty;
-      document.getElementById("p-avg").value = p.avg;
-      document.getElementById("p-cost").value = p.cost;
-      document.getElementById("p-old").value = p.old;
-      document.getElementById("p-add").value = p.add;
-      document.getElementById("p-split").value = p.split;
-      document.getElementById("p-port").value = p.port;
-      document.getElementById("p-mid").value = p.mid;
-      document.getElementById("p-close").value = p.close;
-      document.getElementById("p-last").value = p.last;
-      document.getElementById("p-steps").value = p.steps;
-      document.getElementById("p-stepq").value = p.stepq;
-      document.getElementById("preset-note").textContent = p.note;
-      linking = false;
-      render();
-    }
-
-    function lpOf(port, split, closePx, lastPx) {
-      if (!port || port >= split) return closePx;
-      return lastPx || closePx;
-    }
-
-    function sheetBuy(port, mid, lp) {
-      if (!port) return round(lp * 1.1, 2);
-      return round(lp * (1 - (5 - mid) * 0.002 - port * 0.002), 2);
-    }
-    function sheetSell(port, mid, lp) {
-      if (!port) return "";
-      return round(lp * (1.02 - (5 - mid) * 0.002 - port * 0.002), 2);
-    }
     function switchBuy(port, split, lp) {
       if (!port) return round(lp * 1.1, 2);
       return round(lp * (1 - 0.002 * (20 / split) * port), 2);
@@ -237,22 +151,15 @@
       var add = n("p-add");
       var split = n("p-split") || 15;
       var port = n("p-port");
-      var mid = n("p-mid");
       var closePx = n("p-close");
       var lastPx = n("p-last");
       var steps = n("p-steps");
       var stepq = n("p-stepq");
       var cap = oldC + add;
       var shot = split ? round(cap / split, 2) : 0;
-      var lp = lpOf(port, split, closePx, lastPx);
-      var buy, sell;
-      if (mode === "sheet") {
-        buy = sheetBuy(port, mid, lp);
-        sell = sheetSell(port, mid, lp);
-      } else {
-        buy = switchBuy(port, split, lp);
-        sell = switchSell(qty, lp);
-      }
+      var lp = lastPx || closePx;
+      var buy = switchBuy(port, split, lp);
+      var sell = switchSell(qty, lp);
       var buyQty = buy ? down(shot / buy) : 0;
       var sellQty = port ? down(qty / port) : 0;
       var used = cost;
@@ -284,14 +191,11 @@
       } else if (willSell && !willBuy) {
         sig.textContent = "매도";
         sig.style.color = "#ef4444";
-        note.textContent = "종가가 매도 지정가 이상입니다. 포트가 분할 이상이면 탈출 시트는 원래 매도만 냅니다.";
+        note.textContent = "종가가 매도 지정가(LP) 이상입니다.";
       } else if (!willBuy && !willSell) {
         sig.textContent = "없음 (밴드 밖)";
         sig.style.color = "#6b7280";
-        note.textContent =
-          port >= split
-            ? "분할을 채운 뒤에는 매수 조건(종가 ≤ 종가×할인)이 성립하지 않습니다. 2024년 16·17포트는 노란 매도 행을 지우고 수기로 넣었습니다."
-            : "종가가 매수·매도 지정 사이에 있습니다.";
+        note.textContent = "종가가 매수 단가와 LP 사이에 있습니다.";
       } else {
         sig.textContent = "매수·매도 둘 다";
         sig.style.color = "#111827";
@@ -303,8 +207,7 @@
       document.getElementById("o-used").textContent = money(used);
       document.getElementById("o-left").textContent = money(left);
       document.getElementById("o-leftn").textContent = leftN + "회";
-      document.getElementById("o-lp").textContent =
-        money(lp) + (port >= split || !port ? " · 종가" : " · 직전 체결");
+      document.getElementById("o-lp").textContent = money(lp) + " · 직전 체결";
       document.getElementById("o-eval").textContent = money(evalAmt) + " · " + pct(evalPct);
       document.getElementById("o-be").textContent = money(be) + " (" + pct(be / closePx - 1) + ")";
 
@@ -314,14 +217,13 @@
       var i;
       for (i = 1; i <= steps && stepq; i++) {
         cum += stepq;
-        var px = round(shot / cum, 2);
-        rows.push({ i: i, px: px, q: stepq, cum: cum });
+        rows.push({ i: i, px: down2(shot / cum), q: stepq, cum: cum });
       }
       document.getElementById("ladder-body").innerHTML = rows
         .map(function (r) {
           return (
             "<tr><td>" +
-            (r.i === 0 ? "1회" : "+" + r.i) +
+            (r.i === 0 ? "매수" : r.i) +
             "</td><td class='buy'>" +
             money(r.px) +
             "</td><td>" +
@@ -329,12 +231,19 @@
             "</td><td>" +
             r.cum +
             "</td><td>" +
-            pct(r.px / lp - 1) +
+            pct(r.px / buy - 1) +
             "</td></tr>"
           );
         })
         .join("");
     }
+
+    document.getElementById("btn-start").onclick = function () {
+      var open = this.getAttribute("aria-expanded") !== "true";
+      this.setAttribute("aria-expanded", open ? "true" : "false");
+      document.getElementById("start-wrap").classList.toggle("hidden", !open);
+      this.querySelector(".rank-arrow").textContent = open ? "▲" : "▼";
+    };
 
     document.getElementById("p-qty").addEventListener("input", function () {
       if (linking) return;
@@ -356,25 +265,8 @@
         render();
       });
     });
-    document.querySelectorAll("#preset-seg button").forEach(function (b) {
-      b.onclick = function () {
-        document.querySelectorAll("#preset-seg button").forEach(function (x) {
-          x.classList.toggle("active", x === b);
-        });
-        fillPreset(b.getAttribute("data-preset"));
-      };
-    });
-    document.querySelectorAll("#mode-seg button").forEach(function (b) {
-      b.onclick = function () {
-        document.querySelectorAll("#mode-seg button").forEach(function (x) {
-          x.classList.toggle("active", x === b);
-        });
-        mode = b.getAttribute("data-mode");
-        render();
-      };
-    });
 
-    fillPreset("acct2");
+    render();
   </script>
 </body>
 </html>
