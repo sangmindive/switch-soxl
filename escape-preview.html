@@ -87,7 +87,21 @@
         </div>
       </article>
       <article class="card">
-        <h2>매수 계단</h2>
+        <div class="card-head">
+          <h2>매수 계단</h2>
+          <div class="ladder-picks">
+            <button type="button" class="num-pick" data-key="steps" data-title="계단 수">
+              <span class="k">계단 수</span>
+              <strong id="v-esc-steps">—</strong>
+            </button>
+            <button type="button" class="num-pick" data-key="stepq" data-title="계단 주수">
+              <span class="k">계단 주수</span>
+              <strong id="v-esc-stepq">—</strong>
+            </button>
+          </div>
+        </div>
+        <input type="hidden" id="p-steps" />
+        <input type="hidden" id="p-stepq" />
         <div class="grid-wrap">
           <table class="sheet ladder-mini">
             <thead><tr><th>#</th><th>단가</th><th>수량</th><th>누적</th><th>하락률</th></tr></thead>
@@ -136,8 +150,6 @@
           <div class="field"><label>포트 분할</label><input id="p-split" type="number" step="1" /></div>
           <div class="field"><label>시작 포트</label><input id="p-port" type="number" step="1" /></div>
           <div class="field"><label>직전 체결가</label><input id="p-last" type="number" step="0.01" /></div>
-          <div class="field"><label>계단 수</label><input id="p-steps" type="number" step="1" /></div>
-          <div class="field"><label>계단 주수</label><input id="p-stepq" type="number" step="1" /></div>
         </div>
         <button class="btn primary wide" id="btn-esc-start" type="button" style="margin-top:12px">탈출 시작</button>
         <div class="row"><span class="k">동기화</span><span id="sync-status">확인 중</span></div>
@@ -165,6 +177,12 @@
     </nav>
   </div>
   <div id="toast" class="toast"></div>
+  <div id="num-pop" class="num-pop hidden">
+    <div class="num-pop-card">
+      <div class="num-pop-title" id="num-pop-title">선택</div>
+      <div class="num-pop-grid" id="num-pop-grid"></div>
+    </div>
+  </div>
   <script>
     var KEY = "switch-escape-v1";
     var SYNC_KEY = "switch-v3-sync";
@@ -590,6 +608,11 @@
       document.getElementById("btn-fill-buy").disabled = !willBuy;
       document.getElementById("btn-fill-sell").disabled = !willSell;
 
+      var stepsEl = document.getElementById("v-esc-steps");
+      var stepqEl = document.getElementById("v-esc-stepq");
+      if (stepsEl) stepsEl.textContent = String(n("p-steps") || 0);
+      if (stepqEl) stepqEl.textContent = String(n("p-stepq") || 0);
+
       document.getElementById("o-cap").textContent = money(c.cap);
       document.getElementById("o-shot").textContent = money(c.shot);
       document.getElementById("o-used").textContent = money(used);
@@ -683,6 +706,43 @@
       document.getElementById("add-wrap").classList.toggle("hidden", !open);
       this.querySelector(".rank-arrow").textContent = open ? "▲" : "▼";
     };
+    var numPopKey = "";
+    function openNumPop(key, title, current) {
+      numPopKey = key;
+      document.getElementById("num-pop-title").textContent = title || "선택";
+      var html = "";
+      var i;
+      for (i = 1; i <= 20; i++) {
+        html +=
+          "<button type='button' data-num='" + i + "'" +
+          (Number(current) === i ? " class='active'" : "") + ">" + i + "</button>";
+      }
+      document.getElementById("num-pop-grid").innerHTML = html;
+      document.getElementById("num-pop").classList.remove("hidden");
+    }
+    function closeNumPop() {
+      numPopKey = "";
+      document.getElementById("num-pop").classList.add("hidden");
+    }
+    document.querySelectorAll(".num-pick").forEach(function (btn) {
+      btn.onclick = function () {
+        var id = btn.dataset.key === "stepq" ? "p-stepq" : "p-steps";
+        openNumPop(btn.dataset.key, btn.dataset.title, n(id));
+      };
+    });
+    document.getElementById("num-pop").onclick = function (ev) {
+      if (ev.target.id === "num-pop") closeNumPop();
+    };
+    document.getElementById("num-pop-grid").onclick = function (ev) {
+      var num = ev.target.getAttribute("data-num");
+      if (num == null || !numPopKey) return;
+      var id = numPopKey === "stepq" ? "p-stepq" : "p-steps";
+      document.getElementById(id).value = num;
+      closeNumPop();
+      saveFromForm();
+      render();
+    };
+
     document.getElementById("btn-esc-start").onclick = startEscape;
     document.getElementById("btn-fill-buy").onclick = function () { applyFill("매수"); };
     document.getElementById("btn-fill-sell").onclick = function () { applyFill("매도"); };
