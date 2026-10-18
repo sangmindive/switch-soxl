@@ -139,6 +139,7 @@
           <div class="field"><label>계단 수</label><input id="p-steps" type="number" step="1" /></div>
           <div class="field"><label>계단 주수</label><input id="p-stepq" type="number" step="1" /></div>
         </div>
+        <button class="btn primary wide" id="btn-esc-start" type="button" style="margin-top:12px">탈출 시작</button>
         <div class="row"><span class="k">동기화</span><span id="sync-status">확인 중</span></div>
         <p class="note">Switch 설정에서 연결한 같은 코드를 씁니다. 다시 넣을 필요 없습니다. Switch 본 장부(업다운·떨)는 바뀌지 않습니다.</p>
       </article>
@@ -228,10 +229,41 @@
         last: 93.67,
         steps: 10,
         stepq: 1,
-        trades: [
-          { date: "2026-10-16", type: "매수", pot: 15, price: 130.86, qty: 557, holdQty: 557, avg: 130.86 }
-        ]
+        trades: []
       };
+    }
+    function replay(d) {
+      var live = { qty: 0, avg: 0, cost: 0, port: 0, last: 0, started: false };
+      var trades = (d && d.trades) || [];
+      var i;
+      for (i = 0; i < trades.length; i++) {
+        var t = trades[i];
+        live.started = true;
+        if (t.type === "이관") {
+          live.qty = Number(t.holdQty != null ? t.holdQty : t.qty) || 0;
+          live.avg = Number(t.avg) || 0;
+          live.cost = live.qty && live.avg ? round(live.qty * live.avg, 2) : 0;
+          live.port = Number(t.pot) || 0;
+          live.last = Number(t.lp) || Number(d.last) || 0;
+        } else if (t.type === "매수") {
+          var bq = Number(t.qty) || 0;
+          var bp = Number(t.price) || 0;
+          live.qty += bq;
+          live.cost = round((live.cost || 0) + bp * bq, 2);
+          live.avg = live.qty ? live.cost / live.qty : 0;
+          live.port = t.pot != null ? Number(t.pot) : live.port + 1;
+          live.last = bp;
+        } else if (t.type === "매도") {
+          var sq = Number(t.qty) || 0;
+          var sp = Number(t.price) || 0;
+          live.qty -= sq;
+          if (live.qty < 0) live.qty = 0;
+          live.cost = round((live.avg || 0) * live.qty, 2);
+          live.port = live.port ? live.port - 1 : 0;
+          live.last = sp;
+        }
+      }
+      return live;
     }
     function loadSyncCfg() {
       try {
@@ -441,22 +473,27 @@
       linking = false;
     }
     function calc() {
-      var qty = n("p-qty");
-      var cost = n("p-cost");
-      var split = n("p-split") || 15;
-      var port = n("p-port");
+      var d = load();
+      var live = replay(d);
+      var split = n("p-split") || d.split || 15;
       var closePx = n("p-close");
-      var lastPx = n("p-last");
       var cap = n("p-old") + n("p-add");
       var shot = split ? round(cap / split, 2) : 0;
-      var lp = lastPx || closePx;
-      var buy = switchBuy(port, split, lp);
-      var sell = switchSell(qty, lp);
+      if (!live.started) {
+        return {
+          started: false, qty: 0, avg: 0, cost: 0, split: split, port: 0, closePx: closePx,
+          lastPx: 0, cap: cap, shot: shot, lp: 0, buy: "", sell: "", buyQty: 0, sellQty: 0
+        };
+      }
+      var lp = live.last;
+      var buy = switchBuy(live.port, split, lp);
+      var sell = switchSell(live.qty, lp);
       var buyQty = buy ? down(shot / buy) : 0;
-      var sellQty = port ? down(qty / port) : 0;
+      var sellQty = live.port ? down(live.qty / live.port) : 0;
       return {
-        qty: qty, cost: cost, split: split, port: port, closePx: closePx, lastPx: lastPx,
-        cap: cap, shot: shot, lp: lp, buy: buy, sell: sell, buyQty: buyQty, sellQty: sellQty
+        started: true, qty: live.qty, avg: live.avg, cost: live.cost, split: split, port: live.port,
+        closePx: closePx, lastPx: lp, cap: cap, shot: shot, lp: lp, buy: buy, sell: sell,
+        buyQty: buyQty, sellQty: sellQty
       };
     }
     function setTab(name) {
@@ -498,7 +535,6 @@
     }
     function render() {
       var c = calc();
-      var avg = n("p-avg");
       var used = c.cost;
       var left = c.cap - used;
       var leftN = c.shot ? down(left / c.shot) : 0;
@@ -506,24 +542,28 @@
       var evalPct = c.cost ? evalAmt / c.cost - 1 : 0;
       var be = c.qty ? c.cost / c.qty : 0;
 
-      document.getElementById("o-buy").textContent = money(c.buy);
+      document.getElementById("o-buy").textContent = c.buy === "" ? "—" : money(c.buy);
       document.getElementById("o-sell").textContent = c.sell === "" ? "—" : money(c.sell);
-      document.getElementById("o-buy-qty").textContent = c.buyQty + "주";
+      document.getElementById("o-buy-qty").textContent = c.started ? c.buyQty + "주" : "—";
       document.getElementById("o-sell-qty").textContent = c.sellQty ? c.sellQty + "주" : "—";
-      document.getElementById("o-buy-port").textContent = c.port ? "포트" + (c.port + 1) : "포트1";
+      document.getElementById("o-buy-port").textContent = c.started ? (c.port ? "포트" + (c.port + 1) : "포트1") : "—";
       document.getElementById("o-sell-port").textContent = c.port ? "포트" + (c.port - 1) : "—";
-      document.getElementById("o-buy-gap").textContent = c.lp ? "LP 대비 " + pct(c.buy / c.lp - 1) : "";
+      document.getElementById("o-buy-gap").textContent = c.buy && c.lp ? "LP 대비 " + pct(c.buy / c.lp - 1) : "";
       document.getElementById("o-sell-gap").textContent = c.sell && c.lp ? "LP 대비 " + pct(c.sell / c.lp - 1) : "";
-      document.getElementById("o-buy-if").textContent = "종가 ≤ " + money(c.buy);
+      document.getElementById("o-buy-if").textContent = c.buy === "" ? "—" : "종가 ≤ " + money(c.buy);
       document.getElementById("o-sell-if").textContent = c.sell === "" ? "보유 0" : "종가 ≥ " + money(c.sell);
-      document.getElementById("h-hold").textContent = c.qty + "주 · " + usd(avg);
-      document.getElementById("h-port").textContent = String(c.port);
+      document.getElementById("h-hold").textContent = c.qty ? c.qty + "주 · " + usd(c.avg) : "0주";
+      document.getElementById("h-port").textContent = c.started ? String(c.port) : "0";
 
-      var willBuy = c.closePx <= c.buy;
-      var willSell = c.sell !== "" && c.closePx >= c.sell;
+      var willBuy = c.started && c.buy !== "" && c.closePx <= c.buy;
+      var willSell = c.started && c.sell !== "" && c.closePx >= c.sell;
       var sig = document.getElementById("o-signal");
       var note = document.getElementById("o-signal-note");
-      if (willBuy && !willSell) {
+      if (!c.started) {
+        sig.textContent = "탈출 시작 전";
+        sig.style.color = "#6b7280";
+        note.textContent = "설정에 이관 값을 넣고 탈출 시작을 누르세요.";
+      } else if (willBuy && !willSell) {
         sig.textContent = "매수";
         sig.style.color = "#2563eb";
         note.textContent = "종가가 매수 지정가 이하입니다.";
@@ -541,11 +581,12 @@
         note.textContent = "같은 종가에서 두 조건이 겹칩니다.";
       }
 
-      document.getElementById("sug-buy").textContent =
-        "매수 · " + usd(c.closePx) + " · " + c.buyQty + "주 · 포트" + (c.port ? c.port + 1 : 1);
-      document.getElementById("sug-sell").textContent = c.sellQty
-        ? "매도 · " + usd(c.lp) + " · " + c.sellQty + "주 · 포트" + c.port
-        : "보유 0 · 매도 없음";
+      document.getElementById("sug-buy").textContent = c.started
+        ? "매수 · " + usd(c.closePx) + " · " + c.buyQty + "주 · 포트" + (c.port ? c.port + 1 : 1)
+        : "탈출 시작 후 체결할 수 있습니다";
+      document.getElementById("sug-sell").textContent = !c.started
+        ? "탈출 시작 후 체결할 수 있습니다"
+        : (c.sellQty ? "매도 · " + usd(c.lp) + " · " + c.sellQty + "주 · 포트" + c.port : "보유 0 · 매도 없음");
       document.getElementById("btn-fill-buy").disabled = !willBuy;
       document.getElementById("btn-fill-sell").disabled = !willSell;
 
@@ -554,19 +595,21 @@
       document.getElementById("o-used").textContent = money(used);
       document.getElementById("o-left").textContent = money(left);
       document.getElementById("o-leftn").textContent = leftN + "회";
-      document.getElementById("o-lp").textContent = money(c.lp) + " · 직전 체결";
-      document.getElementById("o-eval").textContent = money(evalAmt) + " · " + pct(evalPct);
-      document.getElementById("o-be").textContent = money(be) + " (" + pct(be / c.closePx - 1) + ")";
+      document.getElementById("o-lp").textContent = c.lp ? money(c.lp) + " · 직전 체결" : "—";
+      document.getElementById("o-eval").textContent = c.started ? money(evalAmt) + " · " + pct(evalPct) : "—";
+      document.getElementById("o-be").textContent = c.started && c.closePx ? money(be) + " (" + pct(be / c.closePx - 1) + ")" : "—";
 
       var rows = [];
-      rows.push({ i: 0, px: c.buy, q: c.buyQty, cum: c.buyQty });
-      var cum = c.buyQty;
-      var i;
-      var steps = n("p-steps");
-      var stepq = n("p-stepq");
-      for (i = 1; i <= steps && stepq; i++) {
-        cum += stepq;
-        rows.push({ i: i, px: down2(c.shot / cum), q: stepq, cum: cum });
+      if (c.started && c.buy !== "") {
+        rows.push({ i: 0, px: c.buy, q: c.buyQty, cum: c.buyQty });
+        var cum = c.buyQty;
+        var i;
+        var steps = n("p-steps");
+        var stepq = n("p-stepq");
+        for (i = 1; i <= steps && stepq; i++) {
+          cum += stepq;
+          rows.push({ i: i, px: down2(c.shot / cum), q: stepq, cum: cum });
+        }
       }
       document.getElementById("ladder-body").innerHTML = rows
         .map(function (r) {
@@ -584,6 +627,7 @@
       var d = load();
       var closePx = c.closePx;
       var date = document.getElementById("p-date").value || d.date;
+      if (!c.started) return toast("먼저 탈출 시작을 누르세요");
       if (type === "매수") {
         if (!(closePx <= c.buy)) return toast("매수 조건 아님");
         var bq = c.buyQty;
@@ -593,31 +637,41 @@
         var avg = hold ? cost / hold : 0;
         var pot = c.port ? c.port + 1 : 1;
         d.trades.push({ date: date, type: "매수", pot: pot, price: closePx, qty: bq, holdQty: hold, avg: avg });
-        d.qty = hold;
-        d.cost = round(cost, 2);
-        d.avg = round(avg, 4);
-        d.port = pot;
-        d.last = closePx;
       } else {
         if (!(c.sell !== "" && closePx >= c.sell)) return toast("매도 조건 아님");
         var sq = c.sellQty;
         if (!sq) return toast("수량 0");
         var hold2 = c.qty - sq;
         if (hold2 < 0) hold2 = 0;
-        var avg2 = n("p-avg");
-        var cost2 = avg2 * hold2;
-        var pot2 = c.port ? c.port - 1 : 0;
-        d.trades.push({ date: date, type: "매도", pot: c.port, price: closePx, qty: sq, holdQty: hold2, avg: avg2 });
-        d.qty = hold2;
-        d.cost = round(cost2, 2);
-        d.port = pot2;
-        d.last = closePx;
+        d.trades.push({ date: date, type: "매도", pot: c.port, price: closePx, qty: sq, holdQty: hold2, avg: c.avg });
       }
       d.close = closePx;
       persist(d);
-      fillForm(d);
       render();
       toast(type + " 반영");
+    }
+    function startEscape() {
+      saveFromForm();
+      var d = load();
+      if ((d.trades || []).length) {
+        toast("일지를 모두 지운 뒤 다시 시작하세요");
+        return;
+      }
+      if (!d.qty) return toast("이관 수량을 넣으세요");
+      d.trades = [{
+        date: d.date,
+        type: "이관",
+        pot: d.port,
+        price: d.avg,
+        qty: d.qty,
+        holdQty: d.qty,
+        avg: d.avg,
+        lp: d.last
+      }];
+      persist(d);
+      render();
+      setTab("journal");
+      toast("탈출 시작");
     }
 
     document.querySelectorAll(".nav-item").forEach(function (b) {
@@ -629,6 +683,7 @@
       document.getElementById("add-wrap").classList.toggle("hidden", !open);
       this.querySelector(".rank-arrow").textContent = open ? "▲" : "▼";
     };
+    document.getElementById("btn-esc-start").onclick = startEscape;
     document.getElementById("btn-fill-buy").onclick = function () { applyFill("매수"); };
     document.getElementById("btn-fill-sell").onclick = function () { applyFill("매도"); };
     document.getElementById("btn-add").onclick = function () {
@@ -638,20 +693,15 @@
       var date = document.getElementById("j-date").value || document.getElementById("p-date").value;
       if (!price || !qty) return toast("단가·수량을 넣으세요");
       var d = load();
-      var hold = type === "매수" ? d.qty + qty : d.qty - qty;
+      var live = replay(d);
+      if (!live.started) return toast("먼저 탈출 시작을 누르세요");
+      var hold = type === "매수" ? live.qty + qty : live.qty - qty;
       if (hold < 0) hold = 0;
-      var cost = type === "매수" ? d.cost + price * qty : d.avg * hold;
-      var avg = hold ? (type === "매수" ? cost / hold : d.avg) : d.avg;
-      var pot = type === "매수" ? (d.port ? d.port + 1 : 1) : d.port;
-      if (type === "매도") pot = d.port;
+      var cost = type === "매수" ? live.cost + price * qty : live.avg * hold;
+      var avg = hold ? (type === "매수" ? cost / hold : live.avg) : live.avg;
+      var pot = type === "매수" ? (live.port ? live.port + 1 : 1) : live.port;
       d.trades.push({ date: date, type: type, pot: pot, price: price, qty: qty, holdQty: hold, avg: avg });
-      d.qty = hold;
-      d.cost = round(cost, 2);
-      d.avg = round(avg, 4);
-      d.port = type === "매수" ? pot : Math.max(0, d.port - 1);
-      d.last = price;
       persist(d);
-      fillForm(d);
       render();
       toast("행 추가");
     };
