@@ -482,6 +482,9 @@
         tradeDate: m.tradeDate || "",
         closeHistory: mergeCloseList(m.closeHistory, []),
       },
+      barLeft: canonBar(copy.barLeft) || "acc1",
+      barRight: canonBar(copy.barRight) || "acc2",
+      barRev: Number(copy.barRev) || 0,
     };
   }
 
@@ -505,8 +508,12 @@
     next.accounts["1"] = mergeBook(local.accounts["1"], remote.accounts["1"], localRev, remoteRev);
     next.accounts["2"] = mergeBook(local.accounts["2"], remote.accounts["2"], localRev, remoteRev);
     next.accountId = local.accountId || "1";
-    next.barLeft = canonBar((remoteRev > localRev ? remote.barLeft : local.barLeft) || local.barLeft || remote.barLeft) || "acc1";
-    next.barRight = canonBar((remoteRev > localRev ? remote.barRight : local.barRight) || local.barRight || remote.barRight) || "acc2";
+    var localBarRev = Number(local.barRev) || 0;
+    var remoteBarRev = Number(remote.barRev) || 0;
+    var barSrc = remoteBarRev > localBarRev ? remote : localBarRev > remoteBarRev ? local : remoteRev > localRev ? remote : local;
+    next.barLeft = canonBar(barSrc.barLeft) || canonBar(local.barLeft) || canonBar(remote.barLeft) || "acc1";
+    next.barRight = canonBar(barSrc.barRight) || canonBar(local.barRight) || canonBar(remote.barRight) || "acc2";
+    next.barRev = Math.max(localBarRev, remoteBarRev);
     next.view = remoteRev > localRev ? remote.view || local.view : local.view || remote.view;
     if (next.view !== "1" && next.view !== "2" && next.view !== "escape") next.view = next.accountId || "1";
     next.settings = next.accounts[next.accountId].settings;
@@ -1478,8 +1485,11 @@
     s.tteolStepQty = parseInt(document.getElementById("set-tt-qty").value, 10) || 0;
     var barLeft = document.getElementById("set-bar-left").value;
     var barRight = document.getElementById("set-bar-right").value;
-    state.barLeft = BAR_SLOTS[barLeft] ? barLeft : "acc1";
-    state.barRight = BAR_SLOTS[barRight] ? barRight : "acc2";
+    var nextLeft = BAR_SLOTS[barLeft] ? barLeft : "acc1";
+    var nextRight = BAR_SLOTS[barRight] ? barRight : "acc2";
+    if (state.barLeft !== nextLeft || state.barRight !== nextRight) state.barRev = Date.now();
+    state.barLeft = nextLeft;
+    state.barRight = nextRight;
     persist();
   }
 
