@@ -5,13 +5,12 @@
   var S = window.SwitchSeed;
   var KEY = "switch-v3-state";
   var SYNC_KEY = "switch-v3-sync";
+  var ESCAPE_KEY = "switch-escape-v1";
+  var ESCAPE_FILE = "switch-escape-v1.json";
   var BAR_SLOTS = {
     acc1: { label: "1번 계좌" },
     acc2: { label: "2번 계좌" },
-    "escape-home": { label: "탈출 홈", href: "escape-preview.html#home" },
-    "escape-orders": { label: "탈출 주문", href: "escape-preview.html#orders" },
-    "escape-journal": { label: "탈출 일지", href: "escape-preview.html#journal" },
-    "escape-settings": { label: "탈출 설정", href: "escape-preview.html#settings" },
+    escape: { label: "탈출 업다운" },
   };
   var state = loadState();
   var tab = "home";
@@ -64,8 +63,9 @@
     }
     if (!root.accounts["2"] || !root.accounts["2"].settings) root.accounts["2"] = blankBook();
     if (root.accountId !== "1" && root.accountId !== "2") root.accountId = "1";
-    if (!BAR_SLOTS[root.barLeft]) root.barLeft = "acc1";
-    if (!BAR_SLOTS[root.barRight]) root.barRight = "acc2";
+    root.barLeft = canonBar(root.barLeft) || "acc1";
+    root.barRight = canonBar(root.barRight) || "acc2";
+    if (root.view !== "1" && root.view !== "2" && root.view !== "escape") root.view = root.accountId || "1";
     if (root.settings && root.updownTrades) root.accounts[root.accountId] = bookOf(root);
     ["1", "2"].forEach(function (id) {
       if (root.accounts[id] && root.accounts[id].settings) {
@@ -86,12 +86,111 @@
     attachAccounts(state);
   }
 
+  function canonBar(k) {
+    if (!k) return "";
+    if (k === "escape" || String(k).indexOf("escape") === 0) return "escape";
+    if (k === "acc1" || k === "acc2") return k;
+    return "";
+  }
+
+  function isEscapeView() {
+    return state.view === "escape";
+  }
+
+  function loadEscape() {
+    try {
+      var raw = localStorage.getItem(ESCAPE_KEY);
+      if (raw) return JSON.parse(raw);
+    } catch (e) {}
+    return null;
+  }
+
+  function saveEscape(esc) {
+    esc.rev = Date.now();
+    localStorage.setItem(ESCAPE_KEY, JSON.stringify(esc));
+    scheduleEscapePush();
+  }
+
+  function escapeToViewState(esc) {
+    var settings = E.defaultSettings();
+    settings.symbol = (esc && esc.symbol) || "SOXL";
+    settings.capital = esc ? (Number(esc.old) || 0) + (Number(esc.add) || 0) : 0;
+    settings.seedSplit = esc && esc.split ? Number(esc.split) : 15;
+    settings.seedSplitFixed = true;
+    settings.reinvest = 0;
+    settings.udLadderCount = esc ? Number(esc.steps) || 0 : 0;
+    settings.udStepQty = esc ? Number(esc.stepq) || 0 : 0;
+    settings.applySheetF8Limit = false;
+    settings.autoTransfer = false;
+    var ud = ((esc && esc.trades) || []).map(function (t, i) {
+      var isStart = t.type === "이관";
+      var price = isStart ? Number(t.lp) || Number(esc.last) || Number(t.price) : Number(t.price);
+      var qty = Number(t.qty) || 0;
+      return {
+        date: t.date,
+        type: t.type === "매도" ? "매도" : "매수",
+        pot: Number(t.pot) || 0,
+        price: price,
+        qty: qty,
+        holdQty: t.holdQty != null ? Number(t.holdQty) : 0,
+        avg: Number(t.avg) || 0,
+        cost: t.cost != null ? Number(t.cost) : undefined,
+        amount: isStart ? Number(t.cost) || 0 : price * qty,
+        cycle: 1,
+        seq: i + 1,
+      };
+    });
+    return {
+      settings: settings,
+      updownTrades: ud,
+      tteolTrades: [],
+      market: state.market,
+      closeDb: state.closeDb || [],
+    };
+  }
+
+  function displaySrc() {
+    if (!isEscapeView()) return state;
+    return escapeToViewState(loadEscape());
+  }
+
+  function applyEscapeUdFill() {
+    var esc = loadEscape();
+    if (!esc || !(esc.trades || []).length) {
+      toast("탈출에서 먼저 시작하세요");
+      return;
+    }
+    var vs = escapeToViewState(esc);
+    var r = E.applySuggested(vs, "ud");
+    if (!r.ok) {
+      toast(r.reason);
+      return;
+    }
+    var t = r.trade;
+    esc.trades.push({
+      date: t.date,
+      type: t.type,
+      pot: t.pot,
+      price: t.price,
+      qty: t.qty,
+      holdQty: t.holdQty,
+      avg: t.avg,
+      cost: t.cost,
+    });
+    saveEscape(esc);
+    render();
+    toast("업다운 " + t.type + " 반영 · " + (t.date || ""));
+  }
+
   function selectAccount(id) {
     if (id !== "1" && id !== "2") return;
     attachAccounts(state);
-    if (state.accountId === id) return;
-    state.accounts[state.accountId] = bookOf(state);
+    var sameBook = state.accountId === id;
+    if (sameBook && state.view === id) return;
+    if (!sameBook && state.view !== "escape") state.accounts[state.accountId] = bookOf(state);
+    else if (!sameBook) stashActive();
     state.accountId = id;
+    state.view = id;
     var book = state.accounts[id];
     state.settings = book.settings;
     state.updownTrades = book.updownTrades;
@@ -406,8 +505,10 @@
     next.accounts["1"] = mergeBook(local.accounts["1"], remote.accounts["1"], localRev, remoteRev);
     next.accounts["2"] = mergeBook(local.accounts["2"], remote.accounts["2"], localRev, remoteRev);
     next.accountId = local.accountId || "1";
-    next.barLeft = (remoteRev > localRev ? remote.barLeft : local.barLeft) || local.barLeft || remote.barLeft || "acc1";
-    next.barRight = (remoteRev > localRev ? remote.barRight : local.barRight) || local.barRight || remote.barRight || "acc2";
+    next.barLeft = canonBar((remoteRev > localRev ? remote.barLeft : local.barLeft) || local.barLeft || remote.barLeft) || "acc1";
+    next.barRight = canonBar((remoteRev > localRev ? remote.barRight : local.barRight) || local.barRight || remote.barRight) || "acc2";
+    next.view = remoteRev > localRev ? remote.view || local.view : local.view || remote.view;
+    if (next.view !== "1" && next.view !== "2" && next.view !== "escape") next.view = next.accountId || "1";
     next.settings = next.accounts[next.accountId].settings;
     next.updownTrades = next.accounts[next.accountId].updownTrades;
     next.tteolTrades = next.accounts[next.accountId].tteolTrades;
@@ -463,6 +564,32 @@
     return JSON.parse(file.content);
   }
 
+  function ingestEscapeGist(gist) {
+    var file = gist && gist.files && gist.files[ESCAPE_FILE];
+    if (!file || !file.content) return;
+    try {
+      localStorage.setItem(ESCAPE_KEY, file.content);
+    } catch (e) {}
+  }
+
+  var escapePushTimer = null;
+  function scheduleEscapePush() {
+    var cfg = loadSyncCfg();
+    if (!cfg.token || !cfg.gistId) return;
+    clearTimeout(escapePushTimer);
+    escapePushTimer = setTimeout(function () {
+      var esc = loadEscape();
+      if (!esc) return;
+      var body = { files: {} };
+      body.files[ESCAPE_FILE] = { content: JSON.stringify(esc) };
+      fetch("https://api.github.com/gists/" + cfg.gistId, {
+        method: "PATCH",
+        headers: gistHeaders(cfg.token),
+        body: JSON.stringify(body),
+      }).catch(function () {});
+    }, 700);
+  }
+
   function pullRemote() {
     var cfg = loadSyncCfg();
     if (!cfg.token || !cfg.gistId || syncing) return Promise.resolve(false);
@@ -470,6 +597,7 @@
     return fetch("https://api.github.com/gists/" + cfg.gistId, { headers: gistHeaders(cfg.token) })
       .then(readGistResponse)
       .then(function (gist) {
+        ingestEscapeGist(gist);
         var remote = readRemoteState(gist);
         if (!remote) {
           syncing = false;
@@ -699,16 +827,21 @@
   }
 
   function barActive(key) {
-    if (key === "acc1") return (state.accountId || "1") === "1";
-    if (key === "acc2") return state.accountId === "2";
+    if (key === "acc1") return state.view !== "escape" && (state.accountId || "1") === "1";
+    if (key === "acc2") return state.view !== "escape" && state.accountId === "2";
+    if (key === "escape") return state.view === "escape";
     return false;
   }
 
   function activateBar(key) {
     if (key === "acc1") return selectAccount("1");
     if (key === "acc2") return selectAccount("2");
-    var slot = BAR_SLOTS[key];
-    if (slot && slot.href) location.href = slot.href;
+    if (key === "escape") {
+      if (state.view === "escape") return;
+      if (state.view !== "escape") stashActive();
+      state.view = "escape";
+      persist();
+    }
   }
 
   function renderAccountSeg() {
@@ -725,7 +858,16 @@
       persist();
       return;
     }
-    var out = E.compute(state);
+    var src = displaySrc();
+    var out = E.compute(src);
+    if (isEscapeView()) {
+      out.I19 = "";
+      out.H19 = "";
+      out.ttLadder = [];
+      out.suggestedTt = { type: "", reason: "탈출 업다운 · 떨 없음" };
+      out.openRanks = [];
+      out.C54 = "";
+    }
     renderAccountSeg();
     if (out.repairedTt) saveState();
     var s = state.settings;
@@ -791,10 +933,10 @@
     if (barLeftEl) barLeftEl.value = barKey("left");
     if (barRightEl) barRightEl.value = barKey("right");
     markPresetButtons();
-    fillText("v-ud-orders", s.udLadderCount);
-    fillText("v-ud-step", s.udStepQty);
-    fillText("v-tt-orders", s.tteolLadderCount);
-    fillText("v-tt-step", s.tteolStepQty);
+    fillText("v-ud-orders", src.settings.udLadderCount);
+    fillText("v-ud-step", src.settings.udStepQty);
+    fillText("v-tt-orders", isEscapeView() ? 0 : s.tteolLadderCount);
+    fillText("v-tt-step", isEscapeView() ? 0 : s.tteolStepQty);
 
     fillText("live-price", money(m.price));
     var chgEl = document.getElementById("live-chg");
@@ -1178,6 +1320,32 @@
   }
 
   function renderUdLog() {
+    if (isEscapeView()) {
+      var esc = loadEscape();
+      var rows = (esc && esc.trades) || [];
+      var htmlEsc = rows
+        .map(function (t, idx) {
+          var avg = t.avg == null || t.avg === "" ? "—" : usd(t.avg);
+          var hold = t.holdQty == null || t.holdQty === "" ? "—" : t.holdQty;
+          return logLine(
+            t.date,
+            [
+              "<span class='pill " + logTypeClass(t.type) + "'>" + t.type + "</span>",
+              "<span>" + t.pot + "</span>",
+              "<span>" + usd(t.type === "이관" ? t.avg : t.price) + "</span>",
+              "<span>" + t.qty + "주</span>",
+              "<span>보유 " + hold + "</span>",
+              "<span>" + avg + "</span>",
+            ],
+            "data-ud",
+            idx
+          );
+        })
+        .join("");
+      document.getElementById("ud-log").innerHTML =
+        htmlEsc || "<div class='log-row'><div class='log-line'><span class='empty'>기록 없음</span></div></div>";
+      return;
+    }
     var html = state.updownTrades
       .map(function (t, idx) {
         var avg = t.avg == null || t.avg === "" ? "—" : usd(t.avg);
@@ -1236,6 +1404,11 @@
   }
 
   function renderTtLog() {
+    if (isEscapeView()) {
+      document.getElementById("tt-log").innerHTML =
+        "<div class='log-row'><div class='log-line'><span class='empty'>탈출 업다운 · 떨 없음</span></div></div>";
+      return;
+    }
     var stats = tteolHoldStats(state.tteolTrades);
     var html = state.tteolTrades
       .map(function (t, idx) {
@@ -1311,6 +1484,7 @@
   }
 
   function maybeAutoTransfer() {
+    if (isEscapeView()) return;
     if (!state.settings.autoTransfer) return;
     var guard = 0;
     while (guard < 20) {
@@ -1470,18 +1644,30 @@
       }
     };
     document.getElementById("btn-fill-ud").onclick = function () {
+      if (isEscapeView()) {
+        applyEscapeUdFill();
+        return;
+      }
       var r = E.applySuggested(state, "ud");
       maybeAutoTransfer();
       persist();
       toast(r.ok ? "업다운 " + r.trade.type + " 반영 · " + (r.trade.date || "") : r.reason);
     };
     document.getElementById("btn-fill-tt").onclick = function () {
+      if (isEscapeView()) {
+        toast("탈출 업다운에는 떨이 없습니다");
+        return;
+      }
       var r = E.applySuggested(state, "tteol");
       maybeAutoTransfer();
       persist();
       toast(r.ok ? "떨사오팔 " + r.trade.type + " 반영 · " + (r.trade.date || "") : r.reason);
     };
     document.getElementById("btn-transfer").onclick = function () {
+      if (isEscapeView()) {
+        toast("탈출 업다운에는 떨이 없습니다");
+        return;
+      }
       var r = E.transferOneRank(state);
       persist();
       toast(r.ok ? "떨 이관 랭크 " + r.rank : r.reason);
@@ -1489,6 +1675,14 @@
     document.getElementById("ud-log").onclick = function (ev) {
       var i = ev.target.getAttribute("data-ud");
       if (i == null) return;
+      if (isEscapeView()) {
+        var esc = loadEscape();
+        if (!esc || !esc.trades) return;
+        esc.trades.splice(+i, 1);
+        saveEscape(esc);
+        render();
+        return;
+      }
       rememberDeleted("ud", [state.updownTrades[+i]]);
       state.updownTrades.splice(+i, 1);
       persist();
@@ -1502,6 +1696,16 @@
     };
     document.querySelectorAll(".num-pick").forEach(function (btn) {
       btn.onclick = function () {
+        if (isEscapeView()) {
+          if (btn.dataset.key === "tteolLadderCount" || btn.dataset.key === "tteolStepQty") {
+            toast("탈출 업다운에는 떨이 없습니다");
+            return;
+          }
+          var esc = loadEscape() || {};
+          var cur = btn.dataset.key === "udStepQty" ? esc.stepq : esc.steps;
+          openNumPop(btn.dataset.key, btn.dataset.title, cur);
+          return;
+        }
         openNumPop(btn.dataset.key, btn.dataset.title, state.settings[btn.dataset.key]);
       };
     });
@@ -1511,6 +1715,19 @@
     document.getElementById("num-pop-grid").onclick = function (ev) {
       var n = ev.target.getAttribute("data-num");
       if (n == null || !numPopKey) return;
+      if (isEscapeView()) {
+        var esc = loadEscape();
+        if (!esc) {
+          closeNumPop();
+          return;
+        }
+        if (numPopKey === "udStepQty") esc.stepq = parseInt(n, 10);
+        else if (numPopKey === "udLadderCount") esc.steps = parseInt(n, 10);
+        closeNumPop();
+        saveEscape(esc);
+        render();
+        return;
+      }
       state.settings[numPopKey] = parseInt(n, 10);
       closeNumPop();
       persist();
@@ -1552,6 +1769,7 @@
   }
 
   function liquidateFrom(which) {
+    if (isEscapeView()) return toast("탈출 업다운은 일지에서 지으세요");
     var dateEl = document.getElementById(which === "tt" ? "nt-date" : "nu-date");
     var priceEl = document.getElementById(which === "tt" ? "nt-price" : "nu-price");
     var qtyEl = document.getElementById(which === "tt" ? "nt-qty" : "nu-qty");
@@ -1578,6 +1796,44 @@
   }
 
   function addUdManual() {
+    if (isEscapeView()) {
+      var type = document.getElementById("nu-type").value;
+      var price = parseFloat(document.getElementById("nu-price").value);
+      var qty = parseInt(document.getElementById("nu-qty").value, 10);
+      var date = document.getElementById("nu-date").value || state.market.closeDate;
+      if (!price || !qty) return toast("단가·수량을 넣으세요");
+      var esc = loadEscape();
+      if (!esc) return toast("탈출에서 먼저 시작하세요");
+      var vs = escapeToViewState(esc);
+      var out = E.compute(vs);
+      var last = out.udLast;
+      var prevHold = out.C13 || 0;
+      var hold = type === "매도" ? prevHold - qty : prevHold + qty;
+      if (hold < 0) hold = 0;
+      var avg = type === "매도" ? (last && last.avg) || 0 : hold ? ((last && last.cost ? last.cost : prevHold * ((last && last.avg) || 0)) + price * qty) / hold : 0;
+      if (type !== "매도") {
+        var prevCost = last && last.cost != null ? Number(last.cost) : prevHold * ((last && last.avg) || 0);
+        avg = hold ? (prevCost + price * qty) / hold : 0;
+      }
+      var pot;
+      if (type === "매도") pot = last && last.pot ? last.pot : 0;
+      else pot = last && (last.type === "매수" || last.type === "떨") ? last.pot + 1 : last && last.pot ? last.pot : 1;
+      esc.trades = esc.trades || [];
+      esc.trades.push({
+        date: date,
+        type: type === "매도" ? "매도" : "매수",
+        pot: pot,
+        price: price,
+        qty: qty,
+        holdQty: hold,
+        avg: avg,
+      });
+      saveEscape(esc);
+      clearManualForm("ud");
+      render();
+      toast("행 추가");
+      return;
+    }
     var type = document.getElementById("nu-type").value;
     var price = parseFloat(document.getElementById("nu-price").value);
     var qty = parseInt(document.getElementById("nu-qty").value, 10);
@@ -1621,6 +1877,7 @@
   }
 
   function addTtManual() {
+    if (isEscapeView()) return toast("탈출 업다운에는 떨이 없습니다");
     var type = document.getElementById("nt-type").value;
     var rank = parseInt(document.getElementById("nt-rank").value, 10);
     var price = parseFloat(document.getElementById("nt-price").value);
