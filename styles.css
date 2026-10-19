@@ -535,6 +535,7 @@ table.sheet tr.ladder-sell td { background: #fffafa; }
 }
 #rank-table-wrap { padding: 0 12px 12px; }
 .add-form-wrap { padding: 0 16px 14px; }
+.set-fold { padding: 0 16px 14px; }
 .journal-rank-slot { display: none; }
 .journal-col-title {
   display: none;

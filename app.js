@@ -445,27 +445,6 @@
     localStorage.setItem(KEY, JSON.stringify(state));
   }
 
-  function importBookFile(file) {
-    var reader = new FileReader();
-    reader.onload = function () {
-      try {
-        var parsed = JSON.parse(String(reader.result || ""));
-        if (!parsed || !parsed.accounts || !parsed.accounts["1"] || !parsed.accounts["2"]) {
-          toast("1번·2번이 있는 장부 파일이 아닙니다");
-          return;
-        }
-        state = attachAccounts(parsed);
-        state.rev = Date.now();
-        saveState();
-        render();
-        toast("장부를 불러왔습니다");
-      } catch (e) {
-        toast("파일을 읽지 못했습니다");
-      }
-    };
-    reader.readAsText(file);
-  }
-
   function loadSyncCfg() {
     try {
       var cfg = JSON.parse(localStorage.getItem(SYNC_KEY) || "{}");
@@ -2074,6 +2053,10 @@
     bindFold("btn-rank-table", "rank-table-wrap", render);
     bindFold("btn-add-ud-form", "add-ud-wrap");
     bindFold("btn-add-tt-form", "add-tt-wrap");
+    bindFold("btn-fold-acct", "fold-acct-wrap");
+    bindFold("btn-fold-split", "fold-split-wrap");
+    bindFold("btn-fold-orders", "fold-orders-wrap");
+    bindFold("btn-fold-sync", "fold-sync-wrap");
     [
       "set-symbol",
       "set-capital",
@@ -2133,11 +2116,6 @@
       };
       persist();
       toast(id + "번 계좌 거래 내역을 지웠습니다");
-    };
-    document.getElementById("book-file").onchange = function () {
-      var file = this.files && this.files[0];
-      if (file) importBookFile(file);
-      this.value = "";
     };
     document.getElementById("btn-sync-start").onclick = createSyncFromHere;
     document.getElementById("btn-sync-join").onclick = joinSyncFromCode;

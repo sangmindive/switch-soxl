@@ -12,7 +12,7 @@
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="apple-touch-icon" href="icon-192.png" />
   <link rel="icon" href="icon-192.png" />
-  <link rel="stylesheet" href="styles.css?v=20261019a" />
+  <link rel="stylesheet" href="styles.css?v=20261020a" />
 </head>
 <body>
   <div class="app">
@@ -422,9 +422,12 @@
           <button class="btn" id="btn-preset-old" data-preset="compoundOld">복리(구)</button>
         </div>
       </article>
-      <article class="card">
-        <h2>계좌</h2>
-        <p class="note">1번과 2번은 원금·일지가 따로입니다. 2번 계좌 원금은 0에서 시작합니다.</p>
+      <article class="card rank-card">
+        <button type="button" class="rank-toggle" id="btn-fold-acct" aria-expanded="true">
+          <span>계좌</span>
+          <span class="rank-arrow" aria-hidden="true">▲</span>
+        </button>
+        <div id="fold-acct-wrap" class="set-fold">
         <div class="setting-row"><span class="k">위 왼쪽</span>
           <select id="set-bar-left">
             <option value="acc1">1번 계좌</option>
@@ -439,19 +442,23 @@
             <option value="escape">탈출 업다운</option>
           </select>
         </div>
-        <p class="note">홈 위 두 칸입니다. 계좌는 1·2번 장부, 탈출 업다운은 탈출 주문 데이터를 이 화면에 불러옵니다.</p>
-        <div class="fill-block">
-          <button class="btn ghost" id="btn-reset" type="button">거래 내역 리셋</button>
-        </div>
-        <p class="note">이 계좌의 업다운·떨사오팔 기록을 모두 지웁니다. 원금과 설정은 남습니다.</p>
         <div class="setting-row"><span class="k">Symbol</span><input id="set-symbol" /></div>
         <div class="setting-row"><span class="k">투자 원금</span><input id="set-capital" type="number" step="1" /></div>
         <div class="setting-row"><span class="k">계좌 수수료</span><input id="set-fee" type="number" step="0.00001" /></div>
         <div class="setting-row"><span class="k">재투자 금액</span><span id="v-I3"></span></div>
         <div class="setting-row"><span class="k">총 수익금</span><span id="v-K3"></span></div>
+        <div class="fill-block">
+          <button class="btn ghost" id="btn-reset" type="button">거래 내역 리셋</button>
+        </div>
+        <p class="note">이 계좌의 업다운·떨사오팔 기록을 모두 지웁니다. 원금과 설정은 남습니다.</p>
+        </div>
       </article>
-      <article class="card">
-        <h2>분할 / 복리</h2>
+      <article class="card rank-card">
+        <button type="button" class="rank-toggle" id="btn-fold-split" aria-expanded="true">
+          <span>분할 / 복리</span>
+          <span class="rank-arrow" aria-hidden="true">▲</span>
+        </button>
+        <div id="fold-split-wrap" class="set-fold">
         <div class="setting-row"><span class="k">시드 분할</span><input id="set-seed" type="number" step="1" /></div>
         <div class="setting-row"><span class="k">랭크 분할</span><input id="set-rank" type="number" step="1" /></div>
         <div class="setting-row"><span class="k">분할 증가</span><span class="with-unit"><input id="set-inc" type="number" step="1" min="0" /><span>%</span></span></div>
@@ -459,9 +466,14 @@
         <div class="setting-row"><span class="k">재투자율</span><span class="with-unit"><input id="set-reinvest" type="number" step="1" min="0" /><span>%</span></span></div>
         <div class="setting-row"><span class="k">총 시드 분할</span><span id="v-J3"></span></div>
         <label class="check"><input type="checkbox" id="set-fixed" /> 시드 분할 고정</label>
+        </div>
       </article>
-      <article class="card">
-        <h2>정액 주문</h2>
+      <article class="card rank-card">
+        <button type="button" class="rank-toggle" id="btn-fold-orders" aria-expanded="true">
+          <span>정액 주문</span>
+          <span class="rank-arrow" aria-hidden="true">▲</span>
+        </button>
+        <div id="fold-orders-wrap" class="set-fold">
         <div class="setting-row"><span class="k">업다운 주문 수</span><input id="set-ud-steps" type="number" min="0" max="20" /></div>
         <div class="setting-row"><span class="k">업다운 계단 주수</span><input id="set-ud-qty" type="number" min="0" max="20" /></div>
         <div class="setting-row"><span class="k">1회 매수금</span><span id="v-D16"></span></div>
@@ -472,14 +484,14 @@
         <div class="setting-row"><span class="k">떨 시드 사용</span><span><span id="v-K16"></span> · <span id="v-L16"></span></span></div>
         <label class="check"><input type="checkbox" id="set-f8" /> 시트 마지막 분할 제한</label>
         <p class="note">입력한 값만 저장됩니다. 수량은 내림, 매도 단가는 LP입니다.</p>
+        </div>
       </article>
-      <article class="card">
-        <h2>장부 복구</h2>
-        <p class="note">2번 계좌가 0주로 보이면, 저장해 둔 state.json을 고릅니다. 고르면 그 장부로 바뀝니다.</p>
-        <input id="book-file" type="file" accept="application/json,.json" />
-      </article>
-      <article class="card">
-        <h2>폰 · PC 동기화</h2>
+      <article class="card rank-card">
+        <button type="button" class="rank-toggle" id="btn-fold-sync" aria-expanded="true">
+          <span>폰 · PC 동기화</span>
+          <span class="rank-arrow" aria-hidden="true">▲</span>
+        </button>
+        <div id="fold-sync-wrap" class="set-fold">
         <p class="note">데이터가 있는 기기에서 연결을 만드세요. 나온 코드를 다른 기기에 붙여넣으면 체결·일지·종가가 같이 바뀝니다. 코드는 공유하지 마세요.</p>
         <div class="setting-row"><span class="k">상태</span><span id="sync-status">미연결</span></div>
         <div class="field">
@@ -494,6 +506,7 @@
           <button class="btn ghost" id="btn-sync-copy" type="button">코드 복사</button>
         </div>
         <p class="note">토큰은 GitHub → Settings → Developer settings → Personal access tokens에서 <strong>gist</strong> 권한만 켜서 만듭니다.</p>
+        </div>
       </article>
     </section>
 
@@ -530,6 +543,6 @@
   </div>
   <script src="engine.js?v=20261018y"></script>
   <script src="seed.js?v=20260924c"></script>
-  <script src="app.js?v=20261019c"></script>
+  <script src="app.js?v=20261020a"></script>
 </body>
 </html>
