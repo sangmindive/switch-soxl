@@ -4,6 +4,11 @@ on:
   schedule:
     - cron: "0 22 * * *"
   workflow_dispatch:
+    inputs:
+      telegram_test:
+        description: "일지 기입 없이 텔레그램 테스트만"
+        type: boolean
+        default: false
 
 jobs:
   fill:
@@ -19,4 +24,5 @@ jobs:
           GIST_ID: ${{ secrets.GIST_ID }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_TEST: ${{ github.event.inputs.telegram_test }}
         run: node auto-fill-gist.js

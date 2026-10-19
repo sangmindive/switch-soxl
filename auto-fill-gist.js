@@ -356,17 +356,24 @@ async function sendTelegram(text) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ chat_id: chat, text: text }),
   });
-  if (!r.ok) console.log("telegram fail " + r.status + " " + (await r.text()));
-  else console.log("telegram sent");
+  if (!r.ok) throw new Error("telegram fail " + r.status + " " + (await r.text()));
+  console.log("telegram sent");
 }
 
 async function main() {
+  var day = seoulDay();
+  if (process.env.TELEGRAM_TEST === "true" || process.env.TELEGRAM_TEST === "1") {
+    if (!process.env.TELEGRAM_BOT_TOKEN || !process.env.TELEGRAM_CHAT_ID) {
+      throw new Error("TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID missing");
+    }
+    await sendTelegram("Switch 텔레그램 연결 테스트 · " + day);
+    return;
+  }
+
   var token = process.env.GIST_TOKEN || process.env.GH_TOKEN || "";
   var gistId = process.env.GIST_ID || "bd19f426b2bf612bda5de2bb35d97539";
   if (!token) throw new Error("GIST_TOKEN missing");
   if (!gistId) throw new Error("GIST_ID missing");
-
-  var day = seoulDay();
   var res = await fetch("https://api.github.com/gists/" + gistId, { headers: gistHeaders(token) });
   if (!res.ok) throw new Error("gist get " + res.status + " " + (await res.text()));
   var gist = await res.json();
