@@ -69,6 +69,8 @@
     if (root.accountId !== "1" && root.accountId !== "2") root.accountId = "1";
     root.barLeft = canonBar(root.barLeft) || "acc1";
     root.barRight = canonBar(root.barRight) || "acc2";
+    root.barLeftOff = !!root.barLeftOff;
+    root.barRightOff = !!root.barRightOff;
     root.autoFill = !!root.autoFill;
     if (!root.autoFillLast) root.autoFillLast = "";
     if (root.view !== "1" && root.view !== "2" && root.view !== "escape") root.view = root.accountId || "1";
@@ -722,6 +724,8 @@
       },
       barLeft: canonBar(copy.barLeft) || "acc1",
       barRight: canonBar(copy.barRight) || "acc2",
+      barLeftOff: !!copy.barLeftOff,
+      barRightOff: !!copy.barRightOff,
       barRev: Number(copy.barRev) || 0,
       autoFill: !!copy.autoFill,
       autoFillLast: copy.autoFillLast || "",
@@ -753,6 +757,8 @@
     var barSrc = remoteBarRev > localBarRev ? remote : localBarRev > remoteBarRev ? local : remoteRev > localRev ? remote : local;
     next.barLeft = canonBar(barSrc.barLeft) || canonBar(local.barLeft) || canonBar(remote.barLeft) || "acc1";
     next.barRight = canonBar(barSrc.barRight) || canonBar(local.barRight) || canonBar(remote.barRight) || "acc2";
+    next.barLeftOff = !!barSrc.barLeftOff;
+    next.barRightOff = !!barSrc.barRightOff;
     next.barRev = Math.max(localBarRev, remoteBarRev);
     next.autoFill = !!barSrc.autoFill;
     next.autoFillLast = barSrc.autoFillLast || local.autoFillLast || remote.autoFillLast || "";
@@ -1214,13 +1220,15 @@
         var prevView = state.view;
         var prevId = state.accountId || "1";
         var keys = [];
-        function addKey(k) {
+        function addKey(k, off) {
+          if (off) return;
           k = canonBar(k);
           if (k && keys.indexOf(k) < 0) keys.push(k);
         }
-        addKey(state.barLeft);
-        addKey(state.barRight);
+        addKey(state.barLeft, state.barLeftOff);
+        addKey(state.barRight, state.barRightOff);
         var notes = [];
+        if (!keys.length) notes.push("미사용");
         keys.forEach(function (key) {
           var label = BAR_SLOTS[key] ? BAR_SLOTS[key].label : key;
           if (key === "escape") {
@@ -1349,6 +1357,10 @@
     var barRightEl = document.getElementById("set-bar-right");
     if (barLeftEl) barLeftEl.value = barKey("left");
     if (barRightEl) barRightEl.value = barKey("right");
+    var leftOffEl = document.getElementById("set-bar-left-off");
+    var rightOffEl = document.getElementById("set-bar-right-off");
+    if (leftOffEl) leftOffEl.checked = !!state.barLeftOff;
+    if (rightOffEl) rightOffEl.checked = !!state.barRightOff;
     var autoFillEl = document.getElementById("set-auto-fill");
     if (autoFillEl) autoFillEl.checked = !!state.autoFill;
     markPresetButtons();
@@ -2074,6 +2086,13 @@
     if (state.barLeft !== nextLeft || state.barRight !== nextRight) state.barRev = Date.now();
     state.barLeft = nextLeft;
     state.barRight = nextRight;
+    var leftOffEl = document.getElementById("set-bar-left-off");
+    var rightOffEl = document.getElementById("set-bar-right-off");
+    var leftOff = !!(leftOffEl && leftOffEl.checked);
+    var rightOff = !!(rightOffEl && rightOffEl.checked);
+    if (!!state.barLeftOff !== leftOff || !!state.barRightOff !== rightOff) state.barRev = Date.now();
+    state.barLeftOff = leftOff;
+    state.barRightOff = rightOff;
     var autoEl = document.getElementById("set-auto-fill");
     var autoFill = !!(autoEl && autoEl.checked);
     var turnedOn = autoFill && !state.autoFill;
@@ -2223,7 +2242,7 @@
     ].forEach(function (id) {
       document.getElementById(id).addEventListener("change", readSettingsFromForm);
     });
-    ["set-fixed", "set-blocked", "set-f8", "set-auto", "set-auto-fill"].forEach(function (id) {
+    ["set-fixed", "set-blocked", "set-f8", "set-auto", "set-auto-fill", "set-bar-left-off", "set-bar-right-off"].forEach(function (id) {
       document.getElementById(id).addEventListener("change", readSettingsFromForm);
     });
 
