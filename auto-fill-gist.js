@@ -73,7 +73,29 @@ function bookView(state, id) {
   };
 }
 
-function autoTransfer(view) {
+function fmtLine(book, kind, t) {
+  if (!t) return "";
+  var px = t.price != null && t.price !== "" ? Number(t.price) : "";
+  var qty = t.qty != null ? t.qty : "";
+  var extra = t.pot != null && t.pot !== "" ? " 포트" + t.pot : t.rank != null && t.rank !== "" ? " 랭크" + t.rank : "";
+  return (
+    (t.date || "") +
+    " · " +
+    book +
+    " · " +
+    kind +
+    " " +
+    (t.type || "") +
+    extra +
+    " · $" +
+    (px === "" ? "-" : round2(px)) +
+    " × " +
+    qty +
+    "주"
+  );
+}
+
+function autoTransfer(view, book, lines) {
   if (!view.settings || !view.settings.autoTransfer) return;
   var guard = 0;
   while (guard < 20) {
@@ -81,27 +103,31 @@ function autoTransfer(view) {
     if (out.C54 === "" || out.C54 == null) break;
     var r = E.transferOneRank(view);
     if (!r.ok) break;
+    lines.push(fmtLine(book, "업다운", view.updownTrades[0]));
     guard += 1;
   }
 }
 
-function fillBook(view) {
+function fillBook(book, view) {
   var parts = [];
+  var lines = [];
   var guard = 0;
   while (guard++ < 20) {
     var r = E.applySuggested(view, "ud");
     if (!r.ok) break;
-    autoTransfer(view);
     parts.push("업다운 " + r.trade.type);
+    lines.push(fmtLine(book, "업다운", r.trade));
+    autoTransfer(view, book, lines);
   }
   guard = 0;
   while (guard++ < 20) {
     var r2 = E.applySuggested(view, "tteol");
     if (!r2.ok) break;
-    autoTransfer(view);
     parts.push("떨 " + r2.trade.type);
+    lines.push(fmtLine(book, "떨", r2.trade));
+    autoTransfer(view, book, lines);
   }
-  return parts.length ? parts.join(" · ") : "제안 없음";
+  return { text: parts.length ? parts.join(" · ") : "제안 없음", lines: lines };
 }
 
 function replayEscape(d) {
@@ -179,20 +205,21 @@ function escapeFillType(esc, c, closeDate) {
 }
 
 function fillEscape(esc, market) {
-  if (!esc || !(esc.trades || []).length) return "탈출 없음";
+  if (!esc || !(esc.trades || []).length) return { text: "탈출 없음", lines: [] };
   var c = escapeCalc(esc, market);
   var date = (market && market.closeDate) || esc.date;
   var type = escapeFillType(esc, c, date);
-  if (!type) return "제안 없음";
+  if (!type) return { text: "제안 없음", lines: [] };
   var closePx = c.closePx;
+  var added = null;
   if (type === "매수") {
-    if (!c.buyQty) return "수량 0";
+    if (!c.buyQty) return { text: "수량 0", lines: [] };
     var hold = c.qty + c.buyQty;
     var cost = c.cost + closePx * c.buyQty;
     var avg = hold ? cost / hold : 0;
     var pot = c.port ? c.port + 1 : 1;
     var buyAmt = closePx * c.buyQty;
-    esc.trades.push({
+    added = {
       date: date,
       type: "매수",
       pot: pot,
@@ -203,13 +230,14 @@ function fillEscape(esc, market) {
       cost: round2(cost),
       amount: buyAmt,
       fee: down2(buyAmt * (Number(esc.fee) || 0)),
-    });
+    };
+    esc.trades.push(added);
   } else {
-    if (!c.sellQty) return "수량 0";
+    if (!c.sellQty) return { text: "수량 0", lines: [] };
     var hold2 = c.qty - c.sellQty;
     if (hold2 < 0) hold2 = 0;
     var sellAmt = closePx * c.sellQty;
-    esc.trades.push({
+    added = {
       date: date,
       type: "매도",
       pot: c.port,
@@ -219,11 +247,12 @@ function fillEscape(esc, market) {
       avg: c.avg,
       amount: sellAmt,
       fee: down2(sellAmt * (Number(esc.fee) || 0)),
-    });
+    };
+    esc.trades.push(added);
   }
   esc.close = closePx;
   esc.rev = Date.now();
-  return "업다운 " + type;
+  return { text: "업다운 " + type, lines: [fmtLine("탈출 업다운", "업다운", added)] };
 }
 
 function cnbcSessionDate(q) {
@@ -315,6 +344,22 @@ async function fetchQuote(symbol) {
   return parseCnbcQuote(await r.json());
 }
 
+async function sendTelegram(text) {
+  var bot = process.env.TELEGRAM_BOT_TOKEN || "";
+  var chat = process.env.TELEGRAM_CHAT_ID || "";
+  if (!bot || !chat) {
+    console.log("telegram skip · secrets missing");
+    return;
+  }
+  var r = await fetch("https://api.telegram.org/bot" + bot + "/sendMessage", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ chat_id: chat, text: text }),
+  });
+  if (!r.ok) console.log("telegram fail " + r.status + " " + (await r.text()));
+  else console.log("telegram sent");
+}
+
 async function main() {
   var token = process.env.GIST_TOKEN || process.env.GH_TOKEN || "";
   var gistId = process.env.GIST_ID || "bd19f426b2bf612bda5de2bb35d97539";
@@ -357,6 +402,7 @@ async function main() {
   addKey(state.barRight, state.barRightOff);
 
   var notes = [];
+  var added = [];
   var escDirty = false;
   if (!keys.length) notes.push("미사용");
   keys.forEach(function (key) {
@@ -365,12 +411,17 @@ async function main() {
         notes.push("탈출 업다운 탈출 없음");
         return;
       }
-      notes.push("탈출 업다운 " + fillEscape(esc, state.market));
+      var escFill = fillEscape(esc, state.market);
+      notes.push("탈출 업다운 " + escFill.text);
+      added = added.concat(escFill.lines);
       escDirty = true;
       return;
     }
     var id = key === "acc2" ? "2" : "1";
-    notes.push((id === "2" ? "2번 계좌" : "1번 계좌") + " " + fillBook(bookView(state, id)));
+    var label = id === "2" ? "2번 계좌" : "1번 계좌";
+    var bookFill = fillBook(label, bookView(state, id));
+    notes.push(label + " " + bookFill.text);
+    added = added.concat(bookFill.lines);
   });
 
   state.autoFillLast = day;
@@ -394,6 +445,11 @@ async function main() {
   });
   if (!patch.ok) throw new Error("gist patch " + patch.status + " " + (await patch.text()));
   console.log("자동 기입 · " + notes.join(" / "));
+  if (added.length) {
+    await sendTelegram("Switch 자동 기입 " + day + "\n" + added.join("\n"));
+  } else {
+    console.log("telegram skip · no new rows");
+  }
 }
 
 main().catch(function (err) {
