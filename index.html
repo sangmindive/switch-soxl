@@ -12,7 +12,7 @@
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="apple-touch-icon" href="icon-192.png" />
   <link rel="icon" href="icon-192.png" />
-  <link rel="stylesheet" href="styles.css?v=20261018r" />
+  <link rel="stylesheet" href="styles.css?v=20261019a" />
 </head>
 <body>
   <div class="app">
@@ -52,11 +52,14 @@
           </div>
         </div>
         <div class="k">총 실현손익</div>
-        <div class="hero-pnl pos" id="home-pnl">—</div>
+        <div class="hero-pnl-row">
+          <div class="hero-pnl pos" id="home-pnl">—</div>
+          <div class="hero-ret pos" id="v-L3"></div>
+        </div>
         <div id="parity" class="badge ok" style="display:none">정합 확인</div>
         <div class="stats">
-          <div class="stat"><div class="k">총 수익률</div><div class="v" id="v-L3"></div></div>
           <div class="stat"><div class="k">투자금</div><div class="v" id="v-C8"></div></div>
+          <div class="stat"><div class="k">매수금</div><div class="v" id="v-seed-used"></div></div>
           <div class="stat"><div class="k">잔금</div><div class="v" id="v-D8"></div></div>
           <div class="stat"><div class="k">총 수량</div><div class="v" id="v-hold-total"></div></div>
         </div>
@@ -527,6 +530,6 @@
   </div>
   <script src="engine.js?v=20261018y"></script>
   <script src="seed.js?v=20260924c"></script>
-  <script src="app.js?v=20261018z"></script>
+  <script src="app.js?v=20261019a"></script>
 </body>
 </html>

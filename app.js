@@ -1178,6 +1178,10 @@
       pnl.textContent = (out.K3 >= 0 ? "+" : "") + money(out.K3);
       pnl.className = "hero-pnl " + (out.K3 >= 0 ? "pos" : "neg");
     }
+    var ret = document.getElementById("v-L3");
+    if (ret && ret.classList.contains("hero-ret")) {
+      ret.className = "hero-ret " + (out.L3 >= 0 ? "pos" : "neg");
+    }
     var sym = document.getElementById("set-symbol-label");
     if (sym) sym.textContent = s.symbol;
 
@@ -1242,6 +1246,7 @@
     fillText("v-L3", pct(out.L3));
     fillText("v-B8", out.B8);
     fillText("v-C8", money(out.C8));
+    fillText("v-seed-used", money((out.E16 || 0) + (out.K16 || 0)));
     fillText("v-D8", money(out.D8));
     fillText("v-hold-total", (out.G8 || 0) + "주");
     fillText("v-E8", pct(out.E8));
