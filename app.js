@@ -1947,17 +1947,33 @@
     });
   }
 
+  function applyBarSlotsFromForm() {
+    var barLeft = document.getElementById("set-bar-left").value;
+    var barRight = document.getElementById("set-bar-right").value;
+    var nextLeft = BAR_SLOTS[barLeft] ? barLeft : "acc1";
+    var nextRight = BAR_SLOTS[barRight] ? barRight : "acc2";
+    if (state.barLeft !== nextLeft || state.barRight !== nextRight) state.barRev = Date.now();
+    state.barLeft = nextLeft;
+    state.barRight = nextRight;
+  }
+
   function readSettingsFromForm() {
+    applyBarSlotsFromForm();
     if (isEscapeView()) {
       var esc = loadEscape();
-      if (!esc) return;
-      esc.fee = parseFloat(document.getElementById("set-fee").value) || 0;
-      esc.symbol = document.getElementById("set-symbol").value.trim() || "SOXL";
-      esc.split = parseFloat(document.getElementById("set-seed").value) || esc.split;
-      esc.steps = parseInt(document.getElementById("set-ud-steps").value, 10) || 0;
-      esc.stepq = parseInt(document.getElementById("set-ud-qty").value, 10) || 0;
-      saveEscape(esc);
-      render();
+      if (esc) {
+        esc.fee = parseFloat(document.getElementById("set-fee").value) || 0;
+        esc.symbol = document.getElementById("set-symbol").value.trim() || "SOXL";
+        esc.split = parseFloat(document.getElementById("set-seed").value) || esc.split;
+        esc.steps = parseInt(document.getElementById("set-ud-steps").value, 10) || 0;
+        esc.stepq = parseInt(document.getElementById("set-ud-qty").value, 10) || 0;
+        saveEscape(esc, { noUndo: true });
+      }
+      if (state.barLeft !== "escape" && state.barRight !== "escape") {
+        selectAccount(state.accountId === "2" ? "2" : "1");
+        return;
+      }
+      persist({ noUndo: true });
       return;
     }
     var s = state.settings;
@@ -1977,13 +1993,6 @@
     s.tteolLadderCount = parseInt(document.getElementById("set-tt-steps").value, 10) || 0;
     s.udStepQty = parseInt(document.getElementById("set-ud-qty").value, 10) || 0;
     s.tteolStepQty = parseInt(document.getElementById("set-tt-qty").value, 10) || 0;
-    var barLeft = document.getElementById("set-bar-left").value;
-    var barRight = document.getElementById("set-bar-right").value;
-    var nextLeft = BAR_SLOTS[barLeft] ? barLeft : "acc1";
-    var nextRight = BAR_SLOTS[barRight] ? barRight : "acc2";
-    if (state.barLeft !== nextLeft || state.barRight !== nextRight) state.barRev = Date.now();
-    state.barLeft = nextLeft;
-    state.barRight = nextRight;
     persist();
   }
 
