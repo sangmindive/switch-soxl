@@ -2054,6 +2054,7 @@
     bindFold("btn-add-ud-form", "add-ud-wrap");
     bindFold("btn-add-tt-form", "add-tt-wrap");
     bindFold("btn-fold-acct", "fold-acct-wrap");
+    bindFold("btn-fold-top", "fold-top-wrap");
     bindFold("btn-fold-split", "fold-split-wrap");
     bindFold("btn-fold-orders", "fold-orders-wrap");
     bindFold("btn-fold-sync", "fold-sync-wrap");
