@@ -169,6 +169,7 @@
     settings.udStepQty = esc ? Number(esc.stepq) || 0 : 0;
     settings.applySheetF8Limit = false;
     settings.autoTransfer = false;
+    settings.fee = esc && esc.fee != null && esc.fee !== "" ? Number(esc.fee) : 0;
     var ud = ((esc && esc.trades) || []).map(function (t, i) {
       var isStart = t.type === "이관";
       var price = isStart ? Number(t.lp) || Number(esc.last) || Number(t.price) : Number(t.price);
@@ -183,6 +184,7 @@
         avg: Number(t.avg) || 0,
         cost: t.cost != null ? Number(t.cost) : undefined,
         amount: isStart ? Number(t.cost) || 0 : price * qty,
+        fee: Number(t.fee) || 0,
         cycle: 1,
         seq: i + 1,
       };
@@ -390,13 +392,15 @@
       var cost = c.cost + closePx * c.buyQty;
       var avg = hold ? cost / hold : 0;
       var pot = c.port ? c.port + 1 : 1;
-      esc.trades.push({ date: date, type: "매수", pot: pot, price: closePx, qty: c.buyQty, holdQty: hold, avg: avg, cost: round2(cost) });
+      var buyAmt = closePx * c.buyQty;
+      esc.trades.push({ date: date, type: "매수", pot: pot, price: closePx, qty: c.buyQty, holdQty: hold, avg: avg, cost: round2(cost), amount: buyAmt, fee: down2(buyAmt * (Number(esc.fee) || 0)) });
     } else {
       if (escapeFillType(esc, c, date) !== "매도") return toast("매도 조건 아님");
       if (!c.sellQty) return toast("수량 0");
       var hold2 = c.qty - c.sellQty;
       if (hold2 < 0) hold2 = 0;
-      esc.trades.push({ date: date, type: "매도", pot: c.port, price: closePx, qty: c.sellQty, holdQty: hold2, avg: c.avg });
+      var sellAmt = closePx * c.sellQty;
+      esc.trades.push({ date: date, type: "매도", pot: c.port, price: closePx, qty: c.sellQty, holdQty: hold2, avg: c.avg, amount: sellAmt, fee: down2(sellAmt * (Number(esc.fee) || 0)) });
     }
     esc.close = closePx;
     saveEscape(esc);
@@ -1667,9 +1671,11 @@
       if (key === "price") {
         et.price = val;
         et.amount = (Number(et.price) || 0) * (Number(et.qty) || 0);
+        et.fee = down2(et.amount * (Number(esc.fee) || 0));
       } else if (key === "qty") {
         et.qty = val;
         et.amount = (Number(et.price) || 0) * val;
+        et.fee = down2(et.amount * (Number(esc.fee) || 0));
       } else if (key === "holdQty") {
         et.holdQty = val;
         if (et.avg) et.cost = Number(et.avg) * val;
@@ -1942,6 +1948,18 @@
   }
 
   function readSettingsFromForm() {
+    if (isEscapeView()) {
+      var esc = loadEscape();
+      if (!esc) return;
+      esc.fee = parseFloat(document.getElementById("set-fee").value) || 0;
+      esc.symbol = document.getElementById("set-symbol").value.trim() || "SOXL";
+      esc.split = parseFloat(document.getElementById("set-seed").value) || esc.split;
+      esc.steps = parseInt(document.getElementById("set-ud-steps").value, 10) || 0;
+      esc.stepq = parseInt(document.getElementById("set-ud-qty").value, 10) || 0;
+      saveEscape(esc);
+      render();
+      return;
+    }
     var s = state.settings;
     s.symbol = document.getElementById("set-symbol").value.trim() || "SOXL";
     s.capital = parseFloat(document.getElementById("set-capital").value) || 0;
@@ -2320,6 +2338,7 @@
       if (type === "매도") pot = last && last.pot ? last.pot : 0;
       else pot = last && (last.type === "매수" || last.type === "떨") ? last.pot + 1 : last && last.pot ? last.pot : 1;
       esc.trades = esc.trades || [];
+      var amount = price * qty;
       esc.trades.push({
         date: date,
         type: type === "매도" ? "매도" : "매수",
@@ -2328,6 +2347,8 @@
         qty: qty,
         holdQty: hold,
         avg: avg,
+        amount: amount,
+        fee: down2(amount * (Number(esc.fee) || 0)),
       });
       saveEscape(esc);
       clearManualForm("ud");
