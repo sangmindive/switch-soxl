@@ -21,6 +21,8 @@
   var pushQueued = false;
   var pullQueued = false;
   var firstSyncDone = false;
+  var autoFillTimer = null;
+  var autoFillBusy = false;
 
   function bookOf(s) {
     return {
@@ -67,6 +69,8 @@
     if (root.accountId !== "1" && root.accountId !== "2") root.accountId = "1";
     root.barLeft = canonBar(root.barLeft) || "acc1";
     root.barRight = canonBar(root.barRight) || "acc2";
+    root.autoFill = !!root.autoFill;
+    if (!root.autoFillLast) root.autoFillLast = "";
     if (root.view !== "1" && root.view !== "2" && root.view !== "escape") root.view = root.accountId || "1";
     if (root.settings && root.updownTrades) root.accounts[root.accountId] = bookOf(root);
     ["1", "2"].forEach(function (id) {
@@ -372,22 +376,32 @@
       tb.innerHTML = html;
     }
   }
-  function applyEscapeFill(type) {
+  function applyEscapeFill(type, opts) {
+    var silent = !!(opts && opts.silent);
     var esc = loadEscape();
     if (!esc || !(esc.trades || []).length) {
-      toast("탈출에서 먼저 시작하세요");
-      return;
+      if (!silent) toast("탈출에서 먼저 시작하세요");
+      return silent ? "탈출 없음" : undefined;
     }
     var c = escapeCalc(esc);
     var closePx = c.closePx;
     var date = (state.market && state.market.closeDate) || esc.date;
     if (!type) {
       type = escapeFillType(esc, c, date);
-      if (!type) return toast("밴드 밖 (미체결)");
+      if (!type) {
+        if (!silent) toast("밴드 밖 (미체결)");
+        return silent ? "제안 없음" : undefined;
+      }
     }
     if (type === "매수") {
-      if (escapeFillType(esc, c, date) !== "매수") return toast("매수 조건 아님");
-      if (!c.buyQty) return toast("수량 0");
+      if (escapeFillType(esc, c, date) !== "매수") {
+        if (!silent) toast("매수 조건 아님");
+        return silent ? "매수 조건 아님" : undefined;
+      }
+      if (!c.buyQty) {
+        if (!silent) toast("수량 0");
+        return silent ? "수량 0" : undefined;
+      }
       var hold = c.qty + c.buyQty;
       var cost = c.cost + closePx * c.buyQty;
       var avg = hold ? cost / hold : 0;
@@ -395,17 +409,26 @@
       var buyAmt = closePx * c.buyQty;
       esc.trades.push({ date: date, type: "매수", pot: pot, price: closePx, qty: c.buyQty, holdQty: hold, avg: avg, cost: round2(cost), amount: buyAmt, fee: down2(buyAmt * (Number(esc.fee) || 0)) });
     } else {
-      if (escapeFillType(esc, c, date) !== "매도") return toast("매도 조건 아님");
-      if (!c.sellQty) return toast("수량 0");
+      if (escapeFillType(esc, c, date) !== "매도") {
+        if (!silent) toast("매도 조건 아님");
+        return silent ? "매도 조건 아님" : undefined;
+      }
+      if (!c.sellQty) {
+        if (!silent) toast("수량 0");
+        return silent ? "수량 0" : undefined;
+      }
       var hold2 = c.qty - c.sellQty;
       if (hold2 < 0) hold2 = 0;
       var sellAmt = closePx * c.sellQty;
       esc.trades.push({ date: date, type: "매도", pot: c.port, price: closePx, qty: c.sellQty, holdQty: hold2, avg: c.avg, amount: sellAmt, fee: down2(sellAmt * (Number(esc.fee) || 0)) });
     }
     esc.close = closePx;
-    saveEscape(esc);
-    render();
-    toast(type + " 반영");
+    saveEscape(esc, { noUndo: silent });
+    if (!silent) {
+      render();
+      toast(type + " 반영");
+    }
+    return silent ? "업다운 " + type : undefined;
   }
 
   function selectAccount(id) {
@@ -700,6 +723,8 @@
       barLeft: canonBar(copy.barLeft) || "acc1",
       barRight: canonBar(copy.barRight) || "acc2",
       barRev: Number(copy.barRev) || 0,
+      autoFill: !!copy.autoFill,
+      autoFillLast: copy.autoFillLast || "",
     };
   }
 
@@ -729,6 +754,8 @@
     next.barLeft = canonBar(barSrc.barLeft) || canonBar(local.barLeft) || canonBar(remote.barLeft) || "acc1";
     next.barRight = canonBar(barSrc.barRight) || canonBar(local.barRight) || canonBar(remote.barRight) || "acc2";
     next.barRev = Math.max(localBarRev, remoteBarRev);
+    next.autoFill = !!barSrc.autoFill;
+    next.autoFillLast = barSrc.autoFillLast || local.autoFillLast || remote.autoFillLast || "";
     next.view = remoteRev > localRev ? remote.view || local.view : local.view || remote.view;
     if (next.view !== "1" && next.view !== "2" && next.view !== "escape") next.view = next.accountId || "1";
     next.settings = next.accounts[next.accountId].settings;
@@ -864,6 +891,8 @@
         markSyncReady();
         if (rec.changed || escChanged) render();
         lastSnap = captureSnap();
+        scheduleAutoFill();
+        maybeCatchUpAutoFill();
         if (pullQueued) {
           pullQueued = false;
           return pullRemote();
@@ -1111,6 +1140,115 @@
     }
   }
 
+  function localDayKey(d) {
+    d = d || new Date();
+    var m = d.getMonth() + 1;
+    var day = d.getDate();
+    return d.getFullYear() + "-" + (m < 10 ? "0" : "") + m + "-" + (day < 10 ? "0" : "") + day;
+  }
+
+  function scheduleAutoFill() {
+    if (autoFillTimer) {
+      clearTimeout(autoFillTimer);
+      autoFillTimer = null;
+    }
+    if (!state || !state.autoFill) return;
+    var now = new Date();
+    var next = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 7, 0, 0, 0);
+    if (now.getTime() >= next.getTime()) next.setDate(next.getDate() + 1);
+    autoFillTimer = setTimeout(function () {
+      runAutoFill();
+    }, Math.max(1000, next.getTime() - now.getTime()));
+  }
+
+  function maybeCatchUpAutoFill() {
+    if (!state || !state.autoFill || autoFillBusy) return;
+    var now = new Date();
+    if (now.getHours() < 7) return;
+    if (state.autoFillLast === localDayKey(now)) return;
+    runAutoFill();
+  }
+
+  function switchBookSilent(id) {
+    attachAccounts(state);
+    if (state.view !== "escape" && state.accountId !== id) state.accounts[state.accountId] = bookOf(state);
+    else if (state.view === "escape") stashActive();
+    state.accountId = id;
+    state.view = id;
+    var book = state.accounts[id];
+    state.settings = book.settings;
+    state.updownTrades = book.updownTrades;
+    state.tteolTrades = book.tteolTrades;
+    state.deletedUd = book.deletedUd || [];
+    state.deletedTt = book.deletedTt || [];
+  }
+
+  function fillCurrentSilent() {
+    if (isEscapeView()) return applyEscapeFill("", { silent: true }) || "제안 없음";
+    var parts = [];
+    var r = E.applySuggested(state, "ud");
+    if (r.ok) {
+      maybeAutoTransfer();
+      parts.push("업다운 " + r.trade.type);
+    }
+    var r2 = E.applySuggested(state, "tteol");
+    if (r2.ok) {
+      maybeAutoTransfer();
+      parts.push("떨 " + r2.trade.type);
+    }
+    return parts.length ? parts.join(" · ") : "제안 없음";
+  }
+
+  function runAutoFill() {
+    scheduleAutoFill();
+    if (!state || !state.autoFill || autoFillBusy) return;
+    var day = localDayKey();
+    if (state.autoFillLast === day) return;
+    autoFillBusy = true;
+    var symbol = String((state.settings && state.settings.symbol) || "SOXL").toUpperCase();
+    fetchCnbcQuote(symbol)
+      .then(function (q) {
+        applyLiveQuote(q);
+      }, function () {})
+      .then(function () {
+        var prevView = state.view;
+        var prevId = state.accountId || "1";
+        var keys = [];
+        function addKey(k) {
+          k = canonBar(k);
+          if (k && keys.indexOf(k) < 0) keys.push(k);
+        }
+        addKey(state.barLeft);
+        addKey(state.barRight);
+        var notes = [];
+        keys.forEach(function (key) {
+          var label = BAR_SLOTS[key] ? BAR_SLOTS[key].label : key;
+          if (key === "escape") {
+            if (state.view !== "escape") stashActive();
+            state.view = "escape";
+          } else {
+            switchBookSilent(key === "acc2" ? "2" : "1");
+          }
+          notes.push(label + " " + fillCurrentSilent());
+        });
+        state.autoFillLast = day;
+        state.barRev = Date.now();
+        if (prevView === "escape") {
+          if (state.view !== "escape") stashActive();
+          state.view = "escape";
+        } else {
+          switchBookSilent(prevId);
+        }
+        persist({ noUndo: true });
+        toast("자동 기입 · " + notes.join(" / "));
+      })
+      .then(function () {
+        autoFillBusy = false;
+      }, function () {
+        autoFillBusy = false;
+      });
+  }
+
   function renderAccountSeg() {
     document.querySelectorAll("#account-seg button").forEach(function (b) {
       var key = barKey(b.dataset.side);
@@ -1211,6 +1349,8 @@
     var barRightEl = document.getElementById("set-bar-right");
     if (barLeftEl) barLeftEl.value = barKey("left");
     if (barRightEl) barRightEl.value = barKey("right");
+    var autoFillEl = document.getElementById("set-auto-fill");
+    if (autoFillEl) autoFillEl.checked = !!state.autoFill;
     markPresetButtons();
     fillText("v-ud-orders", src.settings.udLadderCount);
     fillText("v-ud-step", src.settings.udStepQty);
@@ -1934,6 +2074,13 @@
     if (state.barLeft !== nextLeft || state.barRight !== nextRight) state.barRev = Date.now();
     state.barLeft = nextLeft;
     state.barRight = nextRight;
+    var autoEl = document.getElementById("set-auto-fill");
+    var autoFill = !!(autoEl && autoEl.checked);
+    var turnedOn = autoFill && !state.autoFill;
+    if (!!state.autoFill !== autoFill) state.barRev = Date.now();
+    state.autoFill = autoFill;
+    scheduleAutoFill();
+    if (turnedOn) maybeCatchUpAutoFill();
   }
 
   function readSettingsFromForm() {
@@ -2076,7 +2223,7 @@
     ].forEach(function (id) {
       document.getElementById(id).addEventListener("change", readSettingsFromForm);
     });
-    ["set-fixed", "set-blocked", "set-f8", "set-auto"].forEach(function (id) {
+    ["set-fixed", "set-blocked", "set-f8", "set-auto", "set-auto-fill"].forEach(function (id) {
       document.getElementById(id).addEventListener("change", readSettingsFromForm);
     });
 
@@ -2767,10 +2914,14 @@
     pullRemote().catch(function () {});
   }
   document.addEventListener("visibilitychange", function () {
-    if (!document.hidden) syncNow();
+    if (!document.hidden) {
+      syncNow();
+      maybeCatchUpAutoFill();
+    }
   });
   window.addEventListener("pageshow", function () {
     syncNow();
+    maybeCatchUpAutoFill();
   });
   window.addEventListener("focus", function () {
     syncNow();
@@ -2798,6 +2949,8 @@
   updateUndoBtn();
   fetchQuote();
   pullRemote().catch(function () {});
+  scheduleAutoFill();
+  maybeCatchUpAutoFill();
   setTimeout(markSyncReady, 8000);
   setInterval(fetchQuote, 15000);
   setInterval(function () {
