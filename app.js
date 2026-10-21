@@ -1041,6 +1041,31 @@
     return (Number(n) * 100).toFixed(2) + "%";
   }
 
+  function sameCycle(a, b) {
+    var na = Number(a);
+    var nb = Number(b);
+    if (Number.isFinite(na) && Number.isFinite(nb)) return na === nb;
+    return a === b;
+  }
+
+  function cycleRealized(trades, cycle) {
+    var n = 0;
+    (trades || []).forEach(function (t) {
+      if (!sameCycle(t.cycle, cycle)) return;
+      var p = Number(t.pnl);
+      if (t.pnl != null && t.pnl !== "" && Number.isFinite(p)) n += p;
+    });
+    return n;
+  }
+
+  function logPnl(v) {
+    if (v == null || v === "" || !Number.isFinite(Number(v))) return "—";
+    var n = Number(v);
+    var body = money(Math.abs(n));
+    if (!body) return "—";
+    return (n < 0 ? "-$" : "$") + body;
+  }
+
   function homeDayBuy(out) {
     var parts = [];
     if (Number(out.udDayBuy) > 0) parts.push(Number(out.udDayBuy));
@@ -1418,9 +1443,12 @@
     fillText("v-H13", out.H13);
     fillText("v-I13", out.I13);
     fillText("v-tt-hold", out.I13);
+    var ttLast = (state.tteolTrades || [])[0];
+    var ttCycle = ttLast && ttLast.cycle != null && ttLast.cycle !== "" ? ttLast.cycle : out.B8;
+    var ttShown = cycleRealized(state.tteolTrades, ttCycle);
     fillText("v-J13", money(out.J13));
-    fillText("v-K13", money(out.K13));
-    fillText("v-L13", pct(out.L13));
+    fillText("v-K13", money(ttShown));
+    fillText("v-L13", pct(out.C8 ? ttShown / out.C8 : 0));
     fillText("v-D16", money(out.D16));
     fillText("v-E16", money(out.E16));
     fillText("v-F16", pct(out.F16));
@@ -1995,6 +2023,7 @@
             logEdit("ud", idx, "qty", t.qty + "주", "num"),
             "<span>보유 " + logEdit("ud", idx, "holdQty", String(hold), "num") + "</span>",
             logEdit("ud", idx, "avg", avg, "num"),
+            "<span>" + logPnl(t.pnl) + "</span>",
           ],
           "data-ud",
           idx,
@@ -2061,6 +2090,7 @@
             logEdit("tt", idx, "qty", t.qty + "주", "num"),
             "<span>보유 " + hold + "</span>",
             "<span>" + avg + "</span>",
+            "<span>" + logPnl(t.pnl) + "</span>",
           ],
           "data-tt",
           idx,
