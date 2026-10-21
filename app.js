@@ -1489,19 +1489,20 @@
     }
     var usdEl = document.getElementById("live-usd");
     if (usdEl) {
-      var pxNow = Number(m.price);
+      var chgRate = Number(m.changePct);
+      var usdBase = Number(m.prevClose);
       if (m.phase && m.phase !== "REG_MKT") {
         var closedPx = Number(m.lastClose);
-        if (isFinite(closedPx) && closedPx > 0) pxNow = closedPx;
+        if (isFinite(closedPx) && closedPx > 0) usdBase = closedPx;
       }
-      var pxPrev = Number(m.prevClose);
-      if (isFinite(pxNow) && pxNow > 0 && isFinite(pxPrev) && pxPrev > 0) {
-        var usdChg = pxNow - pxPrev;
+      if (isFinite(chgRate) && isFinite(usdBase) && usdBase > 0) {
+        var shownRate = Number((chgRate * 100).toFixed(2)) / 100;
+        var usdChg = usdBase * shownRate;
         usdEl.textContent = (usdChg > 0 ? "+" : usdChg < 0 ? "-" : "") + money(Math.abs(usdChg));
-        usdEl.className = "hero-quote " + (usdChg > 0 ? "pos" : usdChg < 0 ? "neg" : "");
+        usdEl.className = "quote-usd " + (usdChg > 0 ? "pos" : usdChg < 0 ? "neg" : "");
       } else {
         usdEl.textContent = "—";
-        usdEl.className = "hero-quote";
+        usdEl.className = "quote-usd";
       }
     }
     fillText("v-I3", money(out.I3));
@@ -4819,7 +4820,7 @@
   }
 
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("sw.js?v=12", { updateViaCache: "none" }).catch(function () {});
+    navigator.serviceWorker.register("sw.js?v=13", { updateViaCache: "none" }).catch(function () {});
   }
 
   function syncNow() {
