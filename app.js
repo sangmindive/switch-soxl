@@ -17,6 +17,8 @@
   var statsMode = "month";
   var statsYear = 2026;
   var pxSpan = "all";
+  var pxFocus = "";
+  var pxCycleOn = true;
   var pxCustomFrom = "";
   var pxCustomTo = "";
   var SOXL_CLOSE_FLOOR = "2026-08-18";
@@ -2123,8 +2125,23 @@
     return true;
   }
 
+  function syncPxLegend() {
+    document.querySelectorAll(".px-legend [data-series]").forEach(function (b) {
+      var s = b.getAttribute("data-series");
+      b.classList.remove("is-on", "is-dim", "is-off");
+      if (s === "cycle") {
+        if (!pxCycleOn) b.classList.add("is-off");
+        else if (pxFocus) b.classList.add("is-dim");
+        return;
+      }
+      if (pxFocus === s) b.classList.add("is-on");
+      else if (pxFocus) b.classList.add("is-dim");
+    });
+  }
+
   function renderPriceChart() {
     var host = document.getElementById("st-px-chart");
+    syncPxLegend();
     if (!host) return;
     syncPxRangeButtons();
     var model = priceChartModel();
@@ -2185,7 +2202,7 @@
     maxY += span * 0.18;
     span = maxY - minY;
 
-    var sigParts = [pxSpan, pxCustomFrom, pxCustomTo, String(plotW), win.start, win.end, model.fillFallback ? "1" : "0"];
+    var sigParts = [pxSpan, pxFocus, pxCycleOn ? "1" : "0", pxCustomFrom, pxCustomTo, String(plotW), win.start, win.end, model.fillFallback ? "1" : "0"];
     dates.forEach(function (d) {
       var c = model.closes[d];
       var a = model.avg[d];
@@ -2279,39 +2296,56 @@
     });
     axis.push("</svg>");
 
-    Object.keys(model.cycleEnds || {}).sort().forEach(function (d) {
-      if (indexOf[d] == null) return;
-      var cx = xOf(indexOf[d]);
-      var bw = 2;
-      plot.push(
-        "<rect x='" +
-          (cx - bw / 2).toFixed(2) +
-          "' y='" +
-          plotT +
-          "' width='" +
-          bw +
-          "' height='" +
-          (plotB - plotT) +
-          "' rx='2' fill='#64748b'><title>" +
-          xmlEsc(d + " 사이클 종료") +
-          "</title></rect>"
-      );
-    });
+    if (pxCycleOn) {
+      var cycleOp = pxFocus ? 0.18 : 1;
+      Object.keys(model.cycleEnds || {}).sort().forEach(function (d) {
+        if (indexOf[d] == null) return;
+        var cx = xOf(indexOf[d]);
+        var bw = 2;
+        plot.push(
+          "<rect x='" +
+            (cx - bw / 2).toFixed(2) +
+            "' y='" +
+            plotT +
+            "' width='" +
+            bw +
+            "' height='" +
+            (plotB - plotT) +
+            "' rx='2' fill='#64748b' opacity='" +
+            cycleOp +
+            "'><title>" +
+            xmlEsc(d + " 사이클 종료") +
+            "</title></rect>"
+        );
+      });
+    }
 
     var closePath = pathOf(model.closes, true);
     var avgPath = pathOf(model.avg, false);
+    var closeOp = pxFocus === "avg" ? 0.2 : 1;
+    var avgOp = pxFocus === "close" ? 0.2 : 1;
+    var closeW = pxFocus === "close" ? 3.1 : 1.75;
+    var avgW = pxFocus === "avg" ? 2.8 : 1.6;
     if (closePath) {
       plot.push(
         "<path d='" +
           closePath.trim() +
-          "' fill='none' stroke='#111827' stroke-width='1.75' stroke-linejoin='round' stroke-linecap='round'/>"
+          "' fill='none' stroke='#111827' stroke-width='" +
+          closeW +
+          "' stroke-linejoin='round' stroke-linecap='round' opacity='" +
+          closeOp +
+          "'/>"
       );
     }
     if (avgPath) {
       plot.push(
         "<path d='" +
           avgPath.trim() +
-          "' fill='none' stroke='#8b7cf6' stroke-width='1.6' stroke-dasharray='5 3.5' stroke-linejoin='round' stroke-linecap='round'/>"
+          "' fill='none' stroke='#8b7cf6' stroke-width='" +
+          avgW +
+          "' stroke-dasharray='5 3.5' stroke-linejoin='round' stroke-linecap='round' opacity='" +
+          avgOp +
+          "'/>"
       );
     }
 
@@ -2810,11 +2844,16 @@
 
     fillText("st-period-label", periodLabel + " 실현손익");
     var pp = document.getElementById("st-period-pnl");
+    var tone = periodPnl > 0 ? "gain" : periodPnl < 0 ? "loss" : "";
     if (pp) {
       pp.textContent = (periodPnl >= 0 ? "+" : "") + money(periodPnl);
-      pp.className = "hero-quote " + (periodPnl > 0 ? "pos" : periodPnl < 0 ? "neg" : "");
+      pp.className = "hero-quote " + tone;
     }
-    fillText("st-period-ret", "수익률 " + pct(cap ? periodPnl / cap : 0));
+    var retEl = document.getElementById("st-period-ret");
+    if (retEl) {
+      retEl.textContent = "수익률 " + pct(cap ? periodPnl / cap : 0);
+      retEl.className = "k " + tone;
+    }
 
     var max = 1;
     items.forEach(function (it) {
@@ -2839,7 +2878,7 @@
     document.getElementById("st-table").innerHTML = items
       .map(function (it) {
         var ret = cap ? it.pnl / cap : 0;
-        var cls = it.pnl > 0 ? "buy" : it.pnl < 0 ? "sell" : "empty";
+        var cls = it.pnl > 0 ? "gain" : it.pnl < 0 ? "loss" : "empty";
         return (
           "<tr><td>" +
           (statsMode === "month" ? statsYear + "-" + (it.label.length < 2 ? "0" : "") + it.label : it.label) +
@@ -3533,6 +3572,24 @@
         renderPriceChart();
       };
     });
+    var pxLegend = document.querySelector(".px-legend");
+    if (pxLegend) {
+      pxLegend.onclick = function (ev) {
+        var node = ev.target;
+        var series = "";
+        while (node && node !== pxLegend) {
+          if (node.getAttribute && node.getAttribute("data-series")) {
+            series = node.getAttribute("data-series");
+            break;
+          }
+          node = node.parentNode;
+        }
+        if (series === "cycle") pxCycleOn = !pxCycleOn;
+        else if (series === "close" || series === "avg") pxFocus = pxFocus === series ? "" : series;
+        else return;
+        renderPriceChart();
+      };
+    }
     var pxFrom = document.getElementById("px-from");
     var pxTo = document.getElementById("px-to");
     function togglePxCal(which, btn) {

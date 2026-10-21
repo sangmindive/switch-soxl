@@ -13,7 +13,7 @@
   <link rel="apple-touch-icon" href="icon-192.png" />
   <link rel="icon" href="icon-192.png" />
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
-  <link rel="stylesheet" href="styles.css?v=20261022j" />
+  <link rel="stylesheet" href="styles.css?v=20261022k" />
 </head>
 <body>
   <div class="app">
@@ -108,9 +108,12 @@
 
         <article class="card">
           <div class="cycle">
-            <div class="ticker">SOXL · 떨사오팔</div>
+            <div>
+              <div class="ticker">SOXL · 떨사오팔</div>
+              <div class="k">Cycle <span id="v-tt-cycle"></span></div>
+            </div>
             <div class="cycle-side">
-              <span class="cycle-pos">Cycle <span id="v-tt-cycle"></span> · 랭크 <span id="v-H13"></span></span>
+              <span class="cycle-pos">랭크 <span id="v-H13"></span></span>
               <span class="pill">진행중</span>
             </div>
           </div>
@@ -206,14 +209,6 @@
           <div class="stat"><div class="k">누적 수익률</div><div class="v" id="st-l3"></div></div>
           <div class="stat"><div class="k">투자 원금</div><div class="v" id="st-cap"></div></div>
         </div>
-        <p class="note">전체 매매 기록 기준 · 수익률 = 실현손익 / 투자 원금</p>
-      </article>
-      <article class="card">
-        <div class="stats">
-          <div class="stat"><div class="k">완료 사이클</div><div class="v" id="st-cycles"></div></div>
-          <div class="stat"><div class="k">평균 진행일</div><div class="v" id="st-days"></div></div>
-          <div class="stat"><div class="k">실현 건수</div><div class="v" id="st-count"></div></div>
-        </div>
       </article>
       <article class="card">
         <h2>종가 · 평단</h2>
@@ -241,11 +236,11 @@
           </div>
         </div>
         <div class="px-legend">
-          <span><i class="px-line"></i>종가</span>
-          <span><i class="px-line avg"></i>평단</span>
-          <span><i class="px-mark up">▲</i>매도 수익</span>
-          <span><i class="px-mark down">▼</i>매도 손절</span>
-          <span><i class="px-cycle"></i>사이클 종료</span>
+          <button type="button" class="px-key" data-series="close"><i class="px-line"></i>종가</button>
+          <button type="button" class="px-key" data-series="avg"><i class="px-line avg"></i>평단</button>
+          <span class="px-key"><svg class="px-mark" viewBox="0 0 10 8" aria-hidden="true"><path d="M5 0 L10 8 H0 Z" fill="#ef4444"/></svg>매도 수익</span>
+          <span class="px-key"><svg class="px-mark" viewBox="0 0 10 8" aria-hidden="true"><path d="M0 0 H10 L5 8 Z" fill="#2563eb"/></svg>매도 손절</span>
+          <button type="button" class="px-key" data-series="cycle"><i class="px-cycle"></i>사이클 종료</button>
         </div>
         <div class="px-chart" id="st-px-chart"></div>
       </article>
@@ -269,6 +264,13 @@
             <thead><tr><th>기간</th><th>실현손익</th><th>수익률</th></tr></thead>
             <tbody id="st-table"></tbody>
           </table>
+        </div>
+      </article>
+      <article class="card">
+        <div class="stats">
+          <div class="stat"><div class="k">완료 사이클</div><div class="v" id="st-cycles"></div></div>
+          <div class="stat"><div class="k">평균 진행일</div><div class="v" id="st-days"></div></div>
+          <div class="stat"><div class="k">실현 건수</div><div class="v" id="st-count"></div></div>
         </div>
       </article>
     </section>
@@ -603,6 +605,6 @@
   </div>
   <script src="engine.js?v=20261021e"></script>
   <script src="seed.js?v=20260924c"></script>
-  <script src="app.js?v=20261022j"></script>
+  <script src="app.js?v=20261022k"></script>
 </body>
 </html>
