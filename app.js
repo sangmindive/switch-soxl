@@ -16,6 +16,11 @@
   var tab = "home";
   var statsMode = "month";
   var statsYear = 2026;
+  var pxSpan = "all";
+  var pxStickRight = true;
+  var pxScrollLeft = 0;
+  var pxChartSig = "";
+  var pxResizeTimer = null;
   var pushTimer = null;
   var syncing = false;
   var pushQueued = false;
@@ -1138,6 +1143,7 @@
     if (location.hash !== "#" + name) {
       history.replaceState(null, "", "#" + name);
     }
+    if (name === "stats") renderPriceChart();
   }
 
   function bindNum(sel, obj, key, asInt) {
@@ -1508,7 +1514,621 @@
     return rows;
   }
 
+  function finiteNum(v) {
+    if (v == null || v === "") return null;
+    var n = Number(v);
+    return isFinite(n) ? n : null;
+  }
+
+  function chronoTrade(a, b) {
+    if ((a.date || "") !== (b.date || "")) return a.date < b.date ? -1 : 1;
+    return (a.seq || 0) - (b.seq || 0);
+  }
+
+  function isoAddDays(iso, days) {
+    var p = String(iso).split("-");
+    var dt = new Date(Date.UTC(Number(p[0]), Number(p[1]) - 1, Number(p[2])));
+    dt.setUTCDate(dt.getUTCDate() + days);
+    return dt.toISOString().slice(0, 10);
+  }
+
+  function xmlEsc(s) {
+    return String(s)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  function markerLabel(ratio) {
+    if (ratio == null || !isFinite(ratio)) return "";
+    var p = ratio * 100;
+    var digits = Math.abs(p) < 1 ? 2 : 1;
+    var body = p.toFixed(digits);
+    if (p > 0) body = "+" + body;
+    return body + "%";
+  }
+
+  function priceChartModel() {
+    var events = [];
+    (state.updownTrades || []).forEach(function (t) {
+      if (t && t.date) events.push({ side: "ud", t: t });
+    });
+    (state.tteolTrades || []).forEach(function (t) {
+      if (t && t.date) events.push({ side: "tt", t: t });
+    });
+    events.sort(function (a, b) {
+      return chronoTrade(a.t, b.t);
+    });
+
+    var byRank = {};
+    var udHold = 0;
+    var udCost = 0;
+    var ttHold = 0;
+    var ttCost = 0;
+    var curDate = "";
+    var snaps = [];
+    var markers = [];
+    var fillByDate = {};
+
+    function flush() {
+      if (!curDate) return;
+      snaps.push({ date: curDate, hold: udHold + ttHold, cost: udCost + ttCost });
+    }
+
+    function rememberFill(t) {
+      var px = finiteNum(t.price);
+      if (px != null && px > 0) fillByDate[t.date] = px;
+    }
+
+    function pushMarker(t, basis) {
+      if (t.type !== "매도") return;
+      var pnl = finiteNum(t.pnl);
+      if (pnl == null || Math.abs(pnl) < 1) return;
+      var base = finiteNum(basis);
+      markers.push({
+        date: t.date,
+        pnl: pnl,
+        pct: base && base > 0 ? pnl / base : null,
+        price: finiteNum(t.price) || 0,
+      });
+    }
+
+    events.forEach(function (ev) {
+      var t = ev.t;
+      if (t.date !== curDate) {
+        flush();
+        curDate = t.date;
+      }
+      rememberFill(t);
+      if (ev.side === "ud") {
+        var hold = finiteNum(t.holdQty);
+        if (hold == null) hold = udHold;
+        var cost = finiteNum(t.cost);
+        if (cost == null) cost = (finiteNum(t.avg) || 0) * hold;
+        udHold = hold;
+        udCost = cost;
+        var qty = finiteNum(t.qty) || 0;
+        var avg = finiteNum(t.avg) || 0;
+        pushMarker(t, qty * avg);
+        return;
+      }
+      if (t.type === "매수") {
+        var buyQty = finiteNum(t.qty) || 0;
+        var buyCost = finiteNum(t.amount);
+        if (buyCost == null) buyCost = (finiteNum(t.price) || 0) * buyQty;
+        byRank[t.rank] = { qty: buyQty, cost: buyCost };
+      } else if (t.type === "매도") {
+        var lot = byRank[t.rank];
+        var basis = lot ? lot.cost : 0;
+        delete byRank[t.rank];
+        pushMarker(t, basis);
+      }
+      ttHold = 0;
+      ttCost = 0;
+      Object.keys(byRank).forEach(function (k) {
+        ttHold += byRank[k].qty;
+        ttCost += byRank[k].cost;
+      });
+    });
+    flush();
+
+    var closeMap = {};
+    (state.closeDb || []).forEach(function (r) {
+      var px = r && finiteNum(r.close);
+      if (r && r.date && px != null && px > 0) closeMap[r.date] = px;
+    });
+    var market = state.market || {};
+    var liveClose = finiteNum(market.lastClose);
+    if (market.closeDate && liveClose != null && liveClose > 0 && closeMap[market.closeDate] == null) {
+      closeMap[market.closeDate] = liveClose;
+    }
+
+    var tradeDates = snaps.map(function (s) {
+      return s.date;
+    });
+    markers.forEach(function (m) {
+      tradeDates.push(m.date);
+    });
+    tradeDates.sort();
+    var firstTrade = tradeDates.length ? tradeDates[0] : "";
+    var lastTrade = tradeDates.length ? tradeDates[tradeDates.length - 1] : "";
+    var closeDates = Object.keys(closeMap).sort();
+    var lastCloseDate = closeDates.length ? closeDates[closeDates.length - 1] : "";
+    var start = firstTrade ? isoAddDays(firstTrade, -10) : closeDates.length > 60 ? closeDates[closeDates.length - 60] : closeDates[0] || "";
+    var end = lastCloseDate > lastTrade ? lastCloseDate : lastTrade || lastCloseDate;
+    if (!start || !end) return { dates: [], closes: {}, avg: {}, markers: [], fillFallback: false };
+
+    var dateSet = {};
+    closeDates.forEach(function (d) {
+      if (d >= start && d <= end) dateSet[d] = true;
+    });
+    tradeDates.forEach(function (d) {
+      if (d >= start && d <= end) dateSet[d] = true;
+    });
+    var dates = Object.keys(dateSet).sort();
+    var closes = {};
+    var sawClose = false;
+    dates.forEach(function (d) {
+      if (closeMap[d] != null) {
+        closes[d] = closeMap[d];
+        sawClose = true;
+      }
+    });
+    var fillFallback = !sawClose;
+    if (fillFallback) {
+      dates.forEach(function (d) {
+        if (fillByDate[d] != null) closes[d] = fillByDate[d];
+      });
+    }
+
+    var avg = {};
+    var snapIdx = -1;
+    dates.forEach(function (d) {
+      while (snapIdx + 1 < snaps.length && snaps[snapIdx + 1].date <= d) snapIdx++;
+      var snap = snapIdx >= 0 ? snaps[snapIdx] : null;
+      if (snap && snap.hold > 0) avg[d] = snap.cost / snap.hold;
+    });
+
+    markers = markers.filter(function (m) {
+      return m.date >= start && m.date <= end;
+    });
+    return { dates: dates, closes: closes, avg: avg, markers: markers, fillFallback: fillFallback && dates.length > 0 };
+  }
+
+  function dotDate(iso) {
+    iso = String(iso || "");
+    if (iso.length < 10) return "";
+    return iso.slice(0, 4) + "." + iso.slice(5, 7) + "." + iso.slice(8, 10);
+  }
+
+  function chartViewWidth() {
+    var host = document.getElementById("st-px-chart");
+    if (host && host.clientWidth >= 120) return host.clientWidth;
+    var page = document.getElementById("page-home");
+    if (page && page.clientWidth >= 120) return Math.max(120, page.clientWidth - 32);
+    return Math.max(280, Math.min(1040, window.innerWidth - 64));
+  }
+
+  function chartWindow(dates, span) {
+    var end = dates[dates.length - 1];
+    var start = dates[0];
+    if (span !== "all") {
+      var cut = isoAddDays(end, -(parseInt(span, 10) - 1));
+      if (cut > start) start = cut;
+    }
+    var sliced = [];
+    dates.forEach(function (d) {
+      if (d >= start && d <= end) sliced.push(d);
+    });
+    return {
+      start: sliced.length ? sliced[0] : start,
+      end: sliced.length ? sliced[sliced.length - 1] : end,
+      dates: sliced
+    };
+  }
+
+  function syncPxRangeButtons() {
+    document.querySelectorAll("#px-range button").forEach(function (b) {
+      b.classList.toggle("active", b.dataset.span === String(pxSpan));
+    });
+  }
+
+  function renderPriceChart() {
+    var host = document.getElementById("st-px-chart");
+    if (!host) return;
+    syncPxRangeButtons();
+    var model = priceChartModel();
+    if (!model.dates.length) {
+      pxChartSig = "";
+      host.innerHTML = "<p class='note'>종가나 매매 기록이 없습니다.</p>";
+      return;
+    }
+
+    var win = chartWindow(model.dates, pxSpan);
+    var dates = win.dates;
+    var n = dates.length;
+    if (!n) {
+      pxChartSig = "";
+      host.innerHTML = "<p class='note'>이 기간에 기록이 없습니다.</p>";
+      return;
+    }
+
+    var H = 268;
+    var axisW = 52;
+    var padL = 10;
+    var padR = 18;
+    var plotT = 28;
+    var plotB = H - 36;
+    var viewW = chartViewWidth();
+    var slot = Math.max(220, viewW - axisW);
+    var plotW = slot;
+    if (n > 1) {
+      var visibleSteps = Math.min(n - 1, 10);
+      var gap = Math.max(16, (slot - padL - padR) / visibleSteps);
+      plotW = Math.round(padL + padR + (n - 1) * gap);
+    }
+    var indexOf = {};
+    dates.forEach(function (d, i) {
+      indexOf[d] = i;
+    });
+
+    function xOf(i) {
+      if (n === 1) return plotW / 2;
+      return padL + (i / (n - 1)) * (plotW - padL - padR);
+    }
+
+    var markerList = model.markers.filter(function (m) {
+      return m.date >= win.start && m.date <= win.end && indexOf[m.date] != null;
+    });
+
+    var ys = [];
+    dates.forEach(function (d) {
+      if (model.closes[d] != null) ys.push(model.closes[d]);
+      if (model.avg[d] != null) ys.push(model.avg[d]);
+    });
+    markerList.forEach(function (m) {
+      var yv = model.closes[m.date] != null ? model.closes[m.date] : m.price;
+      if (yv) ys.push(yv);
+    });
+    var minY = ys.length ? Math.min.apply(null, ys) : 0;
+    var maxY = ys.length ? Math.max.apply(null, ys) : 1;
+    var span = maxY - minY || Math.max(1, Math.abs(maxY) * 0.04);
+    minY -= span * 0.14;
+    maxY += span * 0.18;
+    span = maxY - minY;
+
+    var sigParts = [pxSpan, String(plotW), win.start, win.end, model.fillFallback ? "1" : "0"];
+    dates.forEach(function (d) {
+      var c = model.closes[d];
+      var a = model.avg[d];
+      sigParts.push((c == null ? "" : c.toFixed(4)) + "/" + (a == null ? "" : a.toFixed(4)));
+    });
+    markerList.forEach(function (m) {
+      sigParts.push(m.date + ":" + m.pnl.toFixed(2));
+    });
+    var sig = sigParts.join("|");
+    if (sig === pxChartSig && host.querySelector(".px-scroll")) return;
+    pxChartSig = sig;
+
+    function yOf(v) {
+      return plotB - ((v - minY) / span) * (plotB - plotT);
+    }
+
+    function pathOf(map, bridge) {
+      var d = "";
+      var pen = false;
+      dates.forEach(function (date, i) {
+        var v = map[date];
+        if (v == null || !isFinite(v)) {
+          if (!bridge) pen = false;
+          return;
+        }
+        d += (pen ? "L" : "M") + xOf(i).toFixed(2) + " " + yOf(v).toFixed(2) + " ";
+        pen = true;
+      });
+      return d;
+    }
+
+    var step = span / 4;
+    var mag = Math.pow(10, Math.floor(Math.log10(step)));
+    var err = step / mag;
+    if (err >= 7.5) mag *= 10;
+    else if (err >= 3.5) mag *= 5;
+    else if (err >= 1.5) mag *= 2;
+    var ticks = [];
+    var tickStart = Math.ceil(minY / mag) * mag;
+    for (var tv = tickStart; tv <= maxY + mag * 0.01; tv += mag) ticks.push(tv);
+    var tickDigits = mag < 1 ? 2 : mag < 10 ? 1 : 0;
+
+    var axis = [];
+    axis.push(
+      "<svg class='px-axis' style='width:" +
+        axisW +
+        "px;height:" +
+        H +
+        "px' viewBox='0 0 " +
+        axisW +
+        " " +
+        H +
+        "' aria-hidden='true'>"
+    );
+    var plot = [];
+    plot.push(
+      "<svg class='px-plot' id='px-plot' style='width:" +
+        plotW +
+        "px;height:" +
+        H +
+        "px' viewBox='0 0 " +
+        plotW +
+        " " +
+        H +
+        "' role='img' aria-label='종가, 평단, 매도 수익과 매도 손절'>"
+    );
+    ticks.forEach(function (v) {
+      var y = yOf(v);
+      if (y < plotT - 2 || y > plotB + 2) return;
+      plot.push(
+        "<line x1='0' y1='" +
+          y.toFixed(2) +
+          "' x2='" +
+          plotW +
+          "' y2='" +
+          y.toFixed(2) +
+          "' stroke='#eef0f4' stroke-width='1'/>"
+      );
+      axis.push(
+        "<text x='" +
+          (axisW - 6) +
+          "' y='" +
+          y.toFixed(2) +
+          "' text-anchor='end' dominant-baseline='middle' fill='#9ca3af' font-size='10' font-family='Pretendard, sans-serif'>$" +
+          v.toFixed(tickDigits) +
+          "</text>"
+      );
+    });
+    axis.push("</svg>");
+
+    var closePath = pathOf(model.closes, true);
+    var avgPath = pathOf(model.avg, false);
+    if (closePath) {
+      plot.push(
+        "<path d='" +
+          closePath.trim() +
+          "' fill='none' stroke='#111827' stroke-width='1.75' stroke-linejoin='round' stroke-linecap='round'/>"
+      );
+    }
+    if (avgPath) {
+      plot.push(
+        "<path d='" +
+          avgPath.trim() +
+          "' fill='none' stroke='#8b7cf6' stroke-width='1.6' stroke-dasharray='5 3.5' stroke-linejoin='round' stroke-linecap='round'/>"
+      );
+    }
+
+    var groups = {};
+    markerList.forEach(function (m) {
+      if (!groups[m.date]) groups[m.date] = [];
+      groups[m.date].push(m);
+    });
+    var placed = [];
+    Object.keys(groups)
+      .sort()
+      .forEach(function (date) {
+        var list = groups[date];
+        list.sort(function (a, b) {
+          return b.pnl - a.pnl;
+        });
+        var xi = indexOf[date];
+        if (xi == null) return;
+        var baseX = xOf(xi);
+        list.forEach(function (m, i) {
+          var value = model.closes[date] != null ? model.closes[date] : m.price;
+          if (!value) return;
+          var x = baseX + (i - (list.length - 1) / 2) * 12;
+          var y = yOf(value);
+          var up = m.pnl > 0;
+          var label = markerLabel(m.pct);
+          if (label === "+0.0%" || label === "-0.0%" || label === "+0.00%" || label === "-0.00%") label = "";
+          var labelW = Math.max(28, label.length * 5.6);
+          function hits(box) {
+            for (var p = 0; p < placed.length; p++) {
+              var other = placed[p];
+              if (Math.abs(other.x - box.x) < (other.w + box.w) / 2 && Math.abs(other.y - box.y) < 12) return true;
+            }
+            return false;
+          }
+          var labelY = up ? y - 15 : y + 17;
+          var labelX = x;
+          var guard = 0;
+          while (label && guard < 10 && hits({ x: labelX, y: labelY, w: labelW })) {
+            if (guard < 6) labelY += up ? -12 : 12;
+            else labelX += (guard % 2 === 0 ? 1 : -1) * 16;
+            guard++;
+          }
+          if (labelY < 11) labelY = 11;
+          if (labelY > H - 40) labelY = H - 40;
+          if (label && hits({ x: labelX, y: labelY, w: labelW })) label = "";
+          if (label) placed.push({ x: labelX, y: labelY, w: labelW });
+          var tri = up ? "0,-9 5.2,-1.5 -5.2,-1.5" : "0,9 5.2,1.5 -5.2,1.5";
+          var tip = m.date + (up ? " 매도 수익 " : " 매도 손절 ") + (label || "") + " " + money(m.pnl);
+          plot.push("<g>");
+          plot.push("<title>" + xmlEsc(tip) + "</title>");
+          plot.push(
+            "<polygon points='" +
+              tri +
+              "' transform='translate(" +
+              x.toFixed(2) +
+              " " +
+              y.toFixed(2) +
+              ")' fill='#ef4444'/>"
+          );
+          if (label) {
+            plot.push(
+              "<text x='" +
+                labelX.toFixed(2) +
+                "' y='" +
+                labelY.toFixed(2) +
+                "' text-anchor='middle' fill='#ef4444' font-size='9' font-weight='700' font-family='Pretendard, sans-serif'>" +
+                xmlEsc(label) +
+                "</text>"
+            );
+          }
+          plot.push("</g>");
+        });
+      });
+
+    var shown = [];
+    dates.forEach(function (d, i) {
+      var x = xOf(i);
+      var force = i === 0 || i === n - 1;
+      if (!force && shown.length && x - shown[shown.length - 1].x < 70) return;
+      if (!force && plotW - padR - x < 70) return;
+      if (i === n - 1 && shown.length > 1 && x - shown[shown.length - 1].x < 56) shown.pop();
+      shown.push({ i: i, x: x, d: d });
+    });
+    var prevShownYear = "";
+    shown.forEach(function (item) {
+      var anchor = item.i === 0 ? "start" : item.i === n - 1 ? "end" : "middle";
+      var year = item.d.slice(0, 4);
+      var text = item.d.slice(5).replace("-", ".");
+      if (item.i === 0 || year !== prevShownYear) text = item.d.slice(2, 4) + "." + text;
+      prevShownYear = year;
+      plot.push(
+        "<text x='" +
+          item.x.toFixed(2) +
+          "' y='" +
+          (H - 16) +
+          "' text-anchor='" +
+          anchor +
+          "' fill='#9ca3af' font-size='10' font-family='Pretendard, sans-serif'>" +
+          text +
+          "</text>"
+      );
+    });
+    plot.push("</svg>");
+
+    var html = [];
+    html.push("<div class='px-chart-layout'>");
+    html.push(axis.join(""));
+    html.push("<div class='px-scroll' tabindex='0' aria-label='종가와 평단. 좌우로 넘기면 이전 데이터를 볼 수 있습니다.'>");
+    html.push(plot.join(""));
+    html.push("</div>");
+    html.push(
+      "<div class='px-brush' role='scrollbar' aria-orientation='horizontal' aria-label='차트 가로 이동' aria-controls='px-plot'>"
+    );
+    html.push("<div class='px-brush-track'></div><div class='px-brush-win'></div></div>");
+    html.push("</div>");
+    html.push("<p class='note px-span-note'></p>");
+    if (model.fillFallback) html.push("<p class='note'>종가 기록이 없어 체결 단가로 이었습니다.</p>");
+    host.innerHTML = html.join("");
+
+    var scroller = host.querySelector(".px-scroll");
+    var brush = host.querySelector(".px-brush");
+    var thumb = host.querySelector(".px-brush-win");
+    var note = host.querySelector(".px-span-note");
+
+    function dateAt(px) {
+      if (n <= 1) return dates[0];
+      var inner = plotW - padL - padR;
+      var t = (px - padL) / inner;
+      if (t < 0) t = 0;
+      if (t > 1) t = 1;
+      return dates[Math.round(t * (n - 1))];
+    }
+
+    function paintNote() {
+      if (!note) return;
+      var from = dateAt(scroller.scrollLeft + padL);
+      var to = dateAt(scroller.scrollLeft + scroller.clientWidth - padR);
+      note.textContent = dotDate(from) + " – " + dotDate(to);
+    }
+
+    function placeThumb() {
+      var max = scroller.scrollWidth - scroller.clientWidth;
+      var overflow = max > 2;
+      brush.classList.toggle("is-fit", !overflow);
+      if (!overflow) {
+        thumb.style.left = "0%";
+        thumb.style.width = "100%";
+        brush.setAttribute("aria-valuenow", "0");
+        brush.setAttribute("aria-valuemax", "0");
+        return;
+      }
+      var w = Math.max(8, (scroller.clientWidth / scroller.scrollWidth) * 100);
+      var left = (scroller.scrollLeft / scroller.scrollWidth) * 100;
+      if (left + w > 100) left = 100 - w;
+      thumb.style.width = w + "%";
+      thumb.style.left = left + "%";
+      brush.setAttribute("aria-valuenow", String(Math.round(scroller.scrollLeft)));
+      brush.setAttribute("aria-valuemax", String(Math.round(max)));
+    }
+
+    function pinScroll() {
+      var max = Math.max(0, scroller.scrollWidth - scroller.clientWidth);
+      if (pxStickRight) scroller.scrollLeft = max;
+      else scroller.scrollLeft = Math.max(0, Math.min(pxScrollLeft, max));
+      placeThumb();
+      paintNote();
+    }
+
+    scroller.addEventListener("scroll", function () {
+      pxScrollLeft = scroller.scrollLeft;
+      var max = scroller.scrollWidth - scroller.clientWidth;
+      if (max > 2) pxStickRight = pxScrollLeft >= max - 8;
+      placeThumb();
+      paintNote();
+    }, { passive: true });
+    scroller.addEventListener("keydown", function (ev) {
+      var step = Math.max(48, Math.round(scroller.clientWidth * 0.4));
+      if (ev.key === "ArrowRight") {
+        scroller.scrollLeft += step;
+        ev.preventDefault();
+      } else if (ev.key === "ArrowLeft") {
+        scroller.scrollLeft -= step;
+        ev.preventDefault();
+      }
+    });
+
+    var drag = null;
+    brush.addEventListener("pointerdown", function (ev) {
+      var max = scroller.scrollWidth - scroller.clientWidth;
+      if (max <= 2) return;
+      var rect = brush.getBoundingClientRect();
+      var winRect = thumb.getBoundingClientRect();
+      var onThumb = ev.clientX >= winRect.left - 8 && ev.clientX <= winRect.right + 8;
+      if (!onThumb) {
+        var ratio = (ev.clientX - rect.left) / rect.width;
+        var target = ratio * scroller.scrollWidth - scroller.clientWidth / 2;
+        scroller.scrollLeft = Math.max(0, Math.min(max, target));
+      }
+      drag = { x: ev.clientX, scroll: scroller.scrollLeft };
+      brush.classList.add("is-drag");
+      brush.setPointerCapture(ev.pointerId);
+      ev.preventDefault();
+    });
+    brush.addEventListener("pointermove", function (ev) {
+      if (!drag) return;
+      var rect = brush.getBoundingClientRect();
+      if (!rect.width) return;
+      var max = scroller.scrollWidth - scroller.clientWidth;
+      var next = drag.scroll + ((ev.clientX - drag.x) / rect.width) * scroller.scrollWidth;
+      scroller.scrollLeft = Math.max(0, Math.min(max, next));
+    });
+    function endDrag() {
+      drag = null;
+      brush.classList.remove("is-drag");
+    }
+    brush.addEventListener("pointerup", endDrag);
+    brush.addEventListener("pointercancel", endDrag);
+
+    pinScroll();
+    requestAnimationFrame(pinScroll);
+  }
+
+
   function renderStats(out) {
+    renderPriceChart();
     var cap = state.settings.capital || 0;
     var rows = realizedRows();
     fillText("st-k3", (out.K3 >= 0 ? "+" : "") + money(out.K3));
@@ -2311,6 +2931,18 @@
       statsYear = parseInt(y, 10);
       render();
     };
+    document.querySelectorAll("#px-range button").forEach(function (b) {
+      b.onclick = function () {
+        pxSpan = b.dataset.span || "all";
+        pxStickRight = true;
+        renderPriceChart();
+      };
+    });
+    window.addEventListener("resize", function () {
+      if (tab !== "stats") return;
+      clearTimeout(pxResizeTimer);
+      pxResizeTimer = setTimeout(renderPriceChart, 150);
+    });
     document.querySelectorAll("#page-journal .seg button").forEach(function (b) {
       b.onclick = function () {
         document.querySelectorAll("#page-journal .seg button").forEach(function (x) {
@@ -3040,7 +3672,7 @@
   }
 
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("sw.js?v=6").catch(function () {});
+    navigator.serviceWorker.register("sw.js?v=8", { updateViaCache: "none" }).catch(function () {});
   }
 
   function syncNow() {

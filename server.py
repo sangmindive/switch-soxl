@@ -28,6 +28,11 @@ def fetch_google_finance(symbol: str = "SOXL") -> dict:
 
 
 class Handler(SimpleHTTPRequestHandler):
+    def end_headers(self):
+        self.send_header("Cache-Control", "no-store, no-cache, must-revalidate")
+        self.send_header("Pragma", "no-cache")
+        super().end_headers()
+
     def do_GET(self):
         path = self.path.split("?", 1)[0]
         if path == "/quote":

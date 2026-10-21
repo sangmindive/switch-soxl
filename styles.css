@@ -741,6 +741,79 @@ table.sheet tr.ladder-sell td { background: #fffafa; }
 .bar-fill.zero { background: #d1d5db; min-height: 2px; }
 .bar-col span { font-size: 10px; color: var(--muted); margin-top: 4px; }
 
+.px-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  margin: -4px 0 8px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+.px-legend span { display: inline-flex; align-items: center; gap: 5px; }
+.px-line {
+  width: 16px;
+  height: 0;
+  border-top: 2px solid #111827;
+}
+.px-line.avg { border-top-style: dashed; border-top-color: #8b7cf6; }
+.px-mark { color: #ef4444; font-size: 11px; line-height: 1; }
+.px-range { margin: -4px 0 8px; }
+.px-range button { font-size: 12px; padding: 4px 9px; }
+.px-chart { min-width: 0; }
+.px-chart-layout {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr);
+  min-width: 0;
+}
+.px-axis { display: block; grid-column: 1; grid-row: 1; }
+.px-scroll {
+  grid-column: 2;
+  grid-row: 1;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: #9aa3b2 #eceff3;
+  user-select: none;
+}
+.px-scroll::-webkit-scrollbar { height: 10px; }
+.px-scroll::-webkit-scrollbar-track { background: #eceff3; border-radius: 99px; }
+.px-scroll::-webkit-scrollbar-thumb { background: #9aa3b2; border-radius: 99px; }
+.px-scroll:focus-visible { outline: 2px solid #bfdbfe; outline-offset: 2px; }
+.px-plot { display: block; max-width: none; }
+.px-brush {
+  grid-column: 2;
+  grid-row: 2;
+  position: relative;
+  height: 22px;
+  margin-top: 4px;
+  touch-action: none;
+  cursor: grab;
+}
+.px-brush.is-fit { cursor: default; }
+.px-brush.is-drag { cursor: grabbing; }
+.px-brush-track {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 7px;
+  height: 8px;
+  border-radius: 999px;
+  background: #eceff3;
+}
+.px-brush-win {
+  position: absolute;
+  top: 7px;
+  height: 8px;
+  border-radius: 999px;
+  background: #b7bec9;
+}
+.px-brush.is-fit .px-brush-win { background: #d5dae2; }
+.px-chart .note { margin: 4px 0 0; }
+
 .toast {
   position: fixed;
   left: 50%;
