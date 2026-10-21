@@ -42,6 +42,7 @@
   var pxCalMonth = "2026-10";
   var pxPinnedDate = "";
   var pxUnpin = null;
+  var pxRangeDrag = null;
   var pushTimer = null;
   var syncing = false;
   var pushQueued = false;
@@ -1574,9 +1575,9 @@
     return body + "%";
   }
 
-  function qtyText(q) {
+  function shareText(q) {
     var n = finiteNum(q);
-    if (n == null || n <= 0) return "";
+    if (n == null || n < 0) n = 0;
     var digits = Math.abs(n - Math.round(n)) < 1e-6 ? 0 : 2;
     return n.toLocaleString("en-US", { maximumFractionDigits: digits }) + "주";
   }
@@ -1700,7 +1701,7 @@
     var start = SOXL_CLOSE_FLOOR;
     if (closeDates.length && closeDates[0] < start) start = closeDates[0];
     var end = lastCloseDate > lastTrade ? lastCloseDate : lastTrade || lastCloseDate;
-    if (!start || !end) return { dates: [], closes: {}, avg: {}, markers: [], fillFallback: false, cycleEnds: {} };
+    if (!start || !end) return { dates: [], closes: {}, avg: {}, shares: {}, markers: [], fillFallback: false, cycleEnds: {} };
 
     var dateSet = {};
     closeDates.forEach(function (d) {
@@ -1728,12 +1729,14 @@
     var avg = {};
     var prevAvg = {};
     var cost = {};
+    var shares = {};
     var snapIdx = -1;
     var lastAvg = null;
     dates.forEach(function (d) {
       while (snapIdx + 1 < snaps.length && snaps[snapIdx + 1].date <= d) snapIdx++;
       var snap = snapIdx >= 0 ? snaps[snapIdx] : null;
       prevAvg[d] = lastAvg;
+      shares[d] = snap ? snap.hold : 0;
       if (snap && snap.hold > 0) {
         avg[d] = snap.cost / snap.hold;
         cost[d] = snap.cost;
@@ -1751,7 +1754,7 @@
       if (t.date < start || t.date > end) return;
       cycleEnds[t.date] = true;
     });
-    return { dates: dates, closes: closes, avg: avg, prevAvg: prevAvg, cost: cost, markers: markers, cycleEnds: cycleEnds, fillFallback: fillFallback && dates.length > 0 };
+    return { dates: dates, closes: closes, avg: avg, prevAvg: prevAvg, cost: cost, shares: shares, markers: markers, cycleEnds: cycleEnds, fillFallback: fillFallback && dates.length > 0 };
   }
 
   function dotDate(iso) {
@@ -1913,6 +1916,59 @@
     placePxCal(btn);
   }
 
+  function applyPxRangeDrag(ev) {
+    var drag = pxRangeDrag;
+    if (!drag) return;
+    var brush = document.querySelector("#st-px-chart .px-brush");
+    if (!brush) return;
+    var rect = brush.getBoundingClientRect();
+    if (!rect.width) return;
+    var full = drag.dates;
+    var n = full.length;
+    if (n < 2) return;
+    function idx(clientX) {
+      var t = (clientX - rect.left) / rect.width;
+      if (t < 0) t = 0;
+      if (t > 1) t = 1;
+      return Math.round(t * (n - 1));
+    }
+    var i0 = drag.i0;
+    var i1 = drag.i1;
+    var span = drag.i1 - drag.i0;
+    if (drag.mode === "start") {
+      i0 = idx(ev.clientX);
+      if (i0 < 0) i0 = 0;
+      if (i0 > i1 - 1) i0 = i1 - 1;
+    } else if (drag.mode === "end") {
+      i1 = idx(ev.clientX);
+      if (i1 > n - 1) i1 = n - 1;
+      if (i1 < i0 + 1) i1 = i0 + 1;
+    } else {
+      var delta = idx(ev.clientX) - idx(drag.x);
+      i0 = drag.i0 + delta;
+      i1 = i0 + span;
+      if (i0 < 0) {
+        i0 = 0;
+        i1 = span;
+      }
+      if (i1 > n - 1) {
+        i1 = n - 1;
+        i0 = i1 - span;
+      }
+    }
+    if (i0 < 0) i0 = 0;
+    if (i1 > n - 1) i1 = n - 1;
+    if (i1 <= i0) return;
+    var from = full[i0];
+    var to = full[i1];
+    if (pxSpan === "custom" && from === pxCustomFrom && to === pxCustomTo) return;
+    pxSpan = "custom";
+    pxCustomFrom = from;
+    pxCustomTo = to;
+    pxStickRight = false;
+    renderPriceChart();
+  }
+
   function shiftPxCal(delta) {
     var parts = String(pxCalMonth || "").split("-");
     var dt = new Date(Date.UTC(Number(parts[0]), Number(parts[1]) - 1 + delta, 1));
@@ -1972,11 +2028,6 @@
     var viewW = chartViewWidth();
     var slot = Math.max(220, viewW - axisW);
     var plotW = slot;
-    if (n > 1) {
-      var visibleSteps = Math.min(n - 1, 10);
-      var gap = Math.max(16, (slot - padL - padR) / visibleSteps);
-      plotW = Math.round(padL + padR + (n - 1) * gap);
-    }
     var indexOf = {};
     dates.forEach(function (d, i) {
       indexOf[d] = i;
@@ -2011,7 +2062,7 @@
     dates.forEach(function (d) {
       var c = model.closes[d];
       var a = model.avg[d];
-      sigParts.push((c == null ? "" : c.toFixed(4)) + "/" + (a == null ? "" : a.toFixed(4)));
+      sigParts.push((c == null ? "" : c.toFixed(4)) + "/" + (a == null ? "" : a.toFixed(4)) + "/" + (model.shares && model.shares[d] != null ? model.shares[d] : ""));
     });
     markerList.forEach(function (m) {
       sigParts.push(m.date + ":" + m.side + ":" + m.pnl.toFixed(2) + ":" + m.qty);
@@ -2104,7 +2155,7 @@
     Object.keys(model.cycleEnds || {}).sort().forEach(function (d) {
       if (indexOf[d] == null) return;
       var cx = xOf(indexOf[d]);
-      var bw = 7;
+      var bw = 2;
       plot.push(
         "<rect x='" +
           (cx - bw / 2).toFixed(2) +
@@ -2183,8 +2234,7 @@
           if (label) placed.push({ x: labelX, y: labelY, w: labelW });
           var color = up ? "#ef4444" : "#2563eb";
           var tri = up ? "0,0 5,8 -5,8" : "0,0 5,-8 -5,-8";
-          var qText = qtyText(m.qty);
-          var tip = m.date + " " + sideLabel(m.side) + (up ? " 매도 수익 " : " 매도 손절 ") + (label || "") + " " + money(m.pnl) + (qText ? " " + qText : "");
+          var tip = m.date + " " + sideLabel(m.side) + (up ? " 매도 수익 " : " 매도 손절 ") + (label || "") + " " + money(m.pnl);
           plot.push("<g>");
           plot.push("<title>" + xmlEsc(tip) + "</title>");
           plot.push(
@@ -2256,14 +2306,15 @@
     var html = [];
     html.push("<div class='px-chart-layout'>");
     html.push(axis.join(""));
-    html.push("<div class='px-scroll' tabindex='0' aria-label='종가와 평단. 좌우로 넘기면 이전 데이터를 볼 수 있습니다.'>");
+    html.push("<div class='px-scroll' tabindex='0' aria-label='종가와 평단. 가로로 드래그하면 그 기간만 보입니다.'>");
     html.push(plot.join(""));
     html.push("</div>");
     html.push(
-      "<div class='px-brush' role='scrollbar' aria-orientation='horizontal' aria-label='차트 가로 이동' aria-controls='px-plot'>"
+      "<div class='px-brush' role='slider' aria-orientation='horizontal' aria-label='보이는 기간. 끝을 끌면 늘리거나 줄이고, 가운데를 끌면 이동합니다.' aria-controls='px-plot'>"
     );
     html.push("<div class='px-brush-track'></div><div class='px-brush-win'></div></div>");
     html.push("</div>");
+    html.push("<div class='px-select' hidden></div>");
     html.push("<div class='px-tip' hidden></div>");
     html.push("<p class='note px-span-note'></p>");
     if (model.fillFallback) html.push("<p class='note'>종가 기록이 없어 체결 단가로 이었습니다.</p>");
@@ -2271,12 +2322,15 @@
 
     var scroller = host.querySelector(".px-scroll");
     var brush = host.querySelector(".px-brush");
+    if (pxRangeDrag && brush) brush.classList.add("is-drag");
     var thumb = host.querySelector(".px-brush-win");
     var note = host.querySelector(".px-span-note");
     var guide = host.querySelector(".px-guide");
     var guideDot = host.querySelector(".px-guide-dot");
     var tip = host.querySelector(".px-tip");
+    var selectEl = host.querySelector(".px-select");
     var hoverDate = "";
+    var picking = null;
     var pinnedDate = pxPinnedDate && indexOf[pxPinnedDate] != null ? pxPinnedDate : "";
     if (pxPinnedDate && !pinnedDate) pxPinnedDate = "";
 
@@ -2340,6 +2394,7 @@
           avgBefore != null && Math.abs(avgBefore - avgNow) >= 0.005 ? usd(avgBefore) + " → " + usd(avgNow) : usd(avgNow);
         rows.push(tipRow("평단", avgText));
       }
+      rows.push(tipRow("갯수", shareText(model.shares ? model.shares[date] : 0)));
       if (model.cost[date] != null) rows.push(tipRow("투입원금", usd(model.cost[date], 0)));
       var dayMarks = [];
       markerList.forEach(function (m) {
@@ -2354,8 +2409,6 @@
         var body = (gain ? "+" : "-") + usd(Math.abs(m.pnl));
         var pctText = markerLabel(m.pct);
         if (pctText) body += "  " + pctText;
-        var qText = qtyText(m.qty);
-        if (qText) body += "  " + qText;
         rows.push(tipRow(sideLabel(m.side) + (gain ? " 매도 수익" : " 매도 손절"), body, gain ? "up" : "down"));
       });
       tip.innerHTML = rows.join("");
@@ -2388,23 +2441,33 @@
     }
 
     function placeThumb() {
-      var max = scroller.scrollWidth - scroller.clientWidth;
-      var overflow = max > 2;
-      brush.classList.toggle("is-fit", !overflow);
-      if (!overflow) {
+      var full = model.dates;
+      var nFull = full.length;
+      brush.classList.remove("is-fit");
+      if (nFull < 2) {
         thumb.style.left = "0%";
         thumb.style.width = "100%";
         brush.setAttribute("aria-valuenow", "0");
         brush.setAttribute("aria-valuemax", "0");
         return;
       }
-      var w = Math.max(8, (scroller.clientWidth / scroller.scrollWidth) * 100);
-      var left = (scroller.scrollLeft / scroller.scrollWidth) * 100;
-      if (left + w > 100) left = 100 - w;
-      thumb.style.width = w + "%";
+      var i0 = full.indexOf(win.start);
+      var i1 = full.indexOf(win.end);
+      if (i0 < 0) i0 = 0;
+      if (i1 < 0) i1 = nFull - 1;
+      if (i1 < i0) i1 = i0;
+      var left = (i0 / (nFull - 1)) * 100;
+      var width = ((i1 - i0) / (nFull - 1)) * 100;
+      if (width < 3) {
+        var mid = left + width / 2;
+        width = 3;
+        left = Math.max(0, Math.min(97, mid - 1.5));
+      }
+      if (left + width > 100) left = 100 - width;
       thumb.style.left = left + "%";
-      brush.setAttribute("aria-valuenow", String(Math.round(scroller.scrollLeft)));
-      brush.setAttribute("aria-valuemax", String(Math.round(max)));
+      thumb.style.width = width + "%";
+      brush.setAttribute("aria-valuenow", String(i0));
+      brush.setAttribute("aria-valuemax", String(nFull - 1));
     }
 
     function pinScroll() {
@@ -2425,34 +2488,80 @@
       else if (hoverDate) showTip(hoverDate);
     }, { passive: true });
     scroller.addEventListener("mousemove", function (ev) {
+      if (picking && picking.drag) return;
       if (pinnedDate) return;
       var rect = scroller.getBoundingClientRect();
       showTip(dateAt(ev.clientX - rect.left + scroller.scrollLeft));
     });
-    scroller.addEventListener("mouseleave", hideTip);
-    var press = null;
+    scroller.addEventListener("mouseleave", function () {
+      if (picking && picking.drag) return;
+      hideTip();
+    });
+    function placeSelect(x1, x2) {
+      if (!selectEl) return;
+      var left = Math.min(x1, x2);
+      var right = Math.max(x1, x2);
+      var hostRect = host.getBoundingClientRect();
+      var plotRect = scroller.getBoundingClientRect();
+      var scaleY = H ? plotRect.height / H : 1;
+      var a = plotRect.left - hostRect.left + (left - scroller.scrollLeft);
+      var b = plotRect.left - hostRect.left + (right - scroller.scrollLeft);
+      selectEl.hidden = false;
+      selectEl.style.left = a + "px";
+      selectEl.style.width = Math.max(2, b - a) + "px";
+      selectEl.style.top = plotRect.top - hostRect.top + plotT * scaleY + "px";
+      selectEl.style.height = (plotB - plotT) * scaleY + "px";
+    }
     scroller.addEventListener("pointerdown", function (ev) {
       if (ev.button != null && ev.button !== 0) return;
-      press = { x: ev.clientX, y: ev.clientY, id: ev.pointerId };
+      var rect = scroller.getBoundingClientRect();
+      var svgX = ev.clientX - rect.left + scroller.scrollLeft;
+      picking = { x: ev.clientX, y: ev.clientY, id: ev.pointerId, svgX: svgX, date: dateAt(svgX), drag: false };
+      scroller.setPointerCapture(ev.pointerId);
+    });
+    scroller.addEventListener("pointermove", function (ev) {
+      if (!picking || picking.id !== ev.pointerId) return;
+      var dx = ev.clientX - picking.x;
+      var dy = ev.clientY - picking.y;
+      if (!picking.drag && dx * dx + dy * dy < 36) return;
+      if (!picking.drag && Math.abs(dy) > Math.abs(dx)) return;
+      picking.drag = true;
+      var rect = scroller.getBoundingClientRect();
+      var svgX = ev.clientX - rect.left + scroller.scrollLeft;
+      placeSelect(picking.svgX, svgX);
     });
     scroller.addEventListener("pointerup", function (ev) {
-      if (!press || press.id !== ev.pointerId) return;
-      var dx = ev.clientX - press.x;
-      var dy = ev.clientY - press.y;
-      press = null;
-      if (dx * dx + dy * dy > 36) return;
+      if (!picking || picking.id !== ev.pointerId) return;
+      var wasDrag = picking.drag;
+      var startDate = picking.date;
       var rect = scroller.getBoundingClientRect();
-      var date = dateAt(ev.clientX - rect.left + scroller.scrollLeft);
-      if (!date) return;
-      if (pinnedDate === date) {
+      var endDate = dateAt(ev.clientX - rect.left + scroller.scrollLeft);
+      picking = null;
+      if (selectEl) selectEl.hidden = true;
+      if (wasDrag && startDate && endDate && startDate !== endDate) {
+        pxSpan = "custom";
+        pxCustomFrom = startDate < endDate ? startDate : endDate;
+        pxCustomTo = startDate < endDate ? endDate : startDate;
+        pxStickRight = false;
+        pinnedDate = "";
+        pxPinnedDate = "";
+        renderPriceChart();
+        return;
+      }
+      if (!endDate) return;
+      if (pinnedDate === endDate) {
         pinnedDate = "";
         pxPinnedDate = "";
         hideGuide();
         return;
       }
-      pinnedDate = date;
-      pxPinnedDate = date;
-      showTip(date);
+      pinnedDate = endDate;
+      pxPinnedDate = endDate;
+      showTip(endDate);
+    });
+    scroller.addEventListener("pointercancel", function () {
+      picking = null;
+      if (selectEl) selectEl.hidden = true;
     });
     scroller.addEventListener("keydown", function (ev) {
       var step = Math.max(48, Math.round(scroller.clientWidth * 0.4));
@@ -2465,37 +2574,58 @@
       }
     });
 
-    var drag = null;
-    brush.addEventListener("pointerdown", function (ev) {
-      var max = scroller.scrollWidth - scroller.clientWidth;
-      if (max <= 2) return;
+    function brushIndexes(clientX) {
+      var full = model.dates;
+      var nFull = full.length;
       var rect = brush.getBoundingClientRect();
-      var winRect = thumb.getBoundingClientRect();
-      var onThumb = ev.clientX >= winRect.left - 8 && ev.clientX <= winRect.right + 8;
-      if (!onThumb) {
-        var ratio = (ev.clientX - rect.left) / rect.width;
-        var target = ratio * scroller.scrollWidth - scroller.clientWidth / 2;
-        scroller.scrollLeft = Math.max(0, Math.min(max, target));
+      var i0 = nFull ? full.indexOf(win.start) : 0;
+      var i1 = nFull ? full.indexOf(win.end) : 0;
+      if (i0 < 0) i0 = 0;
+      if (i1 < 0) i1 = Math.max(0, nFull - 1);
+      var leftPx = nFull > 1 ? (i0 / (nFull - 1)) * rect.width : 0;
+      var rightPx = nFull > 1 ? (i1 / (nFull - 1)) * rect.width : rect.width;
+      var x = clientX - rect.left;
+      var mode = "move";
+      if (Math.abs(x - leftPx) <= 14) mode = "start";
+      else if (Math.abs(x - rightPx) <= 14) mode = "end";
+      return { i0: i0, i1: i1, mode: mode };
+    }
+    brush.addEventListener("pointermove", function (ev) {
+      if (pxRangeDrag) return;
+      var hit = brushIndexes(ev.clientX);
+      brush.classList.toggle("is-edge", hit.mode !== "move");
+    });
+    brush.addEventListener("pointerdown", function (ev) {
+      var full = model.dates;
+      if (!full || full.length < 2) return;
+      var hit = brushIndexes(ev.clientX);
+      var i0 = hit.i0;
+      var i1 = hit.i1;
+      if (hit.mode === "move") {
+        var rect = brush.getBoundingClientRect();
+        var t = (ev.clientX - rect.left) / rect.width;
+        if (t < 0) t = 0;
+        if (t > 1) t = 1;
+        var center = Math.round(t * (full.length - 1));
+        var span = i1 - i0;
+        if (center < i0 || center > i1) {
+          i0 = center - Math.round(span / 2);
+          i1 = i0 + span;
+          if (i0 < 0) {
+            i0 = 0;
+            i1 = span;
+          }
+          if (i1 > full.length - 1) {
+            i1 = full.length - 1;
+            i0 = i1 - span;
+          }
+        }
       }
-      drag = { x: ev.clientX, scroll: scroller.scrollLeft };
+      pxRangeDrag = { mode: hit.mode, i0: i0, i1: i1, x: ev.clientX, dates: full.slice() };
       brush.classList.add("is-drag");
-      brush.setPointerCapture(ev.pointerId);
+      applyPxRangeDrag(ev);
       ev.preventDefault();
     });
-    brush.addEventListener("pointermove", function (ev) {
-      if (!drag) return;
-      var rect = brush.getBoundingClientRect();
-      if (!rect.width) return;
-      var max = scroller.scrollWidth - scroller.clientWidth;
-      var next = drag.scroll + ((ev.clientX - drag.x) / rect.width) * scroller.scrollWidth;
-      scroller.scrollLeft = Math.max(0, Math.min(max, next));
-    });
-    function endDrag() {
-      drag = null;
-      brush.classList.remove("is-drag");
-    }
-    brush.addEventListener("pointerup", endDrag);
-    brush.addEventListener("pointercancel", endDrag);
 
     pinScroll();
     if (pinnedDate) showTip(pinnedDate);
@@ -3364,6 +3494,20 @@
         renderPriceChart();
       };
     }
+    document.addEventListener("pointermove", function (ev) {
+      if (!pxRangeDrag) return;
+      applyPxRangeDrag(ev);
+    });
+    document.addEventListener("pointerup", function (ev) {
+      if (!pxRangeDrag) return;
+      applyPxRangeDrag(ev);
+      pxRangeDrag = null;
+      var bar = document.querySelector("#st-px-chart .px-brush");
+      if (bar) bar.classList.remove("is-drag");
+    });
+    document.addEventListener("pointercancel", function () {
+      pxRangeDrag = null;
+    });
     document.addEventListener("click", function (ev) {
       var cal = document.getElementById("px-cal");
       if (cal && !cal.hidden && !cal.contains(ev.target) && ev.target !== pxFrom && ev.target !== pxTo) closePxCal();
