@@ -13,7 +13,7 @@
   <link rel="apple-touch-icon" href="icon-192.png" />
   <link rel="icon" href="icon-192.png" />
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
-  <link rel="stylesheet" href="styles.css?v=20261022u" />
+  <link rel="stylesheet" href="styles.css?v=20261022v" />
 </head>
 <body>
   <div class="app">
@@ -61,21 +61,23 @@
           <div class="hero-ret pos" id="v-L3"></div>
         </div>
         <div id="parity" class="badge ok" style="display:none">정합 확인</div>
-        <div class="home-metrics">
-          <div class="stat hm-c8"><div class="k">투자금</div><div class="v" id="v-C8"></div></div>
-          <div class="stat hm-used"><div class="k">매수금</div><div class="v" id="v-seed-used"></div></div>
-          <div class="stat hm-d8"><div class="k">잔금</div><div class="v" id="v-D8"></div></div>
-          <div class="stat hm-qty"><div class="k">총 수량</div><div class="v" id="v-hold-total"></div></div>
-          <div class="stat hm-avg"><div class="k">평균 단가</div><div class="v" id="v-comb-avg">—</div></div>
-          <div class="stat hm-bar">
+        <div class="stats">
+          <div class="stat"><div class="k">투자금</div><div class="v" id="v-C8"></div></div>
+          <div class="stat"><div class="k">매수금</div><div class="v" id="v-seed-used"></div></div>
+          <div class="stat"><div class="k">잔금</div><div class="v" id="v-D8"></div></div>
+          <div class="stat"><div class="k">총 수량</div><div class="v" id="v-hold-total"></div></div>
+          <div class="stat"><div class="k">평균 단가</div><div class="v" id="v-comb-avg">—</div></div>
+        </div>
+        <div class="stats home-extra">
+          <div class="stat home-extra-bar">
             <div class="k">진행률</div>
             <div class="seed-bar">
               <div class="seed-bar-track"><div class="seed-bar-fill" id="v-seed-bar"></div></div>
               <span class="seed-bar-pct" id="v-seed-pct">(0%)</span>
             </div>
           </div>
-          <div class="stat hm-day"><div class="k">1일 매수</div><div class="v" id="v-daybuy"></div></div>
-          <div class="stat hm-lp"><div class="k">LP</div><div class="v" id="v-lp">—</div></div>
+          <div class="stat"><div class="k">1일 매수</div><div class="v" id="v-daybuy"></div></div>
+          <div class="stat"><div class="k">LP</div><div class="v" id="v-lp">—</div></div>
         </div>
       </article>
 
@@ -608,6 +610,6 @@
   </div>
   <script src="engine.js?v=20261022n"></script>
   <script src="seed.js?v=20260924c"></script>
-  <script src="app.js?v=20261022u"></script>
+  <script src="app.js?v=20261022v"></script>
 </body>
 </html>

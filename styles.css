@@ -311,34 +311,14 @@ body {
   gap: 10px;
   margin-top: 12px;
 }
-#page-home .home-metrics {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  grid-template-areas:
-    "c8 used d8 qty"
-    "avg . . ."
-    "bar bar bar day"
-    "lp . . .";
-  gap: 10px;
-  margin-top: 12px;
+#page-home .stats {
+  grid-template-columns: 1fr 1fr 1fr 1fr;
 }
-#page-home .hm-c8 { grid-area: c8; }
-#page-home .hm-used { grid-area: used; }
-#page-home .hm-d8 { grid-area: d8; }
-#page-home .hm-qty { grid-area: qty; }
-#page-home .hm-avg { grid-area: avg; }
-#page-home .hm-bar { grid-area: bar; }
-#page-home .hm-day { grid-area: day; }
-#page-home .hm-lp { grid-area: lp; }
+#page-home .home-extra { margin-top: 14px; }
+#page-home .home-extra-bar { grid-column: 1 / 4; }
 @media (min-width: 980px) {
-  #page-home .home-metrics {
-    grid-template-columns: repeat(5, max-content);
-    grid-template-areas:
-      "c8 used d8 qty avg"
-      "bar bar bar day lp";
-    justify-content: center;
-    column-gap: 48px;
-    row-gap: 14px;
+  #page-home .stats {
+    grid-template-columns: 1fr 1fr 1fr 1fr 1fr;
   }
 }
 @media (max-width: 979px) {

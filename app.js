@@ -4820,7 +4820,7 @@
   }
 
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("sw.js?v=13", { updateViaCache: "none" }).catch(function () {});
+    navigator.serviceWorker.register("sw.js?v=14", { updateViaCache: "none" }).catch(function () {});
   }
 
   function syncNow() {
