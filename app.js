@@ -45,6 +45,8 @@
   var pxUnpin = null;
   var pxRangeDrag = null;
   var pxWheel = null;
+  var pxPinch = null;
+  var pxTouchZoom = false;
   var pushTimer = null;
   var syncing = false;
   var pushQueued = false;
@@ -1923,15 +1925,12 @@
     placePxCal(btn);
   }
 
-  function zoomPxByWheel(ev) {
+  function zoomPxAt(clientX, deltaY) {
     var w = pxWheel;
     if (!w || !w.dates || w.dates.length < 2 || !w.scroller) return;
-    var host = document.getElementById("st-px-chart");
-    if (!host || !host.contains(ev.target)) return;
-    ev.preventDefault();
     var full = w.dates;
     var rect = w.scroller.getBoundingClientRect();
-    var svgX = ev.clientX - rect.left + w.scroller.scrollLeft;
+    var svgX = clientX - rect.left + w.scroller.scrollLeft;
     var anchor = w.dateAt(svgX);
     var iAnchor = full.indexOf(anchor);
     if (iAnchor < 0) iAnchor = full.length - 1;
@@ -1941,9 +1940,7 @@
     if (i1 < 0) i1 = full.length - 1;
     if (i1 < i0) i1 = i0;
     var span = Math.max(1, i1 - i0);
-    var dy = ev.deltaY;
-    if (ev.deltaMode === 1) dy *= 16;
-    else if (ev.deltaMode === 2) dy *= 400;
+    var dy = deltaY;
     var next = Math.round(span * Math.exp(dy * 0.002));
     var minSpan = Math.min(4, full.length - 1);
     if (next < minSpan) next = minSpan;
@@ -1979,6 +1976,57 @@
     }
     pxStickRight = false;
     renderPriceChart();
+  }
+
+  function zoomPxByWheel(ev) {
+    var host = document.getElementById("st-px-chart");
+    if (!host || !host.contains(ev.target)) return;
+    ev.preventDefault();
+    var dy = ev.deltaY;
+    if (ev.deltaMode === 1) dy *= 16;
+    else if (ev.deltaMode === 2) dy *= 400;
+    zoomPxAt(ev.clientX, dy);
+  }
+
+  function pinchSpan(touches) {
+    var dx = touches[0].clientX - touches[1].clientX;
+    var dy = touches[0].clientY - touches[1].clientY;
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+
+  function onPxTouchStart(ev) {
+    if (ev.touches.length < 2) return;
+    pxTouchZoom = true;
+    pxPinch = { dist: pinchSpan(ev.touches) };
+    ev.preventDefault();
+  }
+
+  function onPxTouchMove(ev) {
+    if (ev.touches.length < 2 || !pxPinch) return;
+    ev.preventDefault();
+    var dist = pinchSpan(ev.touches);
+    if (!(pxPinch.dist > 8) || !(dist > 8)) {
+      pxPinch.dist = dist;
+      return;
+    }
+    var scale = dist / pxPinch.dist;
+    if (scale < 1.02 && scale > 0.98) return;
+    var midX = (ev.touches[0].clientX + ev.touches[1].clientX) / 2;
+    zoomPxAt(midX, -Math.log(scale) / 0.002);
+    pxPinch.dist = dist;
+  }
+
+  function onPxTouchEnd(ev) {
+    if (ev.touches.length >= 2) return;
+    pxPinch = null;
+    setTimeout(function () {
+      pxTouchZoom = false;
+    }, 400);
+  }
+
+  function onPxGesture(ev) {
+    pxTouchZoom = true;
+    ev.preventDefault();
   }
 
   function applyPxRangeDrag(ev) {
@@ -2467,7 +2515,7 @@
     var html = [];
     html.push("<div class='px-chart-layout'>");
     html.push(axis.join(""));
-    html.push("<div class='px-scroll' tabindex='0' aria-label='종가와 평단. 마우스 휠로 기간을 늘리거나 줄일 수 있습니다.'>");
+    html.push("<div class='px-scroll' tabindex='0' aria-label='종가와 평단. 마우스 휠이나 두 손가락으로 기간을 늘리거나 줄일 수 있습니다.'>");
     html.push(plot.join(""));
     html.push("</div>");
     html.push(
@@ -2657,6 +2705,10 @@
       press = { x: ev.clientX, y: ev.clientY, id: ev.pointerId };
     });
     scroller.addEventListener("pointerup", function (ev) {
+      if (pxTouchZoom) {
+        press = null;
+        return;
+      }
       if (!press || press.id !== ev.pointerId) return;
       var dx = ev.clientX - press.x;
       var dy = ev.clientY - press.y;
@@ -3639,6 +3691,12 @@
     var pxChartHost = document.getElementById("st-px-chart");
     if (pxChartHost) {
       pxChartHost.addEventListener("wheel", zoomPxByWheel, { passive: false });
+      pxChartHost.addEventListener("touchstart", onPxTouchStart, { passive: false, capture: true });
+      pxChartHost.addEventListener("touchmove", onPxTouchMove, { passive: false, capture: true });
+      pxChartHost.addEventListener("touchend", onPxTouchEnd, { passive: false, capture: true });
+      pxChartHost.addEventListener("touchcancel", onPxTouchEnd, { passive: false, capture: true });
+      pxChartHost.addEventListener("gesturestart", onPxGesture, { passive: false });
+      pxChartHost.addEventListener("gesturechange", onPxGesture, { passive: false });
     }
     document.addEventListener("pointermove", function (ev) {
       if (!pxRangeDrag) return;

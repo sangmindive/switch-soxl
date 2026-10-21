@@ -888,7 +888,7 @@ table.sheet tr.ladder-sell td { background: #fffafa; }
 .px-cal-grid button.in { background: #eff4ff; border-radius: 8px; }
 .px-cal-grid button.edge,
 .px-cal-grid button.edge:hover { background: var(--blue); color: #fff; }
-.px-chart { min-width: 0; position: relative; }
+.px-chart { min-width: 0; position: relative; touch-action: pan-y; }
 .px-tip {
   position: absolute;
   z-index: 4;
@@ -930,6 +930,7 @@ table.sheet tr.ladder-sell td { background: #fffafa; }
   overflow-x: auto;
   overflow-y: hidden;
   overscroll-behavior-x: contain;
+  touch-action: pan-y;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: thin;
   scrollbar-color: #9aa3b2 #eceff3;
