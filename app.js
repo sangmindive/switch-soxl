@@ -48,6 +48,9 @@
   var pxWheel = null;
   var pxPinch = null;
   var pxTouchZoom = false;
+  var pxPlotTap = null;
+  var pxPlotHover = null;
+  var pxPlotLeave = null;
   var pushTimer = null;
   var syncing = false;
   var pushQueued = false;
@@ -738,20 +741,20 @@
     } else if (localRev > remoteRev && localBook && localBook.settings) {
       next = JSON.parse(JSON.stringify(localBook));
     } else {
-      var base = remoteRev > localRev ? remoteBook : localBook;
+    var base = remoteRev > localRev ? remoteBook : localBook;
       next = JSON.parse(JSON.stringify(base || blankBook()));
-      next.deletedUd = mergeIdList(localBook && localBook.deletedUd, remoteBook && remoteBook.deletedUd);
-      next.deletedTt = mergeIdList(localBook && localBook.deletedTt, remoteBook && remoteBook.deletedTt);
-      next.updownTrades = mergeTradeLists(
-        localBook && localBook.updownTrades,
-        remoteBook && remoteBook.updownTrades,
-        next.deletedUd
-      );
-      next.tteolTrades = mergeTradeLists(
-        localBook && localBook.tteolTrades,
-        remoteBook && remoteBook.tteolTrades,
-        next.deletedTt
-      );
+    next.deletedUd = mergeIdList(localBook && localBook.deletedUd, remoteBook && remoteBook.deletedUd);
+    next.deletedTt = mergeIdList(localBook && localBook.deletedTt, remoteBook && remoteBook.deletedTt);
+    next.updownTrades = mergeTradeLists(
+      localBook && localBook.updownTrades,
+      remoteBook && remoteBook.updownTrades,
+      next.deletedUd
+    );
+    next.tteolTrades = mergeTradeLists(
+      localBook && localBook.tteolTrades,
+      remoteBook && remoteBook.tteolTrades,
+      next.deletedTt
+    );
     }
     var settingsSrc = newerSettings(localBook, remoteBook);
     if (settingsSrc) {
@@ -2120,6 +2123,7 @@
   function onPxTouchMove(ev) {
     if (ev.touches.length < 2 || !pxPinch) return;
     ev.preventDefault();
+    if (pxPinch.useGesture) return;
     var dist = pinchSpan(ev.touches);
     if (!(pxPinch.dist > 8) || !(dist > 8)) return;
     pinchWindowFromScale(dist / pxPinch.dist);
@@ -2138,7 +2142,9 @@
   function onPxGesture(ev) {
     pxTouchZoom = true;
     ev.preventDefault();
+    if (ev.type === "gesturestart") return;
     if (!pxPinch || !(ev.scale > 0)) return;
+    pxPinch.useGesture = true;
     pinchWindowFromScale(ev.scale);
   }
 
@@ -2364,16 +2370,56 @@
     });
   }
 
+  function ensurePxMount(host) {
+    var body = host.querySelector(".px-chart-body");
+    var layer = host.querySelector(".px-pinch-layer");
+    if (!body) {
+      body = document.createElement("div");
+      body.className = "px-chart-body";
+      while (host.firstChild) body.appendChild(host.firstChild);
+      host.appendChild(body);
+    }
+    if (!layer) {
+      layer = document.createElement("div");
+      layer.className = "px-pinch-layer";
+      layer.setAttribute("aria-hidden", "true");
+      host.appendChild(layer);
+    }
+    return { body: body, layer: layer };
+  }
+
+  function placePinchLayer(host) {
+    var layer = host.querySelector(".px-pinch-layer");
+    var scroller = host.querySelector(".px-scroll");
+    if (!layer) return;
+    if (!scroller) {
+      layer.style.display = "none";
+      return;
+    }
+    var hr = host.getBoundingClientRect();
+    var sr = scroller.getBoundingClientRect();
+    layer.style.display = "";
+    layer.style.left = sr.left - hr.left + "px";
+    layer.style.top = sr.top - hr.top + "px";
+    layer.style.width = sr.width + "px";
+    layer.style.height = sr.height + "px";
+  }
+
   function renderPriceChart() {
     var host = document.getElementById("st-px-chart");
     syncPxLegend();
     if (!host) return;
+    var mount = ensurePxMount(host);
     syncPxRangeButtons();
     var model = priceChartModel();
     if (!model.dates.length) {
       pxChartSig = "";
       pxUnpin = null;
-      host.innerHTML = "<p class='note'>종가나 매매 기록이 없습니다.</p>";
+      pxPlotTap = null;
+      pxPlotHover = null;
+      pxPlotLeave = null;
+      mount.body.innerHTML = "<p class='note'>종가나 매매 기록이 없습니다.</p>";
+      mount.layer.style.display = "none";
       return;
     }
 
@@ -2384,7 +2430,11 @@
     if (!n) {
       pxChartSig = "";
       pxUnpin = null;
-      host.innerHTML = "<p class='note'>이 기간에 기록이 없습니다.</p>";
+      pxPlotTap = null;
+      pxPlotHover = null;
+      pxPlotLeave = null;
+      mount.body.innerHTML = "<p class='note'>이 기간에 기록이 없습니다.</p>";
+      mount.layer.style.display = "none";
       return;
     }
 
@@ -2703,7 +2753,8 @@
     html.push("<div class='px-tip' hidden></div>");
     html.push("<p class='note px-span-note'></p>");
     if (model.fillFallback) html.push("<p class='note'>종가 기록이 없어 체결 단가로 이었습니다.</p>");
-    host.innerHTML = html.join("");
+    mount.body.innerHTML = html.join("");
+    placePinchLayer(host);
 
     var scroller = host.querySelector(".px-scroll");
     var brush = host.querySelector(".px-brush");
@@ -2815,6 +2866,28 @@
       if (t > 1) t = 1;
       return dates[Math.round(t * (n - 1))];
     }
+
+    pxPlotTap = function (clientX) {
+      var rect = scroller.getBoundingClientRect();
+      var date = dateAt(clientX - rect.left + scroller.scrollLeft);
+      if (!date) return;
+      if (pinnedDate === date) {
+        pinnedDate = "";
+        pxPinnedDate = "";
+        hideGuide();
+        return;
+      }
+      pinnedDate = date;
+      pxPinnedDate = date;
+      showTip(date);
+    };
+
+    pxPlotHover = function (clientX) {
+      if (pinnedDate) return;
+      var rect = scroller.getBoundingClientRect();
+      showTip(dateAt(clientX - rect.left + scroller.scrollLeft));
+    };
+    pxPlotLeave = hideTip;
 
     function paintNote() {
       if (!note) return;
@@ -3891,7 +3964,8 @@
           node = node.parentNode;
         }
         var scroller = pxChartHost.querySelector(".px-scroll");
-        if (!scroller || !scroller.contains(ev.target)) return;
+        var onLayer = ev.target.classList && ev.target.classList.contains("px-pinch-layer");
+        if (!scroller || (!scroller.contains(ev.target) && !onLayer)) return;
         plotPress = { x: ev.clientX, y: ev.clientY, id: ev.pointerId, panning: false };
       });
       pxChartHost.addEventListener("pointermove", function (ev) {
@@ -3931,9 +4005,27 @@
       pxChartHost.addEventListener("pointerup", function (ev) {
         if (!plotPress || plotPress.id !== ev.pointerId) return;
         var panned = plotPress.panning;
+        var x0 = plotPress.x;
+        var y0 = plotPress.y;
         plotPress = null;
-        if (!panned) return;
-        setTimeout(function () { pxTouchZoom = false; }, 400);
+        if (panned) {
+          setTimeout(function () { pxTouchZoom = false; }, 400);
+          return;
+        }
+        if (!pxPlotTap) return;
+        if (!(ev.target.classList && ev.target.classList.contains("px-pinch-layer"))) return;
+        var dx = ev.clientX - x0;
+        var dy = ev.clientY - y0;
+        if (dx * dx + dy * dy > 36) return;
+        pxPlotTap(ev.clientX);
+      });
+      pxChartHost.addEventListener("mousemove", function (ev) {
+        if (!pxPlotHover) return;
+        if (!(ev.target.classList && ev.target.classList.contains("px-pinch-layer"))) return;
+        pxPlotHover(ev.clientX);
+      });
+      pxChartHost.addEventListener("mouseleave", function () {
+        if (pxPlotLeave) pxPlotLeave();
       });
       pxChartHost.addEventListener("pointercancel", function () {
         plotPress = null;

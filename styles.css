@@ -889,6 +889,12 @@ table.sheet tr.ladder-sell td { background: #fffafa; }
 .px-cal-grid button.edge,
 .px-cal-grid button.edge:hover { background: var(--blue); color: #fff; }
 .px-chart { min-width: 0; position: relative; touch-action: pan-y; }
+.px-pinch-layer {
+  position: absolute;
+  z-index: 3;
+  touch-action: pan-y;
+  background: transparent;
+}
 .px-tip {
   position: absolute;
   z-index: 4;
