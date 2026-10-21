@@ -23,6 +23,7 @@
   var firstSyncDone = false;
   var autoFillTimer = null;
   var autoFillBusy = false;
+  var fillAsOf = "";
 
   function bookOf(s) {
     return {
@@ -435,6 +436,7 @@
 
   function selectAccount(id) {
     if (id !== "1" && id !== "2") return;
+    fillAsOf = "";
     attachAccounts(state);
     var sameBook = state.accountId === id;
     if (sameBook && state.view === id) return;
@@ -1301,6 +1303,13 @@
     });
   }
 
+  function suggestOpts() {
+    var opts = {};
+    if (fillAsOf) opts.fillAsOf = fillAsOf;
+    else if (state && !state.autoFill && state.market && state.market.closeDate) opts.fillAsOf = state.market.closeDate;
+    return opts;
+  }
+
   function render() {
     if (repairCopiedClose()) {
       persist();
@@ -1310,7 +1319,7 @@
     if (appEl) appEl.classList.toggle("esc-view", isEscapeView());
     if (isEscapeView()) renderEscapePanels();
     var src = displaySrc();
-    var out = E.compute(src);
+    var out = E.compute(src, suggestOpts());
     if (isEscapeView()) {
       out.I19 = "";
       out.H19 = "";
@@ -1699,26 +1708,32 @@
     var date = state.market.closeDate;
     document.getElementById("btn-fill-ud").disabled = !ud.type;
     document.getElementById("btn-fill-tt").disabled = !tt.type;
-    document.getElementById("sug-ud").innerHTML = sugHtml("업다운", ud, ud.date || date);
-    document.getElementById("sug-tt").innerHTML = sugHtml("떨사오팔", tt, tt.date || date);
+    document.getElementById("sug-ud").innerHTML = sugHtml("업다운", ud, ud.date || date, "ud");
+    document.getElementById("sug-tt").innerHTML = sugHtml("떨사오팔", tt, tt.date || date, "tt");
     var canMove = out.C54 !== "" && out.C54 != null;
     document.getElementById("v-C54").textContent = canMove ? "랭크 " + out.C54 : "";
     document.getElementById("v-B54").textContent = canMove ? state.market.closeDate : "";
     document.getElementById("btn-transfer").disabled = !canMove;
   }
 
-  function sugHtml(title, sug, date) {
+  function sugDateSpan(side, date) {
+    if (!date) return "";
+    return "<span class='sug-date' data-sug='" + side + "'>" + date + "</span>";
+  }
+
+  function sugHtml(title, sug, date, side) {
+    var when = sugDateSpan(side, date);
     if (!sug.type) {
-      return "<div class='note'>" + title + " 제안 없음. " + (sug.reason || "") + "</div>";
+      return "<div class='note'>" + when + (when ? " " : "") + title + " 제안 없음. " + (sug.reason || "") + "</div>";
     }
     var who = sug.pot != null ? "포트 " + sug.pot : "랭크 " + sug.rank;
     return (
       "<div class='loc-data'>" +
       "<div class='loc-data-top'><strong>" +
       sug.type +
-      "</strong><span>" +
-      date +
-      "</span></div>" +
+      "</strong>" +
+      when +
+      "</div>" +
       "<div class='loc-data-amt " +
       (sug.type === "매도" ? "neg" : "pos") +
       "'>" +
@@ -1826,6 +1841,7 @@
       return null;
     }
     s = s.replace(/[$,주원%]/g, "").replace(/,/g, "").trim();
+    if (key === "pnl" && (!s || s === "—" || s === "-")) return "";
     var n = parseFloat(s);
     if (!isFinite(n)) return null;
     if (key === "qty" || key === "holdQty" || key === "pot" || key === "rank") return Math.round(n);
@@ -1888,6 +1904,9 @@
     } else {
       t[key] = val;
     }
+    if (key !== "pnl" && key !== "pot" && key !== "holdQty") {
+      E.recomputeFromEdit(list, t, side === "tt" ? "tt" : "ud", (state.settings && state.settings.fee) || 0, key);
+    }
     persist({ noUndo: true });
     toast("일지 수정");
   }
@@ -1927,7 +1946,7 @@
       el = document.createElement("input");
       el.type = kind === "date" ? "date" : "text";
       el.inputMode = kind === "date" ? "text" : "decimal";
-      el.value = kind === "date" ? cur : cur.replace(/[$,주]/g, "").trim();
+      el.value = kind === "date" ? cur : cur.replace(/[$,주—]/g, "").trim();
     }
     el.className = "log-edit-in";
     el.setAttribute("data-side", side);
@@ -1958,6 +1977,51 @@
   }
 
   var lastLogTap = { t: 0, el: null };
+  function startSugDateEdit(span) {
+    if (!span || span.querySelector("input")) return;
+    var cur = span.textContent.trim();
+    var input = document.createElement("input");
+    input.type = "date";
+    input.className = "log-edit-in";
+    input.value = /^\d{4}-\d{2}-\d{2}$/.test(cur) ? cur : state.market.closeDate || "";
+    span.textContent = "";
+    span.appendChild(input);
+    input.focus();
+    function done(save) {
+      if (input.getAttribute("data-done") === "1") return;
+      input.setAttribute("data-done", "1");
+      if (save) fillAsOf = input.value || "";
+      render();
+    }
+    input.addEventListener("keydown", function (ev) {
+      if (ev.key === "Enter") {
+        ev.preventDefault();
+        done(true);
+      }
+      if (ev.key === "Escape") {
+        ev.preventDefault();
+        done(false);
+      }
+    });
+    input.addEventListener("change", function () {
+      done(true);
+    });
+    input.addEventListener("blur", function () {
+      setTimeout(function () {
+        if (document.activeElement !== input) done(true);
+      }, 0);
+    });
+  }
+
+  function onSugDateEvent(ev) {
+    var span = ev.target.closest ? ev.target.closest(".sug-date") : null;
+    if (!span) return;
+    if (ev.type === "dblclick") {
+      ev.preventDefault();
+      startSugDateEdit(span);
+    }
+  }
+
   function onJournalLogEvent(ev) {
     if (ev.target.closest && ev.target.closest(".log-del")) return;
     var span = ev.target.closest ? ev.target.closest(".log-edit") : null;
@@ -2023,7 +2087,7 @@
             logEdit("ud", idx, "qty", t.qty + "주", "num"),
             "<span>보유 " + logEdit("ud", idx, "holdQty", String(hold), "num") + "</span>",
             logEdit("ud", idx, "avg", avg, "num"),
-            "<span>" + logPnl(t.pnl) + "</span>",
+            logEdit("ud", idx, "pnl", logPnl(t.pnl), "pnl"),
           ],
           "data-ud",
           idx,
@@ -2090,7 +2154,7 @@
             logEdit("tt", idx, "qty", t.qty + "주", "num"),
             "<span>보유 " + hold + "</span>",
             "<span>" + avg + "</span>",
-            "<span>" + logPnl(t.pnl) + "</span>",
+            logEdit("tt", idx, "pnl", logPnl(t.pnl), "pnl"),
           ],
           "data-tt",
           idx,
@@ -2146,6 +2210,7 @@
     var turnedOn = autoFill && !state.autoFill;
     if (!!state.autoFill !== autoFill) state.barRev = Date.now();
     state.autoFill = autoFill;
+    if (autoFill) fillAsOf = "";
     scheduleAutoFill();
     if (turnedOn) maybeCatchUpAutoFill();
   }
@@ -2363,7 +2428,7 @@
     var swescUd = document.getElementById("btn-swesc-fill-ud");
     if (swescUd) swescUd.onclick = function () { applyEscapeFill(); };
     document.getElementById("btn-fill-ud").onclick = function () {
-      var r = E.applySuggested(state, "ud");
+      var r = E.applySuggested(state, "ud", suggestOpts());
       maybeAutoTransfer();
       persist();
       toast(r.ok ? "업다운 " + r.trade.type + " 반영 · " + (r.trade.date || "") : r.reason);
@@ -2373,7 +2438,7 @@
         toast("탈출 업다운에는 떨이 없습니다");
         return;
       }
-      var r = E.applySuggested(state, "tteol");
+      var r = E.applySuggested(state, "tteol", suggestOpts());
       maybeAutoTransfer();
       persist();
       toast(r.ok ? "떨사오팔 " + r.trade.type + " 반영 · " + (r.trade.date || "") : r.reason);
@@ -2391,6 +2456,8 @@
     document.getElementById("ud-log").addEventListener("touchend", onJournalLogEvent, { passive: false });
     document.getElementById("tt-log").ondblclick = onJournalLogEvent;
     document.getElementById("tt-log").addEventListener("touchend", onJournalLogEvent, { passive: false });
+    document.getElementById("sug-ud").ondblclick = onSugDateEvent;
+    document.getElementById("sug-tt").ondblclick = onSugDateEvent;
     document.getElementById("ud-log").onclick = function (ev) {
       var i = ev.target.getAttribute("data-ud");
       if (i == null) return;

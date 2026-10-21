@@ -622,6 +622,8 @@ table.sheet tr.ladder-sell td { background: #fffafa; }
 .log-dot { color: var(--muted); font-weight: 500; }
 .log-del { flex: 0 0 auto; padding: 4px 8px; font-size: 12px; }
 .log-edit { cursor: text; border-radius: 4px; }
+.sug-date { cursor: text; border-radius: 4px; padding: 0 2px; }
+.sug-date:hover { background: rgba(37, 99, 235, 0.08); }
 .log-edit:hover { background: rgba(37, 99, 235, 0.08); }
 .log-edit-in {
   width: 4.6em;

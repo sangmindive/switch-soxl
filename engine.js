@@ -497,8 +497,8 @@
     var suggestedUd = { type: "" };
     var suggestedTt = { type: "" };
     if (!(opts && opts.skipSuggest)) {
-      suggestedUd = suggestFromPending(state, "ud");
-      suggestedTt = suggestFromPending(state, "tteol");
+      suggestedUd = suggestFromPending(state, "ud", opts);
+      suggestedTt = suggestFromPending(state, "tteol", opts);
     }
 
     return {
@@ -653,7 +653,50 @@
     return null;
   }
 
-  function suggestFromPending(state, which) {
+  function sessionForDate(state, date) {
+    var m = state.market || {};
+    var prices = closePriceMap(m);
+    var px = prices[date];
+    if (!(isFiniteNumber(px) && px > 0) && date === m.closeDate) px = Number(m.lastClose);
+    var prevD = previousTradingDate(date);
+    var prevPx = prices[prevD];
+    if (!(isFiniteNumber(prevPx) && prevPx > 0) && date === m.closeDate) prevPx = Number(m.prevClose);
+    if (!(isFiniteNumber(px) && px > 0)) return { date: date, missing: true };
+    if (!(isFiniteNumber(prevPx) && prevPx > 0)) prevPx = px;
+    return {
+      date: date,
+      lastClose: px,
+      prevClose: prevPx,
+      isPast: date !== m.closeDate,
+    };
+  }
+
+  function suggestForSession(state, which, session) {
+    if (!session || !session.date) return { type: "", reason: "날짜 없음", date: "" };
+    if (session.missing) return { type: "", reason: "해당 날짜 종가 없음", date: session.date };
+    var virt = clone(state);
+    virt.market = Object.assign({}, state.market, {
+      closeDate: session.date,
+      tradeDate: session.date,
+      lastClose: session.lastClose,
+      prevClose: session.prevClose,
+      phase: "POST_MKT",
+    });
+    if (which === "tteol") {
+      virt.updownTrades = (virt.updownTrades || []).filter(function (t) {
+        return t.date !== session.date;
+      });
+    }
+    var d = compute(virt, { skipSuggest: true });
+    var sug = which === "tteol" ? suggestTteol(virt, d) : suggestUpdown(virt, d);
+    if (!sug) sug = { type: "", reason: "체결 없음" };
+    sug.date = session.date;
+    return sug;
+  }
+
+  function suggestFromPending(state, which, opts) {
+    var asOf = opts && opts.fillAsOf;
+    if (asOf) return suggestForSession(state, which, sessionForDate(state, asOf));
     var after = "";
     var lastEmpty = null;
     for (var n = 0; n < 40; n++) {
@@ -883,8 +926,97 @@
     return max + 1;
   }
 
-  function applySuggested(state, which) {
-    var out = compute(state);
+  function oldestFirstTrades(trades) {
+    return (trades || []).slice().sort(function (a, b) {
+      if ((a.date || "") !== (b.date || "")) return a.date < b.date ? -1 : 1;
+      return (a.seq || 0) - (b.seq || 0);
+    });
+  }
+
+  function recomputeFromEdit(trades, edited, side, feeRate, key) {
+    if (!edited) return;
+    var rate = Number(feeRate) || 0;
+    var keepAvg = key === "avg";
+    if (side === "tt") {
+      edited.amount = (Number(edited.price) || 0) * (Number(edited.qty) || 0);
+      edited.fee = excelRoundDown(edited.amount * rate, 2);
+      if (edited.type === "매수") edited.pnl = "";
+      var byRank = {};
+      oldestFirstTrades(trades).forEach(function (t) {
+        if (t.type === "매수") {
+          byRank[t.rank] = t;
+          return;
+        }
+        if (t.type !== "매도") return;
+        var buy = byRank[t.rank];
+        if (buy && (t === edited || buy === edited)) {
+          var amount = t === edited ? edited.amount : t.amount != null && t.amount !== "" ? Number(t.amount) : (Number(t.price) || 0) * (Number(t.qty) || 0);
+          var fee = Number(t.fee) || 0;
+          t.pnl = amount - tteolBuyCost(buy) - ((Number(buy.fee) || 0) + fee + secFee(amount));
+        }
+        delete byRank[t.rank];
+      });
+      return;
+    }
+    var rows = oldestFirstTrades(trades);
+    var start = 0;
+    for (var i = 0; i < rows.length; i++) {
+      if (rows[i] === edited) {
+        start = i;
+        break;
+      }
+    }
+    var hold = 0;
+    var avg = 0;
+    var cost = 0;
+    if (start > 0) {
+      var prev = rows[start - 1];
+      hold = Number(prev.holdQty) || 0;
+      avg = Number(prev.avg) || 0;
+      cost = prev.cost != null && prev.cost !== "" ? Number(prev.cost) : avg * hold;
+    }
+    for (var j = start; j < rows.length; j++) {
+      var t = rows[j];
+      var qty = Number(t.qty) || 0;
+      var price = Number(t.price) || 0;
+      var isBuy = t.type === "매수" || t.type === "떨";
+      if (t === edited) {
+        t.amount = price * qty;
+        t.fee = excelRoundDown(t.amount * rate, 2);
+      }
+      var amount = t.amount != null && t.amount !== "" ? Number(t.amount) : price * qty;
+      var fee = Number(t.fee) || 0;
+      if (isBuy) {
+        hold += qty;
+        cost += amount;
+        if (t === edited && keepAvg) {
+          avg = Number(t.avg) || 0;
+          cost = avg * hold;
+        } else {
+          avg = hold ? cost / hold : 0;
+          t.avg = avg;
+        }
+        t.holdQty = hold;
+        t.cost = cost;
+        if (t === edited) t.pnl = "";
+      } else if (t.type === "매도") {
+        var useAvg = t === edited && keepAvg ? Number(t.avg) || 0 : avg;
+        var sec = secFee(amount);
+        var buySide = excelRoundUp(useAvg * qty * rate, 2);
+        t.pnl = amount - qty * useAvg - (fee + buySide + sec);
+        hold = hold - qty;
+        if (hold < 0) hold = 0;
+        avg = useAvg;
+        cost = avg * hold;
+        t.holdQty = hold;
+        t.cost = cost;
+        t.avg = avg;
+      }
+    }
+  }
+
+  function applySuggested(state, which, opts) {
+    var out = compute(state, opts);
     var sug = which === "tteol" ? out.suggestedTt : out.suggestedUd;
     if (!sug || !sug.type) return { ok: false, reason: sug && sug.reason ? sug.reason : "체결 없음" };
 
@@ -1095,6 +1227,7 @@
     previousTradingDate: previousTradingDate,
     nextTradingDate: nextTradingDate,
     applySuggested: applySuggested,
+    recomputeFromEdit: recomputeFromEdit,
     transferOneRank: transferOneRank,
     liquidateAll: liquidateAll,
     applyPreset: applyPreset,
