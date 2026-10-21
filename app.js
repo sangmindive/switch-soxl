@@ -1490,6 +1490,10 @@
     var usdEl = document.getElementById("live-usd");
     if (usdEl) {
       var pxNow = Number(m.price);
+      if (m.phase && m.phase !== "REG_MKT") {
+        var closedPx = Number(m.lastClose);
+        if (isFinite(closedPx) && closedPx > 0) pxNow = closedPx;
+      }
       var pxPrev = Number(m.prevClose);
       if (isFinite(pxNow) && pxNow > 0 && isFinite(pxPrev) && pxPrev > 0) {
         var usdChg = pxNow - pxPrev;
@@ -4815,7 +4819,7 @@
   }
 
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("sw.js?v=11", { updateViaCache: "none" }).catch(function () {});
+    navigator.serviceWorker.register("sw.js?v=12", { updateViaCache: "none" }).catch(function () {});
   }
 
   function syncNow() {
