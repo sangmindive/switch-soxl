@@ -17,6 +17,21 @@
   var statsMode = "month";
   var statsYear = 2026;
   var pxSpan = "all";
+  var pxCustomFrom = "";
+  var pxCustomTo = "";
+  var SOXL_CLOSE_FLOOR = "2026-08-18";
+  var SOXL_CLOSE_SEED = {
+    "2026-08-18": 129.1, "2026-08-19": 120.74, "2026-08-20": 122.21, "2026-08-21": 120.6, "2026-08-24": 111.16,
+    "2026-08-25": 115.67, "2026-08-26": 116.6, "2026-08-27": 123.05, "2026-08-28": 111.34, "2026-08-31": 112.79,
+    "2026-09-01": 105.91, "2026-09-02": 106.35, "2026-09-03": 106.74, "2026-09-04": 117.28, "2026-09-08": 123.27,
+    "2026-09-09": 125.87, "2026-09-10": 115.76, "2026-09-11": 121.82, "2026-09-14": 101.13, "2026-09-15": 102.32,
+    "2026-09-16": 103.97, "2026-09-17": 114.82, "2026-09-18": 123.67, "2026-09-21": 141.93, "2026-09-22": 151.95,
+    "2026-09-23": 146.25, "2026-09-24": 146.33, "2026-09-25": 151.45, "2026-09-28": 142.29, "2026-09-29": 147,
+    "2026-09-30": 147.86, "2026-10-01": 153.69, "2026-10-02": 163.71, "2026-10-05": 164.27, "2026-10-06": 164.26,
+    "2026-10-07": 158.91, "2026-10-08": 142.52, "2026-10-09": 139.76, "2026-10-12": 128.4, "2026-10-13": 127.57,
+    "2026-10-14": 110.54, "2026-10-15": 107.35, "2026-10-16": 93.67, "2026-10-19": 98.65, "2026-10-20": 97.55,
+    "2026-10-21": 104.69
+  };
   var pxStickRight = true;
   var pxScrollLeft = 0;
   var pxChartSig = "";
@@ -1321,6 +1336,10 @@
       persist();
       return;
     }
+    if (backfillCloseSeed()) {
+      persist({ noUndo: true });
+      return;
+    }
     var appEl = document.querySelector(".app");
     if (appEl) appEl.classList.toggle("esc-view", isEscapeView());
     if (isEscapeView()) renderEscapePanels();
@@ -1643,6 +1662,9 @@
     if (market.closeDate && liveClose != null && liveClose > 0 && closeMap[market.closeDate] == null) {
       closeMap[market.closeDate] = liveClose;
     }
+    Object.keys(SOXL_CLOSE_SEED).forEach(function (d) {
+      if (closeMap[d] == null) closeMap[d] = SOXL_CLOSE_SEED[d];
+    });
 
     var tradeDates = snaps.map(function (s) {
       return s.date;
@@ -1655,7 +1677,8 @@
     var lastTrade = tradeDates.length ? tradeDates[tradeDates.length - 1] : "";
     var closeDates = Object.keys(closeMap).sort();
     var lastCloseDate = closeDates.length ? closeDates[closeDates.length - 1] : "";
-    var start = firstTrade ? isoAddDays(firstTrade, -10) : closeDates.length > 60 ? closeDates[closeDates.length - 60] : closeDates[0] || "";
+    var start = SOXL_CLOSE_FLOOR;
+    if (closeDates.length && closeDates[0] < start) start = closeDates[0];
     var end = lastCloseDate > lastTrade ? lastCloseDate : lastTrade || lastCloseDate;
     if (!start || !end) return { dates: [], closes: {}, avg: {}, markers: [], fillFallback: false };
 
@@ -1683,17 +1706,25 @@
     }
 
     var avg = {};
+    var prevAvg = {};
+    var cost = {};
     var snapIdx = -1;
+    var lastAvg = null;
     dates.forEach(function (d) {
       while (snapIdx + 1 < snaps.length && snaps[snapIdx + 1].date <= d) snapIdx++;
       var snap = snapIdx >= 0 ? snaps[snapIdx] : null;
-      if (snap && snap.hold > 0) avg[d] = snap.cost / snap.hold;
+      prevAvg[d] = lastAvg;
+      if (snap && snap.hold > 0) {
+        avg[d] = snap.cost / snap.hold;
+        cost[d] = snap.cost;
+        lastAvg = avg[d];
+      }
     });
 
     markers = markers.filter(function (m) {
       return m.date >= start && m.date <= end;
     });
-    return { dates: dates, closes: closes, avg: avg, markers: markers, fillFallback: fillFallback && dates.length > 0 };
+    return { dates: dates, closes: closes, avg: avg, prevAvg: prevAvg, cost: cost, markers: markers, fillFallback: fillFallback && dates.length > 0 };
   }
 
   function dotDate(iso) {
@@ -1710,10 +1741,48 @@
     return Math.max(280, Math.min(1040, window.innerWidth - 64));
   }
 
+  function shortDot(iso) {
+    iso = String(iso || "");
+    if (iso.length < 10) return "";
+    return iso.slice(2, 4) + "." + iso.slice(5, 7) + "." + iso.slice(8, 10);
+  }
+
+  function parseDotDate(s) {
+    var p = String(s || "").trim().split(".");
+    if (p.length !== 3) return "";
+    var y = p[0];
+    var m = p[1];
+    var d = p[2];
+    if (y.length === 2) y = String(2000 + Number(y));
+    if (!/^\d{4}$/.test(y) || !/^\d{2}$/.test(m) || !/^\d{2}$/.test(d)) return "";
+    var iso = y + "-" + m + "-" + d;
+    var dt = new Date(iso + "T00:00:00Z");
+    if (isNaN(dt.getTime())) return "";
+    if (dt.getUTCFullYear() !== Number(y) || dt.getUTCMonth() + 1 !== Number(m) || dt.getUTCDate() !== Number(d)) return "";
+    return iso;
+  }
+
+  function formatDotInput(raw) {
+    var digits = String(raw || "").replace(/\D/g, "").slice(0, 6);
+    var out = digits.slice(0, 2);
+    if (digits.length > 2) out += "." + digits.slice(2, 4);
+    if (digits.length > 4) out += "." + digits.slice(4, 6);
+    return out;
+  }
+
+  function tipDate(iso) {
+    var p = String(iso || "").split("-");
+    if (p.length < 3) return iso || "";
+    return Number(p[1]) + "." + p[2];
+  }
+
   function chartWindow(dates, span) {
     var end = dates[dates.length - 1];
     var start = dates[0];
-    if (span !== "all") {
+    if (span === "custom" && pxCustomFrom && pxCustomTo) {
+      start = pxCustomFrom < pxCustomTo ? pxCustomFrom : pxCustomTo;
+      end = pxCustomFrom < pxCustomTo ? pxCustomTo : pxCustomFrom;
+    } else if (span !== "all" && span !== "custom") {
       var cut = isoAddDays(end, -(parseInt(span, 10) - 1));
       if (cut > start) start = cut;
     }
@@ -1732,6 +1801,27 @@
     document.querySelectorAll("#px-range button").forEach(function (b) {
       b.classList.toggle("active", b.dataset.span === String(pxSpan));
     });
+    var custom = document.getElementById("px-custom");
+    if (custom) custom.classList.toggle("active", pxSpan === "custom");
+  }
+
+  function backfillCloseSeed() {
+    state.closeDb = state.closeDb || [];
+    var have = {};
+    state.closeDb.forEach(function (r) {
+      if (r && r.date) have[r.date] = true;
+    });
+    var changed = false;
+    Object.keys(SOXL_CLOSE_SEED).forEach(function (d) {
+      if (have[d]) return;
+      state.closeDb.push({ date: d, close: SOXL_CLOSE_SEED[d] });
+      changed = true;
+    });
+    if (!changed) return false;
+    state.closeDb.sort(function (a, b) {
+      return a.date < b.date ? 1 : -1;
+    });
+    return true;
   }
 
   function renderPriceChart() {
@@ -1798,7 +1888,7 @@
     maxY += span * 0.18;
     span = maxY - minY;
 
-    var sigParts = [pxSpan, String(plotW), win.start, win.end, model.fillFallback ? "1" : "0"];
+    var sigParts = [pxSpan, pxCustomFrom, pxCustomTo, String(plotW), win.start, win.end, model.fillFallback ? "1" : "0"];
     dates.forEach(function (d) {
       var c = model.closes[d];
       var a = model.avg[d];
@@ -1950,6 +2040,7 @@
           if (labelY > H - 40) labelY = H - 40;
           if (label && hits({ x: labelX, y: labelY, w: labelW })) label = "";
           if (label) placed.push({ x: labelX, y: labelY, w: labelW });
+          var color = up ? "#ef4444" : "#2563eb";
           var tri = up ? "0,-9 5.2,-1.5 -5.2,-1.5" : "0,9 5.2,1.5 -5.2,1.5";
           var tip = m.date + (up ? " 매도 수익 " : " 매도 손절 ") + (label || "") + " " + money(m.pnl);
           plot.push("<g>");
@@ -1961,7 +2052,9 @@
               x.toFixed(2) +
               " " +
               y.toFixed(2) +
-              ")' fill='#ef4444'/>"
+              ")' fill='" +
+              color +
+              "'/>"
           );
           if (label) {
             plot.push(
@@ -1969,7 +2062,9 @@
                 labelX.toFixed(2) +
                 "' y='" +
                 labelY.toFixed(2) +
-                "' text-anchor='middle' fill='#ef4444' font-size='9' font-weight='700' font-family='Pretendard, sans-serif'>" +
+                "' text-anchor='middle' fill='" +
+                color +
+                "' font-size='9' font-weight='700' font-family='Pretendard, sans-serif'>" +
                 xmlEsc(label) +
                 "</text>"
             );
@@ -2006,6 +2101,14 @@
           "</text>"
       );
     });
+    plot.push(
+      "<line class='px-guide' x1='0' y1='" +
+        plotT +
+        "' x2='0' y2='" +
+        plotB +
+        "' stroke='#9ca3af' stroke-dasharray='3 3' stroke-width='1' visibility='hidden'/>"
+    );
+    plot.push("<circle class='px-guide-dot' r='4.5' fill='#fff' stroke='#111827' stroke-width='1.6' visibility='hidden'/>");
     plot.push("</svg>");
 
     var html = [];
@@ -2019,6 +2122,7 @@
     );
     html.push("<div class='px-brush-track'></div><div class='px-brush-win'></div></div>");
     html.push("</div>");
+    html.push("<div class='px-tip' hidden></div>");
     html.push("<p class='note px-span-note'></p>");
     if (model.fillFallback) html.push("<p class='note'>종가 기록이 없어 체결 단가로 이었습니다.</p>");
     host.innerHTML = html.join("");
@@ -2027,6 +2131,70 @@
     var brush = host.querySelector(".px-brush");
     var thumb = host.querySelector(".px-brush-win");
     var note = host.querySelector(".px-span-note");
+    var guide = host.querySelector(".px-guide");
+    var guideDot = host.querySelector(".px-guide-dot");
+    var tip = host.querySelector(".px-tip");
+    var hoverDate = "";
+
+    function tipRow(k, v, cls) {
+      return "<div class='px-tip-row'><span>" + xmlEsc(k) + "</span><b class='" + (cls || "") + "'>" + xmlEsc(v) + "</b></div>";
+    }
+
+    function hideTip() {
+      hoverDate = "";
+      if (guide) guide.setAttribute("visibility", "hidden");
+      if (guideDot) guideDot.setAttribute("visibility", "hidden");
+      if (tip) tip.hidden = true;
+    }
+
+    function showTip(date) {
+      if (!date || indexOf[date] == null) return hideTip();
+      hoverDate = date;
+      var x = xOf(indexOf[date]);
+      if (guide) {
+        guide.setAttribute("x1", x.toFixed(2));
+        guide.setAttribute("x2", x.toFixed(2));
+        guide.setAttribute("visibility", "visible");
+      }
+      var close = model.closes[date];
+      if (guideDot && close != null) {
+        guideDot.setAttribute("cx", x.toFixed(2));
+        guideDot.setAttribute("cy", yOf(close).toFixed(2));
+        guideDot.setAttribute("visibility", "visible");
+      } else if (guideDot) {
+        guideDot.setAttribute("visibility", "hidden");
+      }
+      if (!tip) return;
+      var rows = ["<div class='px-tip-date'>" + xmlEsc(tipDate(date)) + "</div>"];
+      if (close != null) rows.push(tipRow("종가", usd(close)));
+      var avgNow = model.avg[date];
+      var avgBefore = model.prevAvg[date];
+      if (avgNow != null) {
+        var avgText =
+          avgBefore != null && Math.abs(avgBefore - avgNow) >= 0.005 ? usd(avgBefore) + " → " + usd(avgNow) : usd(avgNow);
+        rows.push(tipRow("평단", avgText));
+      }
+      if (model.cost[date] != null) rows.push(tipRow("투입원금", usd(model.cost[date], 0)));
+      markerList.forEach(function (m) {
+        if (m.date !== date) return;
+        var gain = m.pnl > 0;
+        var body = (gain ? "+" : "") + usd(m.pnl);
+        var pctText = markerLabel(m.pct);
+        if (pctText) body += "  " + pctText;
+        rows.push(tipRow(gain ? "매도 수익" : "매도 손절", body, gain ? "up" : "down"));
+      });
+      tip.innerHTML = rows.join("");
+      tip.hidden = false;
+      var hostRect = host.getBoundingClientRect();
+      var plotRect = scroller.getBoundingClientRect();
+      var localX = plotRect.left - hostRect.left + (x - scroller.scrollLeft);
+      var tipW = tip.offsetWidth || 176;
+      var left = localX + 16;
+      if (left + tipW > host.clientWidth - 6) left = localX - tipW - 16;
+      if (left < 4) left = 4;
+      tip.style.left = left + "px";
+      tip.style.top = "8px";
+    }
 
     function dateAt(px) {
       if (n <= 1) return dates[0];
@@ -2078,7 +2246,13 @@
       if (max > 2) pxStickRight = pxScrollLeft >= max - 8;
       placeThumb();
       paintNote();
+      if (hoverDate) showTip(hoverDate);
     }, { passive: true });
+    scroller.addEventListener("mousemove", function (ev) {
+      var rect = scroller.getBoundingClientRect();
+      showTip(dateAt(ev.clientX - rect.left + scroller.scrollLeft));
+    });
+    scroller.addEventListener("mouseleave", hideTip);
     scroller.addEventListener("keydown", function (ev) {
       var step = Math.max(48, Math.round(scroller.clientWidth * 0.4));
       if (ev.key === "ArrowRight") {
@@ -2938,6 +3112,29 @@
         renderPriceChart();
       };
     });
+    var pxFrom = document.getElementById("px-from");
+    var pxTo = document.getElementById("px-to");
+    function applyCustomRange() {
+      var a = parseDotDate(pxFrom && pxFrom.value);
+      var b = parseDotDate(pxTo && pxTo.value);
+      if (!a || !b) return;
+      pxSpan = "custom";
+      pxCustomFrom = a < b ? a : b;
+      pxCustomTo = a < b ? b : a;
+      pxStickRight = true;
+      renderPriceChart();
+    }
+    function onDotInput(el) {
+      var next = formatDotInput(el.value);
+      if (el.value !== next) el.value = next;
+      if (pxFrom.value.length === 8 && pxTo.value.length === 8) applyCustomRange();
+    }
+    if (pxFrom && pxTo) {
+      pxFrom.addEventListener("input", function () { onDotInput(pxFrom); });
+      pxTo.addEventListener("input", function () { onDotInput(pxTo); });
+      pxFrom.addEventListener("change", applyCustomRange);
+      pxTo.addEventListener("change", applyCustomRange);
+    }
     window.addEventListener("resize", function () {
       if (tab !== "stats") return;
       clearTimeout(pxResizeTimer);

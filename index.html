@@ -13,7 +13,7 @@
   <link rel="apple-touch-icon" href="icon-192.png" />
   <link rel="icon" href="icon-192.png" />
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
-  <link rel="stylesheet" href="styles.css?v=20261022d" />
+  <link rel="stylesheet" href="styles.css?v=20261022e" />
 </head>
 <body>
   <div class="app">
@@ -220,12 +220,17 @@
           <button type="button" data-span="180">6개월</button>
           <button type="button" data-span="365">1년</button>
           <button type="button" data-span="all" class="active">전체</button>
+          <label class="px-custom" id="px-custom">
+            <input id="px-from" type="text" inputmode="numeric" maxlength="8" placeholder="26.08.18" aria-label="시작일" value="26.08.18" />
+            <span>~</span>
+            <input id="px-to" type="text" inputmode="numeric" maxlength="8" placeholder="26.10.21" aria-label="종료일" value="26.10.21" />
+          </label>
         </div>
         <div class="px-legend">
           <span><i class="px-line"></i>종가</span>
           <span><i class="px-line avg"></i>평단</span>
-          <span><i class="px-mark">▲</i>매도 수익</span>
-          <span><i class="px-mark">▼</i>매도 손절</span>
+          <span><i class="px-mark up">▲</i>매도 수익</span>
+          <span><i class="px-mark down">▼</i>매도 손절</span>
         </div>
         <div class="px-chart" id="st-px-chart"></div>
       </article>
@@ -583,6 +588,6 @@
   </div>
   <script src="engine.js?v=20261021e"></script>
   <script src="seed.js?v=20260924c"></script>
-  <script src="app.js?v=20261022d"></script>
+  <script src="app.js?v=20261022e"></script>
 </body>
 </html>
