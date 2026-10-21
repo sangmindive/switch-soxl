@@ -1539,6 +1539,8 @@
     fillText("v-F19", out.F19 === "" ? "" : money(out.F19));
     fillText("v-H19", out.H19 === "" ? "" : out.H19);
     fillText("v-I19", out.I19 === "" ? "" : money(out.I19));
+    fillText("v-comb-avg", out.holdQty ? money(out.combAvg, 2) : "—");
+    fillText("v-lp", money(out.D19));
     fillText("v-ud-avg", out.C13 ? money(out.avg, 4) : "—");
     fillText("v-ud-eval", out.C13 ? money(out.udEval) : "—");
     var udEvalEl = document.getElementById("v-ud-eval");
@@ -4800,7 +4802,7 @@
   }
 
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("sw.js?v=9", { updateViaCache: "none" }).catch(function () {});
+    navigator.serviceWorker.register("sw.js?v=10", { updateViaCache: "none" }).catch(function () {});
   }
 
   function syncNow() {

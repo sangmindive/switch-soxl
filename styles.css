@@ -282,9 +282,20 @@ body {
 
 .hero-pnl-row {
   display: flex;
-  align-items: baseline;
+  align-items: flex-start;
+  flex-wrap: wrap;
   gap: 10px;
   margin: 4px 0 2px;
+}
+.home-blend {
+  margin-left: auto;
+  text-align: right;
+}
+.home-blend .k + .v { margin-top: 1px; }
+.home-blend .v + .k { margin-top: 8px; }
+.home-blend .v {
+  font-size: 22px;
+  line-height: 1.1;
 }
 .hero-pnl {
   font-size: 32px;
