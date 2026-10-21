@@ -29,8 +29,7 @@
     "2026-09-23": 146.25, "2026-09-24": 146.33, "2026-09-25": 151.45, "2026-09-28": 142.29, "2026-09-29": 147,
     "2026-09-30": 147.86, "2026-10-01": 153.69, "2026-10-02": 163.71, "2026-10-05": 164.27, "2026-10-06": 164.26,
     "2026-10-07": 158.91, "2026-10-08": 142.52, "2026-10-09": 139.76, "2026-10-12": 128.4, "2026-10-13": 127.57,
-    "2026-10-14": 110.54, "2026-10-15": 107.35, "2026-10-16": 93.67, "2026-10-19": 98.65, "2026-10-20": 97.55,
-    "2026-10-21": 104.69
+    "2026-10-14": 110.54, "2026-10-15": 107.35, "2026-10-16": 93.67, "2026-10-19": 98.65, "2026-10-20": 97.55
   };
   var pxStickRight = true;
   var pxScrollLeft = 0;
@@ -1344,6 +1343,10 @@
       persist();
       return;
     }
+    if (dropOpenSessionCloses()) {
+      persist({ noUndo: true });
+      return;
+    }
     if (backfillCloseSeed()) {
       persist({ noUndo: true });
       return;
@@ -1487,6 +1490,7 @@
     fillText("v-tt-hold", out.I13);
     var ttLast = (state.tteolTrades || [])[0];
     var ttCycle = ttLast && ttLast.cycle != null && ttLast.cycle !== "" ? ttLast.cycle : out.B8;
+    fillText("v-tt-cycle", ttCycle);
     var ttShown = cycleRealized(state.tteolTrades, ttCycle);
     fillText("v-J13", money(out.J13));
     fillText("v-K13", money(ttShown));
@@ -2036,6 +2040,70 @@
     renderPxCal();
   }
 
+  function easternParts(now) {
+    var parts = {};
+    new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/New_York",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23"
+    }).formatToParts(now || new Date()).forEach(function (p) {
+      if (p.type !== "literal") parts[p.type] = p.value;
+    });
+    var hour = Number(parts.hour);
+    if (hour === 24) hour = 0;
+    return {
+      date: parts.year + "-" + parts.month + "-" + parts.day,
+      mins: hour * 60 + Number(parts.minute)
+    };
+  }
+
+  function closeIsFinal(sessionDate, now) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(sessionDate || ""))) return false;
+    var et = easternParts(now);
+    if (sessionDate < et.date) return true;
+    if (sessionDate > et.date) return false;
+    return et.mins >= 16 * 60;
+  }
+
+  function dropOpenSessionCloses() {
+    var changed = false;
+    function keep(row) {
+      if (!row || !row.date) return false;
+      if (closeIsFinal(row.date)) return true;
+      changed = true;
+      return false;
+    }
+    state.closeDb = (state.closeDb || []).filter(keep);
+    var m = state.market;
+    if (m && m.closeHistory) {
+      var before = m.closeHistory.length;
+      m.closeHistory = m.closeHistory.filter(keep);
+      if (m.closeHistory.length !== before) changed = true;
+    }
+    if (m && m.closeDate && !closeIsFinal(m.closeDate)) {
+      var latest = (state.closeDb || [])[0];
+      var prev = (state.closeDb || [])[1];
+      m.closeDate = latest ? latest.date : "";
+      m.tradeDate = m.closeDate;
+      if (latest && isFinite(Number(latest.close))) m.lastClose = Number(latest.close);
+      if (prev && isFinite(Number(prev.close))) {
+        m.prevCloseDate = prev.date;
+        m.prevClose = Number(prev.close);
+      }
+      changed = true;
+    }
+    return changed;
+  }
+
+  function sessionFillReady(sug, fallbackDate) {
+    var d = (sug && sug.date) || fallbackDate || "";
+    return !!(sug && sug.type) && closeIsFinal(d);
+  }
+
   function backfillCloseSeed() {
     state.closeDb = state.closeDb || [];
     var have = {};
@@ -2044,7 +2112,7 @@
     });
     var changed = false;
     Object.keys(SOXL_CLOSE_SEED).forEach(function (d) {
-      if (have[d]) return;
+      if (have[d] || !closeIsFinal(d)) return;
       state.closeDb.push({ date: d, close: SOXL_CLOSE_SEED[d] });
       changed = true;
     });
@@ -2852,8 +2920,8 @@
     var ud = out.suggestedUd || {};
     var tt = out.suggestedTt || {};
     var date = state.market.closeDate;
-    document.getElementById("btn-fill-ud").disabled = !ud.type;
-    document.getElementById("btn-fill-tt").disabled = !tt.type;
+    document.getElementById("btn-fill-ud").disabled = !sessionFillReady(ud, date);
+    document.getElementById("btn-fill-tt").disabled = !sessionFillReady(tt, date);
     document.getElementById("sug-ud").innerHTML = sugHtml("업다운", ud, ud.date || date, "ud");
     document.getElementById("sug-tt").innerHTML = sugHtml("떨사오팔", tt, tt.date || date, "tt");
     var canMove = out.C54 !== "" && out.C54 != null;
@@ -3954,7 +4022,7 @@
   var quoteBusy = false;
 
   function rememberClose(m, date, close) {
-    if (!date || !isFinite(close) || close <= 0) return false;
+    if (!date || !isFinite(close) || close <= 0 || !closeIsFinal(date)) return false;
     m.closeHistory = m.closeHistory || [];
     for (var i = 0; i < m.closeHistory.length; i++) {
       if (m.closeHistory[i].date === date) {
@@ -3973,7 +4041,7 @@
   }
 
   function recordCloseDb(date, close) {
-    if (!date || !isFinite(close) || close <= 0) return false;
+    if (!date || !isFinite(close) || close <= 0 || !closeIsFinal(date)) return false;
     state.closeDb = state.closeDb || [];
     for (var i = 0; i < state.closeDb.length; i++) {
       if (state.closeDb[i].date === date) {
@@ -4125,6 +4193,7 @@
       q.phase &&
       q.phase !== "REG_MKT" &&
       q.sessionDate &&
+      closeIsFinal(q.sessionDate) &&
       isFinite(q.lastClose) &&
       q.lastClose > 0;
     if (canRollClose) {
@@ -4171,11 +4240,11 @@
         }
       }
     }
-    if (q.phase && q.phase !== "REG_MKT" && isFinite(q.lastClose) && q.lastClose > 0 && !near(state.market.lastClose, q.lastClose, 1e-6)) {
+    if (q.phase && q.phase !== "REG_MKT" && closeIsFinal(q.sessionDate) && isFinite(q.lastClose) && q.lastClose > 0 && !near(state.market.lastClose, q.lastClose, 1e-6)) {
       state.market.lastClose = q.lastClose;
       closeDirty = true;
     }
-    if (q.phase && q.phase !== "REG_MKT" && q.sessionDate && isFinite(q.lastClose) && q.lastClose > 0) {
+    if (q.phase && q.phase !== "REG_MKT" && closeIsFinal(q.sessionDate) && isFinite(q.lastClose) && q.lastClose > 0) {
       if (recordCloseDb(q.sessionDate, q.lastClose)) closeDirty = true;
     }
     if (closeDirty) persist({ keepRev: true });
