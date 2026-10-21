@@ -13,7 +13,7 @@
   <link rel="apple-touch-icon" href="icon-192.png" />
   <link rel="icon" href="icon-192.png" />
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
-  <link rel="stylesheet" href="styles.css?v=20261022r" />
+  <link rel="stylesheet" href="styles.css?v=20261022s" />
 </head>
 <body>
   <div class="app">
@@ -45,7 +45,10 @@
         <div class="quote-live">
           <div>
             <div class="k" id="set-symbol-label">SOXL</div>
-            <div class="hero-quote" id="live-price">—</div>
+            <div class="quote-px-row">
+              <div class="hero-quote" id="live-price">—</div>
+              <div class="hero-quote" id="live-usd">—</div>
+            </div>
           </div>
           <div class="quote-chg">
             <div class="k">등락률</div>
@@ -56,12 +59,6 @@
         <div class="hero-pnl-row">
           <div class="hero-pnl pos" id="home-pnl">—</div>
           <div class="hero-ret pos" id="v-L3"></div>
-          <div class="home-blend">
-            <div class="k">평균 단가</div>
-            <div class="v" id="v-comb-avg">—</div>
-            <div class="k">LP</div>
-            <div class="v" id="v-lp">—</div>
-          </div>
         </div>
         <div id="parity" class="badge ok" style="display:none">정합 확인</div>
         <div class="stats">
@@ -69,6 +66,7 @@
           <div class="stat"><div class="k">매수금</div><div class="v" id="v-seed-used"></div></div>
           <div class="stat"><div class="k">잔금</div><div class="v" id="v-D8"></div></div>
           <div class="stat"><div class="k">총 수량</div><div class="v" id="v-hold-total"></div></div>
+          <div class="stat"><div class="k">평균 단가</div><div class="v" id="v-comb-avg">—</div></div>
         </div>
         <div class="stats home-extra">
           <div class="stat home-extra-bar">
@@ -79,6 +77,7 @@
             </div>
           </div>
           <div class="stat"><div class="k">1일 매수</div><div class="v" id="v-daybuy"></div></div>
+          <div class="stat"><div class="k">LP</div><div class="v" id="v-lp">—</div></div>
         </div>
       </article>
 
@@ -611,6 +610,6 @@
   </div>
   <script src="engine.js?v=20261022n"></script>
   <script src="seed.js?v=20260924c"></script>
-  <script src="app.js?v=20261022r"></script>
+  <script src="app.js?v=20261022s"></script>
 </body>
 </html>

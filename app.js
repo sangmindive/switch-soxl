@@ -1487,6 +1487,19 @@
       chgEl.textContent = pct(m.changePct);
       chgEl.className = "hero-quote " + (m.changePct > 0 ? "pos" : m.changePct < 0 ? "neg" : "");
     }
+    var usdEl = document.getElementById("live-usd");
+    if (usdEl) {
+      var pxNow = Number(m.price);
+      var pxPrev = Number(m.prevClose);
+      if (isFinite(pxNow) && pxNow > 0 && isFinite(pxPrev) && pxPrev > 0) {
+        var usdChg = pxNow - pxPrev;
+        usdEl.textContent = (usdChg > 0 ? "+" : usdChg < 0 ? "-" : "") + money(Math.abs(usdChg));
+        usdEl.className = "hero-quote " + (usdChg > 0 ? "pos" : usdChg < 0 ? "neg" : "");
+      } else {
+        usdEl.textContent = "—";
+        usdEl.className = "hero-quote";
+      }
+    }
     fillText("v-I3", money(out.I3));
     fillText("v-J3", out.J3);
     fillText("v-K3", money(out.K3));
@@ -4802,7 +4815,7 @@
   }
 
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("sw.js?v=10", { updateViaCache: "none" }).catch(function () {});
+    navigator.serviceWorker.register("sw.js?v=11", { updateViaCache: "none" }).catch(function () {});
   }
 
   function syncNow() {
