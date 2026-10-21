@@ -36,6 +36,12 @@
   var pxScrollLeft = 0;
   var pxChartSig = "";
   var pxResizeTimer = null;
+  var pxViewFrom = "";
+  var pxViewTo = "";
+  var pxCalTarget = "";
+  var pxCalMonth = "2026-10";
+  var pxPinnedDate = "";
+  var pxUnpin = null;
   var pushTimer = null;
   var syncing = false;
   var pushQueued = false;
@@ -1568,6 +1574,17 @@
     return body + "%";
   }
 
+  function qtyText(q) {
+    var n = finiteNum(q);
+    if (n == null || n <= 0) return "";
+    var digits = Math.abs(n - Math.round(n)) < 1e-6 ? 0 : 2;
+    return n.toLocaleString("en-US", { maximumFractionDigits: digits }) + "주";
+  }
+
+  function sideLabel(side) {
+    return side === "tt" ? "떨사" : "업다운";
+  }
+
   function priceChartModel() {
     var events = [];
     (state.updownTrades || []).forEach(function (t) {
@@ -1600,16 +1617,19 @@
       if (px != null && px > 0) fillByDate[t.date] = px;
     }
 
-    function pushMarker(t, basis) {
+    function pushMarker(t, basis, side) {
       if (t.type !== "매도") return;
       var pnl = finiteNum(t.pnl);
       if (pnl == null || Math.abs(pnl) < 1) return;
       var base = finiteNum(basis);
+      var qty = finiteNum(t.qty);
       markers.push({
         date: t.date,
         pnl: pnl,
         pct: base && base > 0 ? pnl / base : null,
         price: finiteNum(t.price) || 0,
+        side: side === "tt" ? "tt" : "ud",
+        qty: qty != null && qty > 0 ? qty : 0,
       });
     }
 
@@ -1629,7 +1649,7 @@
         udCost = cost;
         var qty = finiteNum(t.qty) || 0;
         var avg = finiteNum(t.avg) || 0;
-        pushMarker(t, qty * avg);
+        pushMarker(t, qty * avg, "ud");
         return;
       }
       if (t.type === "매수") {
@@ -1641,7 +1661,7 @@
         var lot = byRank[t.rank];
         var basis = lot ? lot.cost : 0;
         delete byRank[t.rank];
-        pushMarker(t, basis);
+        pushMarker(t, basis, "tt");
       }
       ttHold = 0;
       ttCost = 0;
@@ -1680,7 +1700,7 @@
     var start = SOXL_CLOSE_FLOOR;
     if (closeDates.length && closeDates[0] < start) start = closeDates[0];
     var end = lastCloseDate > lastTrade ? lastCloseDate : lastTrade || lastCloseDate;
-    if (!start || !end) return { dates: [], closes: {}, avg: {}, markers: [], fillFallback: false };
+    if (!start || !end) return { dates: [], closes: {}, avg: {}, markers: [], fillFallback: false, cycleEnds: {} };
 
     var dateSet = {};
     closeDates.forEach(function (d) {
@@ -1724,7 +1744,14 @@
     markers = markers.filter(function (m) {
       return m.date >= start && m.date <= end;
     });
-    return { dates: dates, closes: closes, avg: avg, prevAvg: prevAvg, cost: cost, markers: markers, fillFallback: fillFallback && dates.length > 0 };
+    var cycleEnds = {};
+    (state.updownTrades || []).forEach(function (t) {
+      if (!t || t.type !== "매도" || !t.date) return;
+      if (finiteNum(t.holdQty) !== 0) return;
+      if (t.date < start || t.date > end) return;
+      cycleEnds[t.date] = true;
+    });
+    return { dates: dates, closes: closes, avg: avg, prevAvg: prevAvg, cost: cost, markers: markers, cycleEnds: cycleEnds, fillFallback: fillFallback && dates.length > 0 };
   }
 
   function dotDate(iso) {
@@ -1798,11 +1825,100 @@
   }
 
   function syncPxRangeButtons() {
-    document.querySelectorAll("#px-range button").forEach(function (b) {
+    document.querySelectorAll("#px-range > button").forEach(function (b) {
       b.classList.toggle("active", b.dataset.span === String(pxSpan));
     });
     var custom = document.getElementById("px-custom");
     if (custom) custom.classList.toggle("active", pxSpan === "custom");
+  }
+
+  function paintPxDates(start, end) {
+    pxViewFrom = start || "";
+    pxViewTo = end || "";
+    var fromEl = document.getElementById("px-from");
+    var toEl = document.getElementById("px-to");
+    var showFrom = pxSpan === "custom" && pxCustomFrom ? pxCustomFrom : start;
+    var showTo = pxSpan === "custom" && pxCustomTo ? pxCustomTo : end;
+    if (fromEl && showFrom) fromEl.textContent = shortDot(showFrom);
+    if (toEl && showTo) toEl.textContent = shortDot(showTo);
+  }
+
+  function closePxCal() {
+    var cal = document.getElementById("px-cal");
+    if (cal) cal.hidden = true;
+    pxCalTarget = "";
+    var fromEl = document.getElementById("px-from");
+    var toEl = document.getElementById("px-to");
+    if (fromEl) fromEl.classList.remove("open");
+    if (toEl) toEl.classList.remove("open");
+  }
+
+  function renderPxCal() {
+    var grid = document.getElementById("px-cal-grid");
+    var title = document.getElementById("px-cal-title");
+    if (!grid || !title) return;
+    var parts = String(pxCalMonth || "").split("-");
+    var y = Number(parts[0]);
+    var m = Number(parts[1]);
+    if (!y || !m) return;
+    title.textContent = y + "." + (m < 10 ? "0" : "") + m;
+    var first = new Date(Date.UTC(y, m - 1, 1));
+    var startDow = first.getUTCDay();
+    var days = new Date(Date.UTC(y, m, 0)).getUTCDate();
+    var from = pxCustomFrom || pxViewFrom;
+    var to = pxCustomTo || pxViewTo;
+    if (from && to && from > to) {
+      var swap = from;
+      from = to;
+      to = swap;
+    }
+    var html = "";
+    var i;
+    for (i = 0; i < startDow; i++) html += "<span></span>";
+    for (var d = 1; d <= days; d++) {
+      var iso = y + "-" + (m < 10 ? "0" : "") + m + "-" + (d < 10 ? "0" : "") + d;
+      var cls = "";
+      if (from && to && iso >= from && iso <= to) cls = iso === from || iso === to ? "edge" : "in";
+      else if (iso === from || iso === to) cls = "edge";
+      html += "<button type='button' data-date='" + iso + "'" + (cls ? " class='" + cls + "'" : "") + ">" + d + "</button>";
+    }
+    grid.innerHTML = html;
+  }
+
+  function placePxCal(btn) {
+    var wrap = document.querySelector(".px-range-wrap");
+    var cal = document.getElementById("px-cal");
+    if (!wrap || !cal || !btn) return;
+    var br = btn.getBoundingClientRect();
+    var wr = wrap.getBoundingClientRect();
+    var calW = cal.offsetWidth || 280;
+    var left = br.left - wr.left;
+    if (left + calW > wr.width) left = Math.max(0, wr.width - calW);
+    cal.style.left = left + "px";
+    cal.style.top = br.bottom - wr.top + 6 + "px";
+  }
+
+  function openPxCal(which, btn) {
+    pxCalTarget = which;
+    var seed = which === "from" ? pxCustomFrom || pxViewFrom : pxCustomTo || pxViewTo;
+    if (!seed) seed = SOXL_CLOSE_FLOOR;
+    pxCalMonth = String(seed).slice(0, 7);
+    var fromEl = document.getElementById("px-from");
+    var toEl = document.getElementById("px-to");
+    if (fromEl) fromEl.classList.toggle("open", which === "from");
+    if (toEl) toEl.classList.toggle("open", which === "to");
+    var cal = document.getElementById("px-cal");
+    if (cal) cal.hidden = false;
+    renderPxCal();
+    placePxCal(btn);
+  }
+
+  function shiftPxCal(delta) {
+    var parts = String(pxCalMonth || "").split("-");
+    var dt = new Date(Date.UTC(Number(parts[0]), Number(parts[1]) - 1 + delta, 1));
+    var m = dt.getUTCMonth() + 1;
+    pxCalMonth = dt.getUTCFullYear() + "-" + (m < 10 ? "0" : "") + m;
+    renderPxCal();
   }
 
   function backfillCloseSeed() {
@@ -1831,15 +1947,18 @@
     var model = priceChartModel();
     if (!model.dates.length) {
       pxChartSig = "";
+      pxUnpin = null;
       host.innerHTML = "<p class='note'>종가나 매매 기록이 없습니다.</p>";
       return;
     }
 
     var win = chartWindow(model.dates, pxSpan);
+    paintPxDates(win.start, win.end);
     var dates = win.dates;
     var n = dates.length;
     if (!n) {
       pxChartSig = "";
+      pxUnpin = null;
       host.innerHTML = "<p class='note'>이 기간에 기록이 없습니다.</p>";
       return;
     }
@@ -1895,7 +2014,10 @@
       sigParts.push((c == null ? "" : c.toFixed(4)) + "/" + (a == null ? "" : a.toFixed(4)));
     });
     markerList.forEach(function (m) {
-      sigParts.push(m.date + ":" + m.pnl.toFixed(2));
+      sigParts.push(m.date + ":" + m.side + ":" + m.pnl.toFixed(2) + ":" + m.qty);
+    });
+    Object.keys(model.cycleEnds || {}).sort().forEach(function (d) {
+      sigParts.push("cycle:" + d);
     });
     var sig = sigParts.join("|");
     if (sig === pxChartSig && host.querySelector(".px-scroll")) return;
@@ -1979,6 +2101,25 @@
     });
     axis.push("</svg>");
 
+    Object.keys(model.cycleEnds || {}).sort().forEach(function (d) {
+      if (indexOf[d] == null) return;
+      var cx = xOf(indexOf[d]);
+      var bw = 7;
+      plot.push(
+        "<rect x='" +
+          (cx - bw / 2).toFixed(2) +
+          "' y='" +
+          plotT +
+          "' width='" +
+          bw +
+          "' height='" +
+          (plotB - plotT) +
+          "' rx='2' fill='#64748b'><title>" +
+          xmlEsc(d + " 사이클 종료") +
+          "</title></rect>"
+      );
+    });
+
     var closePath = pathOf(model.closes, true);
     var avgPath = pathOf(model.avg, false);
     if (closePath) {
@@ -2042,7 +2183,8 @@
           if (label) placed.push({ x: labelX, y: labelY, w: labelW });
           var color = up ? "#ef4444" : "#2563eb";
           var tri = up ? "0,0 5,8 -5,8" : "0,0 5,-8 -5,-8";
-          var tip = m.date + (up ? " 매도 수익 " : " 매도 손절 ") + (label || "") + " " + money(m.pnl);
+          var qText = qtyText(m.qty);
+          var tip = m.date + " " + sideLabel(m.side) + (up ? " 매도 수익 " : " 매도 손절 ") + (label || "") + " " + money(m.pnl) + (qText ? " " + qText : "");
           plot.push("<g>");
           plot.push("<title>" + xmlEsc(tip) + "</title>");
           plot.push(
@@ -2135,20 +2277,36 @@
     var guideDot = host.querySelector(".px-guide-dot");
     var tip = host.querySelector(".px-tip");
     var hoverDate = "";
+    var pinnedDate = pxPinnedDate && indexOf[pxPinnedDate] != null ? pxPinnedDate : "";
+    if (pxPinnedDate && !pinnedDate) pxPinnedDate = "";
 
     function tipRow(k, v, cls) {
       return "<div class='px-tip-row'><span>" + xmlEsc(k) + "</span><b class='" + (cls || "") + "'>" + xmlEsc(v) + "</b></div>";
     }
 
-    function hideTip() {
+    function hideGuide() {
       hoverDate = "";
       if (guide) guide.setAttribute("visibility", "hidden");
       if (guideDot) guideDot.setAttribute("visibility", "hidden");
-      if (tip) tip.hidden = true;
+      if (tip) {
+        tip.hidden = true;
+        tip.classList.remove("is-pin");
+      }
     }
 
+    function hideTip() {
+      if (pinnedDate) return showTip(pinnedDate);
+      hideGuide();
+    }
+
+    pxUnpin = function () {
+      pinnedDate = "";
+      pxPinnedDate = "";
+      hideGuide();
+    };
+
     function showTip(date) {
-      if (!date || indexOf[date] == null) return hideTip();
+      if (!date || indexOf[date] == null) return hideGuide();
       hoverDate = date;
       var x = xOf(indexOf[date]);
       if (guide) {
@@ -2165,7 +2323,15 @@
         guideDot.setAttribute("visibility", "hidden");
       }
       if (!tip) return;
-      var rows = ["<div class='px-tip-date'>" + xmlEsc(tipDate(date)) + "</div>"];
+      var pinned = pinnedDate === date;
+      tip.classList.toggle("is-pin", pinned);
+      var rows = [
+        "<div class='px-tip-date'>" +
+          xmlEsc(tipDate(date)) +
+          (pinned ? "<span class='px-tip-pin'>고정</span>" : "") +
+          "</div>"
+      ];
+      if (model.cycleEnds && model.cycleEnds[date]) rows.push(tipRow("사이클", "종료"));
       if (close != null) rows.push(tipRow("종가", usd(close)));
       var avgNow = model.avg[date];
       var avgBefore = model.prevAvg[date];
@@ -2175,20 +2341,29 @@
         rows.push(tipRow("평단", avgText));
       }
       if (model.cost[date] != null) rows.push(tipRow("투입원금", usd(model.cost[date], 0)));
+      var dayMarks = [];
       markerList.forEach(function (m) {
-        if (m.date !== date) return;
+        if (m.date === date) dayMarks.push(m);
+      });
+      dayMarks.sort(function (a, b) {
+        if (a.side !== b.side) return a.side === "ud" ? -1 : 1;
+        return b.pnl - a.pnl;
+      });
+      dayMarks.forEach(function (m) {
         var gain = m.pnl > 0;
-        var body = (gain ? "+" : "") + usd(m.pnl);
+        var body = (gain ? "+" : "-") + usd(Math.abs(m.pnl));
         var pctText = markerLabel(m.pct);
         if (pctText) body += "  " + pctText;
-        rows.push(tipRow(gain ? "매도 수익" : "매도 손절", body, gain ? "up" : "down"));
+        var qText = qtyText(m.qty);
+        if (qText) body += "  " + qText;
+        rows.push(tipRow(sideLabel(m.side) + (gain ? " 매도 수익" : " 매도 손절"), body, gain ? "up" : "down"));
       });
       tip.innerHTML = rows.join("");
       tip.hidden = false;
       var hostRect = host.getBoundingClientRect();
       var plotRect = scroller.getBoundingClientRect();
       var localX = plotRect.left - hostRect.left + (x - scroller.scrollLeft);
-      var tipW = tip.offsetWidth || 176;
+      var tipW = tip.offsetWidth || 220;
       var left = localX + 16;
       if (left + tipW > host.clientWidth - 6) left = localX - tipW - 16;
       if (left < 4) left = 4;
@@ -2246,13 +2421,39 @@
       if (max > 2) pxStickRight = pxScrollLeft >= max - 8;
       placeThumb();
       paintNote();
-      if (hoverDate) showTip(hoverDate);
+      if (pinnedDate) showTip(pinnedDate);
+      else if (hoverDate) showTip(hoverDate);
     }, { passive: true });
     scroller.addEventListener("mousemove", function (ev) {
+      if (pinnedDate) return;
       var rect = scroller.getBoundingClientRect();
       showTip(dateAt(ev.clientX - rect.left + scroller.scrollLeft));
     });
     scroller.addEventListener("mouseleave", hideTip);
+    var press = null;
+    scroller.addEventListener("pointerdown", function (ev) {
+      if (ev.button != null && ev.button !== 0) return;
+      press = { x: ev.clientX, y: ev.clientY, id: ev.pointerId };
+    });
+    scroller.addEventListener("pointerup", function (ev) {
+      if (!press || press.id !== ev.pointerId) return;
+      var dx = ev.clientX - press.x;
+      var dy = ev.clientY - press.y;
+      press = null;
+      if (dx * dx + dy * dy > 36) return;
+      var rect = scroller.getBoundingClientRect();
+      var date = dateAt(ev.clientX - rect.left + scroller.scrollLeft);
+      if (!date) return;
+      if (pinnedDate === date) {
+        pinnedDate = "";
+        pxPinnedDate = "";
+        hideGuide();
+        return;
+      }
+      pinnedDate = date;
+      pxPinnedDate = date;
+      showTip(date);
+    });
     scroller.addEventListener("keydown", function (ev) {
       var step = Math.max(48, Math.round(scroller.clientWidth * 0.4));
       if (ev.key === "ArrowRight") {
@@ -2297,7 +2498,11 @@
     brush.addEventListener("pointercancel", endDrag);
 
     pinScroll();
-    requestAnimationFrame(pinScroll);
+    if (pinnedDate) showTip(pinnedDate);
+    requestAnimationFrame(function () {
+      pinScroll();
+      if (pinnedDate) showTip(pinnedDate);
+    });
   }
 
 
@@ -3105,36 +3310,71 @@
       statsYear = parseInt(y, 10);
       render();
     };
-    document.querySelectorAll("#px-range button").forEach(function (b) {
+    document.querySelectorAll("#px-range > button").forEach(function (b) {
       b.onclick = function () {
         pxSpan = b.dataset.span || "all";
         pxStickRight = true;
+        closePxCal();
         renderPriceChart();
       };
     });
     var pxFrom = document.getElementById("px-from");
     var pxTo = document.getElementById("px-to");
-    function applyCustomRange() {
-      var a = parseDotDate(pxFrom && pxFrom.value);
-      var b = parseDotDate(pxTo && pxTo.value);
-      if (!a || !b) return;
-      pxSpan = "custom";
-      pxCustomFrom = a < b ? a : b;
-      pxCustomTo = a < b ? b : a;
-      pxStickRight = true;
-      renderPriceChart();
+    function togglePxCal(which, btn) {
+      var cal = document.getElementById("px-cal");
+      if (pxCalTarget === which && cal && !cal.hidden) closePxCal();
+      else openPxCal(which, btn);
     }
-    function onDotInput(el) {
-      var next = formatDotInput(el.value);
-      if (el.value !== next) el.value = next;
-      if (pxFrom.value.length === 8 && pxTo.value.length === 8) applyCustomRange();
+    if (pxFrom) {
+      pxFrom.onclick = function (ev) {
+        ev.stopPropagation();
+        togglePxCal("from", pxFrom);
+      };
     }
-    if (pxFrom && pxTo) {
-      pxFrom.addEventListener("input", function () { onDotInput(pxFrom); });
-      pxTo.addEventListener("input", function () { onDotInput(pxTo); });
-      pxFrom.addEventListener("change", applyCustomRange);
-      pxTo.addEventListener("change", applyCustomRange);
+    if (pxTo) {
+      pxTo.onclick = function (ev) {
+        ev.stopPropagation();
+        togglePxCal("to", pxTo);
+      };
     }
+    var pxCalPrev = document.getElementById("px-cal-prev");
+    var pxCalNext = document.getElementById("px-cal-next");
+    if (pxCalPrev) pxCalPrev.onclick = function (ev) { ev.stopPropagation(); shiftPxCal(-1); };
+    if (pxCalNext) pxCalNext.onclick = function (ev) { ev.stopPropagation(); shiftPxCal(1); };
+    var pxCalGrid = document.getElementById("px-cal-grid");
+    if (pxCalGrid) {
+      pxCalGrid.onclick = function (ev) {
+        ev.stopPropagation();
+        var iso = ev.target.getAttribute("data-date");
+        if (!iso) return;
+        var from = pxCalTarget === "from" ? iso : pxCustomFrom || pxViewFrom;
+        var to = pxCalTarget === "to" ? iso : pxCustomTo || pxViewTo;
+        if (!from) from = iso;
+        if (!to) to = iso;
+        if (from > to) {
+          var swap = from;
+          from = to;
+          to = swap;
+        }
+        pxCustomFrom = from;
+        pxCustomTo = to;
+        pxSpan = "custom";
+        pxStickRight = true;
+        closePxCal();
+        renderPriceChart();
+      };
+    }
+    document.addEventListener("click", function (ev) {
+      var cal = document.getElementById("px-cal");
+      if (cal && !cal.hidden && !cal.contains(ev.target) && ev.target !== pxFrom && ev.target !== pxTo) closePxCal();
+      if (!pxPinnedDate || !pxUnpin) return;
+      var host = document.getElementById("st-px-chart");
+      if (host && host.contains(ev.target)) return;
+      pxUnpin();
+    });
+    document.addEventListener("keydown", function (ev) {
+      if (ev.key === "Escape") closePxCal();
+    });
     window.addEventListener("resize", function () {
       if (tab !== "stats") return;
       clearTimeout(pxResizeTimer);

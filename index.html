@@ -13,7 +13,7 @@
   <link rel="apple-touch-icon" href="icon-192.png" />
   <link rel="icon" href="icon-192.png" />
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
-  <link rel="stylesheet" href="styles.css?v=20261022e" />
+  <link rel="stylesheet" href="styles.css?v=20261022g" />
 </head>
 <body>
   <div class="app">
@@ -214,23 +214,35 @@
       </article>
       <article class="card">
         <h2>종가 · 평단</h2>
-        <div class="year-picks px-range" id="px-range">
-          <button type="button" data-span="30">1개월</button>
-          <button type="button" data-span="90">3개월</button>
-          <button type="button" data-span="180">6개월</button>
-          <button type="button" data-span="365">1년</button>
-          <button type="button" data-span="all" class="active">전체</button>
-          <label class="px-custom" id="px-custom">
-            <input id="px-from" type="text" inputmode="numeric" maxlength="8" placeholder="26.08.18" aria-label="시작일" value="26.08.18" />
-            <span>~</span>
-            <input id="px-to" type="text" inputmode="numeric" maxlength="8" placeholder="26.10.21" aria-label="종료일" value="26.10.21" />
-          </label>
+        <div class="px-range-wrap">
+          <div class="year-picks px-range" id="px-range">
+            <button type="button" data-span="30">1개월</button>
+            <button type="button" data-span="90">3개월</button>
+            <button type="button" data-span="180">6개월</button>
+            <button type="button" data-span="365">1년</button>
+            <button type="button" data-span="all" class="active">전체</button>
+            <div class="px-custom" id="px-custom">
+              <button type="button" class="px-date" id="px-from" aria-label="시작일" aria-haspopup="dialog">26.08.18</button>
+              <span>~</span>
+              <button type="button" class="px-date" id="px-to" aria-label="종료일" aria-haspopup="dialog">26.10.21</button>
+            </div>
+          </div>
+          <div class="px-cal" id="px-cal" hidden role="dialog" aria-label="기간 달력">
+            <div class="px-cal-head">
+              <button type="button" id="px-cal-prev" aria-label="이전 달">‹</button>
+              <strong id="px-cal-title">2026.10</strong>
+              <button type="button" id="px-cal-next" aria-label="다음 달">›</button>
+            </div>
+            <div class="px-cal-week"><span>일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span></div>
+            <div class="px-cal-grid" id="px-cal-grid"></div>
+          </div>
         </div>
         <div class="px-legend">
           <span><i class="px-line"></i>종가</span>
           <span><i class="px-line avg"></i>평단</span>
           <span><i class="px-mark up">▲</i>매도 수익</span>
           <span><i class="px-mark down">▼</i>매도 손절</span>
+          <span><i class="px-cycle"></i>사이클 종료</span>
         </div>
         <div class="px-chart" id="st-px-chart"></div>
       </article>
@@ -588,6 +600,6 @@
   </div>
   <script src="engine.js?v=20261021e"></script>
   <script src="seed.js?v=20260924c"></script>
-  <script src="app.js?v=20261022f"></script>
+  <script src="app.js?v=20261022g"></script>
 </body>
 </html>
