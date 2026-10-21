@@ -2015,9 +2015,10 @@
         list.forEach(function (m, i) {
           var value = model.closes[date] != null ? model.closes[date] : m.price;
           if (!value) return;
-          var x = baseX + (i - (list.length - 1) / 2) * 12;
+          var x = baseX;
           var y = yOf(value);
           var up = m.pnl > 0;
+          var tipY = up ? y + i * 12 : y - i * 12;
           var label = markerLabel(m.pct);
           if (label === "+0.0%" || label === "-0.0%" || label === "+0.00%" || label === "-0.00%") label = "";
           var labelW = Math.max(28, label.length * 5.6);
@@ -2028,12 +2029,11 @@
             }
             return false;
           }
-          var labelY = up ? y - 15 : y + 17;
+          var labelY = up ? tipY + 19 : tipY - 11;
           var labelX = x;
           var guard = 0;
-          while (label && guard < 10 && hits({ x: labelX, y: labelY, w: labelW })) {
-            if (guard < 6) labelY += up ? -12 : 12;
-            else labelX += (guard % 2 === 0 ? 1 : -1) * 16;
+          while (label && guard < 8 && hits({ x: labelX, y: labelY, w: labelW })) {
+            labelY += up ? 11 : -11;
             guard++;
           }
           if (labelY < 11) labelY = 11;
@@ -2041,7 +2041,7 @@
           if (label && hits({ x: labelX, y: labelY, w: labelW })) label = "";
           if (label) placed.push({ x: labelX, y: labelY, w: labelW });
           var color = up ? "#ef4444" : "#2563eb";
-          var tri = up ? "0,-9 5.2,-1.5 -5.2,-1.5" : "0,9 5.2,1.5 -5.2,1.5";
+          var tri = up ? "0,0 5,8 -5,8" : "0,0 5,-8 -5,-8";
           var tip = m.date + (up ? " 매도 수익 " : " 매도 손절 ") + (label || "") + " " + money(m.pnl);
           plot.push("<g>");
           plot.push("<title>" + xmlEsc(tip) + "</title>");
@@ -2051,7 +2051,7 @@
               "' transform='translate(" +
               x.toFixed(2) +
               " " +
-              y.toFixed(2) +
+              tipY.toFixed(2) +
               ")' fill='" +
               color +
               "'/>"
