@@ -44,6 +44,7 @@
   var pxPinnedDate = "";
   var pxUnpin = null;
   var pxRangeDrag = null;
+  var pxSlide = 0;
   var pxWheel = null;
   var pxPinch = null;
   var pxTouchZoom = false;
@@ -2029,6 +2030,65 @@
     ev.preventDefault();
   }
 
+  function paintSlide() {
+    var plot = document.querySelector("#st-px-chart .px-plot");
+    if (!plot) return;
+    if (!pxSlide) {
+      plot.style.transform = "";
+      return;
+    }
+    var w = pxWheel;
+    if (!w || !w.dates) return;
+    var i0 = w.dates.indexOf(w.start);
+    var i1 = w.dates.indexOf(w.end);
+    var span = Math.max(1, (i1 < 0 ? 0 : i1) - (i0 < 0 ? 0 : i0));
+    var width = (w.scroller && w.scroller.clientWidth) || plot.getBoundingClientRect().width || 1;
+    plot.style.transform = "translateX(" + ((-pxSlide * width) / span).toFixed(2) + "px)";
+  }
+
+  function slideWindow(i0Float, span, full) {
+    var maxI0 = full.length - 1 - span;
+    if (i0Float < 0) i0Float = 0;
+    if (i0Float > maxI0) i0Float = maxI0;
+    var i0 = Math.floor(i0Float + 1e-6);
+    if (i0 < 0) i0 = 0;
+    if (i0 > maxI0) i0 = maxI0;
+    var i1 = i0 + span;
+    pxSlide = i0Float - i0;
+    if (pxSlide < 0) pxSlide = 0;
+    var from = full[i0];
+    var to = full[i1];
+    if (!(pxSpan === "custom" && from === pxCustomFrom && to === pxCustomTo)) {
+      pxSpan = "custom";
+      pxCustomFrom = from;
+      pxCustomTo = to;
+      pxStickRight = false;
+      renderPriceChart();
+    }
+    paintSlide();
+  }
+
+  function snapSlide() {
+    var w = pxWheel;
+    if (w && pxSlide >= 0.5) {
+      var full = w.dates;
+      var i0 = full.indexOf(w.start);
+      var i1 = full.indexOf(w.end);
+      var span = i1 - i0;
+      if (i0 >= 0 && span > 0 && i0 + span < full.length - 1) {
+        pxSpan = "custom";
+        pxCustomFrom = full[i0 + 1];
+        pxCustomTo = full[i0 + span + 1];
+        pxStickRight = false;
+        pxSlide = 0;
+        renderPriceChart();
+        return;
+      }
+    }
+    pxSlide = 0;
+    paintSlide();
+  }
+
   function applyPxRangeDrag(ev) {
     var drag = pxRangeDrag;
     if (!drag) return;
@@ -2048,6 +2108,23 @@
     var i0 = drag.i0;
     var i1 = drag.i1;
     var span = drag.i1 - drag.i0;
+    if (drag.mode === "move" || drag.mode === "plot") {
+      var days;
+      if (drag.mode === "plot") {
+        var plotW = drag.plotW || 1;
+        days = -((ev.clientX - drag.x) / plotW) * span;
+      } else {
+        var t0 = (drag.x - rect.left) / rect.width;
+        var t1 = (ev.clientX - rect.left) / rect.width;
+        if (t0 < 0) t0 = 0;
+        if (t0 > 1) t0 = 1;
+        if (t1 < 0) t1 = 0;
+        if (t1 > 1) t1 = 1;
+        days = (t1 - t0) * (n - 1);
+      }
+      slideWindow(drag.i0 + days, span, full);
+      return;
+    }
     if (drag.mode === "start") {
       i0 = idx(ev.clientX);
       if (i0 < 0) i0 = 0;
@@ -2056,18 +2133,6 @@
       i1 = idx(ev.clientX);
       if (i1 > n - 1) i1 = n - 1;
       if (i1 < i0 + 1) i1 = i0 + 1;
-    } else {
-      var delta = idx(ev.clientX) - idx(drag.x);
-      i0 = drag.i0 + delta;
-      i1 = i0 + span;
-      if (i0 < 0) {
-        i0 = 0;
-        i1 = span;
-      }
-      if (i1 > n - 1) {
-        i1 = n - 1;
-        i0 = i1 - span;
-      }
     }
     if (i0 < 0) i0 = 0;
     if (i1 > n - 1) i1 = n - 1;
@@ -2749,9 +2814,11 @@
       var leftPx = nFull > 1 ? (i0 / (nFull - 1)) * rect.width : 0;
       var rightPx = nFull > 1 ? (i1 / (nFull - 1)) * rect.width : rect.width;
       var x = clientX - rect.left;
+      var thumb = rightPx - leftPx;
+      var edge = thumb < 48 ? 0 : 14;
       var mode = "move";
-      if (Math.abs(x - leftPx) <= 14) mode = "start";
-      else if (Math.abs(x - rightPx) <= 14) mode = "end";
+      if (edge && Math.abs(x - leftPx) <= edge) mode = "start";
+      else if (edge && Math.abs(x - rightPx) <= edge) mode = "end";
       return { i0: i0, i1: i1, mode: mode };
     }
     brush.addEventListener("pointermove", function (ev) {
@@ -2787,6 +2854,10 @@
       }
       pxRangeDrag = { mode: hit.mode, i0: i0, i1: i1, x: ev.clientX, dates: full.slice() };
       brush.classList.add("is-drag");
+      var capHost = document.getElementById("st-px-chart");
+      if (capHost && ev.pointerId != null) {
+        try { capHost.setPointerCapture(ev.pointerId); } catch (err) {}
+      }
       applyPxRangeDrag(ev);
       ev.preventDefault();
     });
@@ -2798,6 +2869,7 @@
       dateAt: dateAt,
       scroller: scroller
     };
+    paintSlide();
     pinScroll();
     if (pinnedDate) showTip(pinnedDate);
     requestAnimationFrame(function () {
@@ -3697,6 +3769,62 @@
       pxChartHost.addEventListener("touchcancel", onPxTouchEnd, { passive: false, capture: true });
       pxChartHost.addEventListener("gesturestart", onPxGesture, { passive: false });
       pxChartHost.addEventListener("gesturechange", onPxGesture, { passive: false });
+      var plotPress = null;
+      pxChartHost.addEventListener("pointerdown", function (ev) {
+        if (ev.button) return;
+        var node = ev.target;
+        while (node && node !== pxChartHost) {
+          if (node.classList && node.classList.contains("px-brush")) return;
+          node = node.parentNode;
+        }
+        var scroller = pxChartHost.querySelector(".px-scroll");
+        if (!scroller || !scroller.contains(ev.target)) return;
+        plotPress = { x: ev.clientX, y: ev.clientY, id: ev.pointerId, panning: false };
+      });
+      pxChartHost.addEventListener("pointermove", function (ev) {
+        if (pxPinch) {
+          plotPress = null;
+          return;
+        }
+        if (!plotPress || plotPress.id !== ev.pointerId || (pxRangeDrag && pxRangeDrag.mode !== "plot")) return;
+        var dx = ev.clientX - plotPress.x;
+        var dy = ev.clientY - plotPress.y;
+        if (!plotPress.panning) {
+          if (dx * dx + dy * dy < 64) return;
+          if (Math.abs(dx) < Math.abs(dy)) {
+            plotPress = null;
+            return;
+          }
+          var w = pxWheel;
+          if (!w || !w.dates || w.dates.length < 2) return;
+          var i0 = w.dates.indexOf(w.start);
+          var i1 = w.dates.indexOf(w.end);
+          if (i0 < 0 || i1 <= i0) return;
+          plotPress.panning = true;
+          pxTouchZoom = true;
+          pxRangeDrag = {
+            mode: "plot",
+            i0: i0,
+            i1: i1,
+            x: plotPress.x,
+            plotW: (w.scroller.getBoundingClientRect().width || w.scroller.clientWidth || 1),
+            dates: w.dates.slice()
+          };
+          try { pxChartHost.setPointerCapture(ev.pointerId); } catch (err) {}
+        }
+        applyPxRangeDrag(ev);
+        ev.preventDefault();
+      });
+      pxChartHost.addEventListener("pointerup", function (ev) {
+        if (!plotPress || plotPress.id !== ev.pointerId) return;
+        var panned = plotPress.panning;
+        plotPress = null;
+        if (!panned) return;
+        setTimeout(function () { pxTouchZoom = false; }, 400);
+      });
+      pxChartHost.addEventListener("pointercancel", function () {
+        plotPress = null;
+      });
     }
     document.addEventListener("pointermove", function (ev) {
       if (!pxRangeDrag) return;
@@ -3704,12 +3832,14 @@
     });
     document.addEventListener("pointerup", function (ev) {
       if (!pxRangeDrag) return;
-      applyPxRangeDrag(ev);
+      if (pxRangeDrag.mode === "move" || pxRangeDrag.mode === "plot") snapSlide();
+      else applyPxRangeDrag(ev);
       pxRangeDrag = null;
       var bar = document.querySelector("#st-px-chart .px-brush");
       if (bar) bar.classList.remove("is-drag");
     });
     document.addEventListener("pointercancel", function () {
+      if (pxRangeDrag && (pxRangeDrag.mode === "move" || pxRangeDrag.mode === "plot")) snapSlide();
       pxRangeDrag = null;
     });
     document.addEventListener("click", function (ev) {
