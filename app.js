@@ -2017,10 +2017,103 @@
     return Math.sqrt(dx * dx + dy * dy);
   }
 
+  function applyPinchWindow(leftF, rightF) {
+    var w = pxWheel;
+    if (!w || !w.dates || w.dates.length < 2) return;
+    var full = w.dates;
+    var maxI = full.length - 1;
+    var left = Math.round(leftF);
+    var right = Math.round(rightF);
+    if (right - left < 4) {
+      var mid = (leftF + rightF) / 2;
+      left = Math.round(mid - 2);
+      right = left + 4;
+    }
+    if (left < 0) left = 0;
+    if (right > maxI) right = maxI;
+    if (right <= left) return;
+    if (left === 0 && right === maxI) {
+      if (pxSpan === "all") return;
+      pxSpan = "all";
+      pxStickRight = false;
+      pxSlide = 0;
+      renderPriceChart();
+      return;
+    }
+    var from = full[left];
+    var to = full[right];
+    if (pxSpan === "custom" && from === pxCustomFrom && to === pxCustomTo) return;
+    pxSpan = "custom";
+    pxCustomFrom = from;
+    pxCustomTo = to;
+    pxStickRight = false;
+    pxSlide = 0;
+    renderPriceChart();
+  }
+
+  function queuePinchWindow(leftF, rightF) {
+    if (!pxPinch) return;
+    pxPinch.pending = { left: leftF, right: rightF };
+    if (pxPinch.frame) return;
+    pxPinch.frame = requestAnimationFrame(function () {
+      if (!pxPinch) return;
+      pxPinch.frame = 0;
+      var pending = pxPinch.pending;
+      pxPinch.pending = null;
+      if (!pending) return;
+      applyPinchWindow(pending.left, pending.right);
+    });
+  }
+
+  function pinchWindowFromScale(scale) {
+    if (!pxPinch || !(scale > 0)) return;
+    var span0 = Math.max(1, pxPinch.i1 - pxPinch.i0);
+    var fullN = pxPinch.count || span0 + 1;
+    var maxSpan = Math.max(1, fullN - 1);
+    var next = span0 / scale;
+    var minSpan = Math.min(4, maxSpan);
+    if (next < minSpan) next = minSpan;
+    if (next > maxSpan) next = maxSpan;
+    var ratio = (pxPinch.anchor - pxPinch.i0) / span0;
+    if (ratio < 0) ratio = 0;
+    if (ratio > 1) ratio = 1;
+    var left = pxPinch.anchor - ratio * next;
+    var right = left + next;
+    if (left < 0) {
+      left = 0;
+      right = next;
+    }
+    if (right > maxSpan) {
+      right = maxSpan;
+      left = right - next;
+    }
+    if (left < 0) left = 0;
+    queuePinchWindow(left, right);
+  }
+
   function onPxTouchStart(ev) {
     if (ev.touches.length < 2) return;
+    var w = pxWheel;
+    if (!w || !w.dates || w.dates.length < 2 || !w.scroller) return;
     pxTouchZoom = true;
-    pxPinch = { dist: pinchSpan(ev.touches) };
+    var i0 = w.dates.indexOf(w.start);
+    var i1 = w.dates.indexOf(w.end);
+    if (i0 < 0) i0 = 0;
+    if (i1 < 0) i1 = w.dates.length - 1;
+    var rect = w.scroller.getBoundingClientRect();
+    var midX = (ev.touches[0].clientX + ev.touches[1].clientX) / 2;
+    var t = rect.width ? (midX - rect.left) / rect.width : 0.5;
+    if (t < 0) t = 0;
+    if (t > 1) t = 1;
+    pxPinch = {
+      dist: pinchSpan(ev.touches),
+      i0: i0,
+      i1: i1,
+      anchor: i0 + (i1 - i0) * t,
+      count: w.dates.length,
+      frame: 0,
+      pending: null
+    };
     ev.preventDefault();
   }
 
@@ -2028,19 +2121,14 @@
     if (ev.touches.length < 2 || !pxPinch) return;
     ev.preventDefault();
     var dist = pinchSpan(ev.touches);
-    if (!(pxPinch.dist > 8) || !(dist > 8)) {
-      pxPinch.dist = dist;
-      return;
-    }
-    var scale = dist / pxPinch.dist;
-    if (scale < 1.02 && scale > 0.98) return;
-    var midX = (ev.touches[0].clientX + ev.touches[1].clientX) / 2;
-    zoomPxAt(midX, -Math.log(scale) / 0.002);
-    pxPinch.dist = dist;
+    if (!(pxPinch.dist > 8) || !(dist > 8)) return;
+    pinchWindowFromScale(dist / pxPinch.dist);
   }
 
   function onPxTouchEnd(ev) {
     if (ev.touches.length >= 2) return;
+    if (pxPinch && pxPinch.frame) cancelAnimationFrame(pxPinch.frame);
+    if (pxPinch && pxPinch.pending) applyPinchWindow(pxPinch.pending.left, pxPinch.pending.right);
     pxPinch = null;
     setTimeout(function () {
       pxTouchZoom = false;
@@ -2050,6 +2138,8 @@
   function onPxGesture(ev) {
     pxTouchZoom = true;
     ev.preventDefault();
+    if (!pxPinch || !(ev.scale > 0)) return;
+    pinchWindowFromScale(ev.scale);
   }
 
   function paintSlide() {
