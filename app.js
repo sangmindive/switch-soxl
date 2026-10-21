@@ -60,6 +60,7 @@
   function bookOf(s) {
     return {
       settings: JSON.parse(JSON.stringify(s.settings)),
+      settingsRev: Number(s.settingsRev) || 0,
       updownTrades: JSON.parse(JSON.stringify(s.updownTrades || [])),
       tteolTrades: JSON.parse(JSON.stringify(s.tteolTrades || [])),
       deletedUd: (s.deletedUd || []).slice(),
@@ -76,6 +77,7 @@
       tteolTrades: [],
       deletedUd: [],
       deletedTt: [],
+      settingsRev: 0,
     };
   }
 
@@ -107,6 +109,9 @@
     root.autoFill = !!root.autoFill;
     if (!root.autoFillLast) root.autoFillLast = "";
     if (root.view !== "1" && root.view !== "2" && root.view !== "escape") root.view = root.accountId || "1";
+    if (!Number(root.settingsRev) && root.accounts[root.accountId]) {
+      root.settingsRev = Number(root.accounts[root.accountId].settingsRev) || 0;
+    }
     if (root.settings && root.updownTrades) root.accounts[root.accountId] = bookOf(root);
     ["1", "2"].forEach(function (id) {
       if (root.accounts[id] && root.accounts[id].settings) {
@@ -114,6 +119,8 @@
       }
     });
     var active = root.accounts[root.accountId];
+    root.settingsRev = Number(active.settingsRev) || Number(root.settingsRev) || 0;
+    active.settingsRev = root.settingsRev;
     root.settings = active.settings;
     root.updownTrades = active.updownTrades || [];
     root.tteolTrades = active.tteolTrades || [];
@@ -478,6 +485,7 @@
     state.view = id;
     var book = state.accounts[id];
     state.settings = book.settings;
+    state.settingsRev = Number(book.settingsRev) || 0;
     state.updownTrades = book.updownTrades;
     state.tteolTrades = book.tteolTrades;
     state.deletedUd = book.deletedUd || [];
@@ -707,6 +715,7 @@
     book = book || {};
     return {
       settings: book.settings || {},
+      settingsRev: Number(book.settingsRev) || 0,
       updownTrades: book.updownTrades || [],
       tteolTrades: book.tteolTrades || [],
       deletedUd: (book.deletedUd || []).slice(),
@@ -714,27 +723,41 @@
     };
   }
 
+  function newerSettings(localBook, remoteBook) {
+    var localRev = Number(localBook && localBook.settingsRev) || 0;
+    var remoteRev = Number(remoteBook && remoteBook.settingsRev) || 0;
+    if (remoteRev > localRev && remoteBook && remoteBook.settings) return remoteBook;
+    if (localRev > remoteRev && localBook && localBook.settings) return localBook;
+    return null;
+  }
+
   function mergeBook(localBook, remoteBook, localRev, remoteRev) {
+    var next;
     if (remoteRev > localRev && remoteBook && remoteBook.settings) {
-      return JSON.parse(JSON.stringify(remoteBook));
+      next = JSON.parse(JSON.stringify(remoteBook));
+    } else if (localRev > remoteRev && localBook && localBook.settings) {
+      next = JSON.parse(JSON.stringify(localBook));
+    } else {
+      var base = remoteRev > localRev ? remoteBook : localBook;
+      next = JSON.parse(JSON.stringify(base || blankBook()));
+      next.deletedUd = mergeIdList(localBook && localBook.deletedUd, remoteBook && remoteBook.deletedUd);
+      next.deletedTt = mergeIdList(localBook && localBook.deletedTt, remoteBook && remoteBook.deletedTt);
+      next.updownTrades = mergeTradeLists(
+        localBook && localBook.updownTrades,
+        remoteBook && remoteBook.updownTrades,
+        next.deletedUd
+      );
+      next.tteolTrades = mergeTradeLists(
+        localBook && localBook.tteolTrades,
+        remoteBook && remoteBook.tteolTrades,
+        next.deletedTt
+      );
     }
-    if (localRev > remoteRev && localBook && localBook.settings) {
-      return JSON.parse(JSON.stringify(localBook));
+    var settingsSrc = newerSettings(localBook, remoteBook);
+    if (settingsSrc) {
+      next.settings = JSON.parse(JSON.stringify(settingsSrc.settings));
+      next.settingsRev = Number(settingsSrc.settingsRev) || 0;
     }
-    var base = remoteRev > localRev ? remoteBook : localBook;
-    var next = JSON.parse(JSON.stringify(base || blankBook()));
-    next.deletedUd = mergeIdList(localBook && localBook.deletedUd, remoteBook && remoteBook.deletedUd);
-    next.deletedTt = mergeIdList(localBook && localBook.deletedTt, remoteBook && remoteBook.deletedTt);
-    next.updownTrades = mergeTradeLists(
-      localBook && localBook.updownTrades,
-      remoteBook && remoteBook.updownTrades,
-      next.deletedUd
-    );
-    next.tteolTrades = mergeTradeLists(
-      localBook && localBook.tteolTrades,
-      remoteBook && remoteBook.tteolTrades,
-      next.deletedTt
-    );
     return next;
   }
 
@@ -1253,6 +1276,7 @@
     state.view = id;
     var book = state.accounts[id];
     state.settings = book.settings;
+    state.settingsRev = Number(book.settingsRev) || 0;
     state.updownTrades = book.updownTrades;
     state.tteolTrades = book.tteolTrades;
     state.deletedUd = book.deletedUd || [];
@@ -1345,15 +1369,15 @@
 
   function render() {
     if (repairCopiedClose()) {
-      persist();
+      persist({ keepRev: true, noUndo: true });
       return;
     }
     if (dropOpenSessionCloses()) {
-      persist({ noUndo: true });
+      persist({ noUndo: true, keepRev: true });
       return;
     }
     if (backfillCloseSeed()) {
-      persist({ noUndo: true });
+      persist({ noUndo: true, keepRev: true });
       return;
     }
     var appEl = document.querySelector(".app");
@@ -1493,10 +1517,8 @@
     fillText("v-H13", out.H13);
     fillText("v-I13", out.I13);
     fillText("v-tt-hold", out.I13);
-    var ttLast = (state.tteolTrades || [])[0];
-    var ttCycle = ttLast && ttLast.cycle != null && ttLast.cycle !== "" ? ttLast.cycle : out.B8;
-    fillText("v-tt-cycle", ttCycle);
-    var ttShown = cycleRealized(state.tteolTrades, ttCycle);
+    fillText("v-tt-cycle", out.B8);
+    var ttShown = cycleRealized(state.tteolTrades, out.B8);
     fillText("v-J13", money(out.J13));
     fillText("v-K13", money(ttShown));
     fillText("v-L13", pct(out.C8 ? ttShown / out.C8 : 0));
@@ -3628,6 +3650,7 @@
     s.tteolLadderCount = parseInt(document.getElementById("set-tt-steps").value, 10) || 0;
     s.udStepQty = parseInt(document.getElementById("set-ud-qty").value, 10) || 0;
     s.tteolStepQty = parseInt(document.getElementById("set-tt-qty").value, 10) || 0;
+    state.settingsRev = Date.now();
     persist();
   }
 
@@ -4064,6 +4087,7 @@
         return;
       }
       state.settings[numPopKey] = parseInt(n, 10);
+      state.settingsRev = Date.now();
       closeNumPop();
       persist();
     };
@@ -4246,7 +4270,7 @@
       amount: amount,
       fee: fee,
       pnl: pnl,
-      cycle: out.ttLast && out.ttLast.cycle ? out.ttLast.cycle : out.B8,
+      cycle: type === "매도" && pos && pos.cycle != null && pos.cycle !== "" ? pos.cycle : out.B8,
     });
     persist();
     clearManualForm("tt");

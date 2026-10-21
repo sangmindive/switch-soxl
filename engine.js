@@ -869,7 +869,7 @@
           : Number(pos.price) * Number(pos.qty);
       var posBuyFee = Number(pos.fee) || 0;
       var pnl = amount - buyCost - (posBuyFee + fee + sec);
-      var cycle = ttLastCycle(d);
+      var cycle = pos && pos.cycle != null && pos.cycle !== "" ? pos.cycle : d.B8 || 1;
       return {
         type: type,
         rank: rank,
@@ -905,17 +905,8 @@
     };
   }
 
-  function ttLastCycle(d) {
-    return d.ttLast && d.ttLast.cycle != null ? d.ttLast.cycle : d.B8 || 1;
-  }
-
   function ttNewCycleOnBuy(d) {
-    if (!d.openRanks.length) {
-      if (d.B13 === 0) return (d.ttLast && d.ttLast.cycle ? d.ttLast.cycle : 0) + 1;
-      if (d.ttLast && d.ttLast.cycle === d.B8) return d.ttLast.cycle;
-      return d.B8;
-    }
-    return d.ttLast && d.ttLast.cycle != null ? d.ttLast.cycle : d.B8;
+    return d.B8 || 1;
   }
 
   function nextSeq(trades, date) {
