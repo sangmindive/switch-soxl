@@ -4472,13 +4472,13 @@
 
   var quoteBusy = false;
 
-  function rememberClose(m, date, close) {
+  function rememberClose(m, date, close, settle) {
     if (!date || !isFinite(close) || close <= 0 || !closeIsFinal(date)) return false;
     m.closeHistory = m.closeHistory || [];
     for (var i = 0; i < m.closeHistory.length; i++) {
       if (m.closeHistory[i].date === date) {
         if (near(m.closeHistory[i].close, close, 1e-6)) return false;
-        if (!closeRevisionOk(m.closeHistory[i].close, close)) return false;
+        if (!closeRevisionOk(m.closeHistory[i].close, close, settle)) return false;
         m.closeHistory[i].close = close;
         return true;
       }
@@ -4491,13 +4491,13 @@
     return true;
   }
 
-  function recordCloseDb(date, close) {
+  function recordCloseDb(date, close, settle) {
     if (!date || !isFinite(close) || close <= 0 || !closeIsFinal(date)) return false;
     state.closeDb = state.closeDb || [];
     for (var i = 0; i < state.closeDb.length; i++) {
       if (state.closeDb[i].date === date) {
         if (near(state.closeDb[i].close, close, 1e-6)) return false;
-        if (!closeRevisionOk(state.closeDb[i].close, close)) return false;
+        if (!closeRevisionOk(state.closeDb[i].close, close, settle)) return false;
         state.closeDb[i].close = close;
         return true;
       }
@@ -4509,7 +4509,8 @@
     return true;
   }
 
-  function closeRevisionOk(oldClose, nextClose) {
+  function closeRevisionOk(oldClose, nextClose, settle) {
+    if (settle) return true;
     return Math.abs(Number(oldClose) - Number(nextClose)) <= 0.05;
   }
 
@@ -4636,6 +4637,7 @@
       quoteDirty = true;
     }
     var curClose = state.market.lastClose;
+    var publishClose = false;
     if (q.phase && q.phase !== "REG_MKT" && q.sessionDate && isFinite(q.prevClose) && q.prevClose > 0) {
       var histPrev = E.previousTradingDate(q.sessionDate);
       if (histPrev && rememberClose(state.market, histPrev, q.prevClose)) closeDirty = true;
@@ -4650,7 +4652,10 @@
     if (canRollClose) {
       if (restorePrevClose(q.sessionDate, q.lastClose, q.prevClose)) closeDirty = true;
       var expectedPrev = E.previousTradingDate(q.sessionDate);
-      if (rememberClose(state.market, q.sessionDate, q.lastClose)) closeDirty = true;
+      if (rememberClose(state.market, q.sessionDate, q.lastClose, true)) {
+        closeDirty = true;
+        publishClose = true;
+      }
       if (expectedPrev && isFinite(q.prevClose) && q.prevClose > 0) {
         if (rememberClose(state.market, expectedPrev, q.prevClose)) closeDirty = true;
       }
@@ -4672,33 +4677,34 @@
         state.market.tradeDate = q.sessionDate;
         closeDirty = true;
       } else if (q.sessionDate === prevDate) {
-        if (expectedPrev && state.market.prevCloseDate !== expectedPrev && isFinite(q.prevClose) && q.prevClose > 0) {
-          state.market.prevPrevClose = state.market.prevClose;
-          state.market.prevCloseDate = expectedPrev;
-          state.market.prevClose = q.prevClose;
-          closeDirty = true;
-        }
-        if (!near(curClose, q.lastClose, 1e-6)) {
-          var collapseToPrev = isFinite(q.prevClose) && near(q.lastClose, q.prevClose, 1e-4);
-          var rollingBack = q.lastClose < curClose;
-          if (!(collapseToPrev && rollingBack)) {
-            if (isFinite(curClose) && curClose > q.lastClose) state.market.prevClose = curClose;
-            else if (isFinite(q.prevClose) && q.prevClose > 0) state.market.prevClose = q.prevClose;
-            state.market.lastClose = q.lastClose;
-            state.market.tradeDate = q.sessionDate;
+        var echoedPrev = isFinite(q.prevClose) && near(q.lastClose, q.prevClose, 1e-4);
+        if (!echoedPrev && expectedPrev && isFinite(q.prevClose) && q.prevClose > 0) {
+          if (state.market.prevCloseDate !== expectedPrev || !near(state.market.prevClose, q.prevClose, 1e-6)) {
+            state.market.prevPrevClose = state.market.prevClose;
+            state.market.prevCloseDate = expectedPrev;
+            state.market.prevClose = q.prevClose;
             closeDirty = true;
           }
         }
+        if (!echoedPrev && !near(curClose, q.lastClose, 1e-6)) {
+          state.market.lastClose = q.lastClose;
+          state.market.tradeDate = q.sessionDate;
+          closeDirty = true;
+        }
       }
     }
-    if (q.phase && q.phase !== "REG_MKT" && closeIsFinal(q.sessionDate) && isFinite(q.lastClose) && q.lastClose > 0 && !near(state.market.lastClose, q.lastClose, 1e-6)) {
+    var echoed = isFinite(q.prevClose) && near(q.lastClose, q.prevClose, 1e-4);
+    if (q.phase && q.phase !== "REG_MKT" && closeIsFinal(q.sessionDate) && isFinite(q.lastClose) && q.lastClose > 0 && !echoed && !near(state.market.lastClose, q.lastClose, 1e-6)) {
       state.market.lastClose = q.lastClose;
       closeDirty = true;
     }
-    if (q.phase && q.phase !== "REG_MKT" && closeIsFinal(q.sessionDate) && isFinite(q.lastClose) && q.lastClose > 0) {
-      if (recordCloseDb(q.sessionDate, q.lastClose)) closeDirty = true;
+    if (q.phase && q.phase !== "REG_MKT" && closeIsFinal(q.sessionDate) && isFinite(q.lastClose) && q.lastClose > 0 && !echoed) {
+      if (recordCloseDb(q.sessionDate, q.lastClose, true)) {
+        closeDirty = true;
+        publishClose = true;
+      }
     }
-    if (closeDirty) persist({ keepRev: true });
+    if (closeDirty) persist(publishClose ? { noUndo: true } : { keepRev: true });
     else if (quoteDirty) persist({ sync: false, keepRev: true });
   }
 
@@ -4794,7 +4800,7 @@
   }
 
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("sw.js?v=8", { updateViaCache: "none" }).catch(function () {});
+    navigator.serviceWorker.register("sw.js?v=9", { updateViaCache: "none" }).catch(function () {});
   }
 
   function syncNow() {

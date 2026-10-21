@@ -303,6 +303,21 @@ function parseCnbcQuote(data) {
   };
 }
 
+function upsertClose(list, date, close) {
+  list = list || [];
+  for (var i = 0; i < list.length; i++) {
+    if (list[i] && list[i].date === date) {
+      list[i].close = close;
+      return list;
+    }
+  }
+  list.push({ date: date, close: close });
+  list.sort(function (a, b) {
+    return a.date < b.date ? 1 : -1;
+  });
+  return list;
+}
+
 function applyQuote(state, q) {
   if (!q) return;
   if (!state.market) state.market = E.defaultMarket();
@@ -311,12 +326,17 @@ function applyQuote(state, q) {
   if (q.phase) state.market.phase = q.phase;
   var lastClose = isFinite(q.lastClose) && q.lastClose > 0 ? q.lastClose : q.price;
   var sessionDate = q.sessionDate || state.market.closeDate;
-  if (lastClose && sessionDate) {
+  var echoedPrev = isFinite(q.prevClose) && q.prevClose > 0 && isFinite(lastClose) && Math.abs(q.prevClose - lastClose) <= 1e-4;
+  if (lastClose && sessionDate && !echoedPrev) {
     state.market.lastClose = lastClose;
     state.market.closeDate = sessionDate;
     state.market.tradeDate = sessionDate;
+    if (q.phase && q.phase !== "REG_MKT") {
+      state.closeDb = upsertClose(state.closeDb, sessionDate, lastClose);
+      state.market.closeHistory = upsertClose(state.market.closeHistory, sessionDate, lastClose);
+    }
   }
-  if (isFinite(q.prevClose) && q.prevClose > 0) state.market.prevClose = q.prevClose;
+  if (isFinite(q.prevClose) && q.prevClose > 0 && !echoedPrev) state.market.prevClose = q.prevClose;
 }
 
 function gistHeaders(token) {
