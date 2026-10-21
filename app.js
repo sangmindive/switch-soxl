@@ -1041,6 +1041,16 @@
     return (Number(n) * 100).toFixed(2) + "%";
   }
 
+  function homeDayBuy(out) {
+    var parts = [];
+    if (Number(out.udDayBuy) > 0) parts.push(Number(out.udDayBuy));
+    if (out.ttDayBuy !== "" && out.ttDayBuy != null && Number(out.ttDayBuy) > 0) parts.push(Number(out.ttDayBuy));
+    if (!parts.length) return "없음";
+    var sum = 0;
+    for (var i = 0; i < parts.length; i++) sum += parts[i];
+    return money(sum);
+  }
+
   function toast(msg) {
     var el = document.getElementById("toast");
     el.textContent = msg;
@@ -1380,9 +1390,17 @@
     fillText("v-K3", money(out.K3));
     fillText("v-L3", pct(out.L3));
     fillText("v-B8", out.B8);
+    var seedUsed = (out.E16 || 0) + (out.K16 || 0);
+    var seedRatio = out.C8 > 0 ? seedUsed / out.C8 : 0;
+    if (seedRatio < 0) seedRatio = 0;
+    if (seedRatio > 1) seedRatio = 1;
+    var seedBar = document.getElementById("v-seed-bar");
+    if (seedBar) seedBar.style.width = (seedRatio * 100).toFixed(1) + "%";
+    fillText("v-seed-pct", "(" + Math.round(seedRatio * 100) + "%)");
     fillText("v-C8", money(out.C8));
-    fillText("v-seed-used", money((out.E16 || 0) + (out.K16 || 0)));
+    fillText("v-seed-used", money(seedUsed));
     fillText("v-D8", money(out.D8));
+    fillText("v-daybuy", homeDayBuy(out));
     fillText("v-hold-total", (out.G8 || 0) + "주");
     fillText("v-E8", pct(out.E8));
     fillText("v-F8", out.F8);
