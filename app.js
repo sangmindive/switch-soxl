@@ -43,6 +43,7 @@
   var pxPinnedDate = "";
   var pxUnpin = null;
   var pxRangeDrag = null;
+  var pxWheel = null;
   var pushTimer = null;
   var syncing = false;
   var pushQueued = false;
@@ -1916,6 +1917,64 @@
     placePxCal(btn);
   }
 
+  function zoomPxByWheel(ev) {
+    var w = pxWheel;
+    if (!w || !w.dates || w.dates.length < 2 || !w.scroller) return;
+    var host = document.getElementById("st-px-chart");
+    if (!host || !host.contains(ev.target)) return;
+    ev.preventDefault();
+    var full = w.dates;
+    var rect = w.scroller.getBoundingClientRect();
+    var svgX = ev.clientX - rect.left + w.scroller.scrollLeft;
+    var anchor = w.dateAt(svgX);
+    var iAnchor = full.indexOf(anchor);
+    if (iAnchor < 0) iAnchor = full.length - 1;
+    var i0 = full.indexOf(w.start);
+    var i1 = full.indexOf(w.end);
+    if (i0 < 0) i0 = 0;
+    if (i1 < 0) i1 = full.length - 1;
+    if (i1 < i0) i1 = i0;
+    var span = Math.max(1, i1 - i0);
+    var dy = ev.deltaY;
+    if (ev.deltaMode === 1) dy *= 16;
+    else if (ev.deltaMode === 2) dy *= 400;
+    var next = Math.round(span * Math.exp(dy * 0.002));
+    var minSpan = Math.min(4, full.length - 1);
+    if (next < minSpan) next = minSpan;
+    if (next > full.length - 1) next = full.length - 1;
+    if (next === span) {
+      if (next >= full.length - 1 && pxSpan !== "all") {
+        pxSpan = "all";
+        pxStickRight = false;
+        renderPriceChart();
+      }
+      return;
+    }
+    var ratio = (iAnchor - i0) / span;
+    if (ratio < 0) ratio = 0;
+    if (ratio > 1) ratio = 1;
+    var left = Math.round(iAnchor - ratio * next);
+    var right = left + next;
+    if (left < 0) {
+      left = 0;
+      right = next;
+    }
+    if (right > full.length - 1) {
+      right = full.length - 1;
+      left = right - next;
+    }
+    if (left < 0) left = 0;
+    if (left === 0 && right === full.length - 1) {
+      pxSpan = "all";
+    } else {
+      pxSpan = "custom";
+      pxCustomFrom = full[left];
+      pxCustomTo = full[right];
+    }
+    pxStickRight = false;
+    renderPriceChart();
+  }
+
   function applyPxRangeDrag(ev) {
     var drag = pxRangeDrag;
     if (!drag) return;
@@ -2306,7 +2365,7 @@
     var html = [];
     html.push("<div class='px-chart-layout'>");
     html.push(axis.join(""));
-    html.push("<div class='px-scroll' tabindex='0' aria-label='종가와 평단. 가로로 드래그하면 그 기간만 보입니다.'>");
+    html.push("<div class='px-scroll' tabindex='0' aria-label='종가와 평단. 마우스 휠로 기간을 늘리거나 줄일 수 있습니다.'>");
     html.push(plot.join(""));
     html.push("</div>");
     html.push(
@@ -2314,7 +2373,6 @@
     );
     html.push("<div class='px-brush-track'></div><div class='px-brush-win'></div></div>");
     html.push("</div>");
-    html.push("<div class='px-select' hidden></div>");
     html.push("<div class='px-tip' hidden></div>");
     html.push("<p class='note px-span-note'></p>");
     if (model.fillFallback) html.push("<p class='note'>종가 기록이 없어 체결 단가로 이었습니다.</p>");
@@ -2328,9 +2386,7 @@
     var guide = host.querySelector(".px-guide");
     var guideDot = host.querySelector(".px-guide-dot");
     var tip = host.querySelector(".px-tip");
-    var selectEl = host.querySelector(".px-select");
     var hoverDate = "";
-    var picking = null;
     var pinnedDate = pxPinnedDate && indexOf[pxPinnedDate] != null ? pxPinnedDate : "";
     if (pxPinnedDate && !pinnedDate) pxPinnedDate = "";
 
@@ -2488,80 +2544,34 @@
       else if (hoverDate) showTip(hoverDate);
     }, { passive: true });
     scroller.addEventListener("mousemove", function (ev) {
-      if (picking && picking.drag) return;
       if (pinnedDate) return;
       var rect = scroller.getBoundingClientRect();
       showTip(dateAt(ev.clientX - rect.left + scroller.scrollLeft));
     });
-    scroller.addEventListener("mouseleave", function () {
-      if (picking && picking.drag) return;
-      hideTip();
-    });
-    function placeSelect(x1, x2) {
-      if (!selectEl) return;
-      var left = Math.min(x1, x2);
-      var right = Math.max(x1, x2);
-      var hostRect = host.getBoundingClientRect();
-      var plotRect = scroller.getBoundingClientRect();
-      var scaleY = H ? plotRect.height / H : 1;
-      var a = plotRect.left - hostRect.left + (left - scroller.scrollLeft);
-      var b = plotRect.left - hostRect.left + (right - scroller.scrollLeft);
-      selectEl.hidden = false;
-      selectEl.style.left = a + "px";
-      selectEl.style.width = Math.max(2, b - a) + "px";
-      selectEl.style.top = plotRect.top - hostRect.top + plotT * scaleY + "px";
-      selectEl.style.height = (plotB - plotT) * scaleY + "px";
-    }
+    scroller.addEventListener("mouseleave", hideTip);
+    var press = null;
     scroller.addEventListener("pointerdown", function (ev) {
       if (ev.button != null && ev.button !== 0) return;
-      var rect = scroller.getBoundingClientRect();
-      var svgX = ev.clientX - rect.left + scroller.scrollLeft;
-      picking = { x: ev.clientX, y: ev.clientY, id: ev.pointerId, svgX: svgX, date: dateAt(svgX), drag: false };
-      scroller.setPointerCapture(ev.pointerId);
-    });
-    scroller.addEventListener("pointermove", function (ev) {
-      if (!picking || picking.id !== ev.pointerId) return;
-      var dx = ev.clientX - picking.x;
-      var dy = ev.clientY - picking.y;
-      if (!picking.drag && dx * dx + dy * dy < 36) return;
-      if (!picking.drag && Math.abs(dy) > Math.abs(dx)) return;
-      picking.drag = true;
-      var rect = scroller.getBoundingClientRect();
-      var svgX = ev.clientX - rect.left + scroller.scrollLeft;
-      placeSelect(picking.svgX, svgX);
+      press = { x: ev.clientX, y: ev.clientY, id: ev.pointerId };
     });
     scroller.addEventListener("pointerup", function (ev) {
-      if (!picking || picking.id !== ev.pointerId) return;
-      var wasDrag = picking.drag;
-      var startDate = picking.date;
+      if (!press || press.id !== ev.pointerId) return;
+      var dx = ev.clientX - press.x;
+      var dy = ev.clientY - press.y;
+      press = null;
+      if (dx * dx + dy * dy > 36) return;
       var rect = scroller.getBoundingClientRect();
-      var endDate = dateAt(ev.clientX - rect.left + scroller.scrollLeft);
-      picking = null;
-      if (selectEl) selectEl.hidden = true;
-      if (wasDrag && startDate && endDate && startDate !== endDate) {
-        pxSpan = "custom";
-        pxCustomFrom = startDate < endDate ? startDate : endDate;
-        pxCustomTo = startDate < endDate ? endDate : startDate;
-        pxStickRight = false;
-        pinnedDate = "";
-        pxPinnedDate = "";
-        renderPriceChart();
-        return;
-      }
-      if (!endDate) return;
-      if (pinnedDate === endDate) {
+      var date = dateAt(ev.clientX - rect.left + scroller.scrollLeft);
+      if (!date) return;
+      if (pinnedDate === date) {
         pinnedDate = "";
         pxPinnedDate = "";
         hideGuide();
         return;
       }
-      pinnedDate = endDate;
-      pxPinnedDate = endDate;
-      showTip(endDate);
-    });
-    scroller.addEventListener("pointercancel", function () {
-      picking = null;
-      if (selectEl) selectEl.hidden = true;
+      pinnedDate = date;
+      pxPinnedDate = date;
+      showTip(date);
     });
     scroller.addEventListener("keydown", function (ev) {
       var step = Math.max(48, Math.round(scroller.clientWidth * 0.4));
@@ -2627,6 +2637,13 @@
       ev.preventDefault();
     });
 
+    pxWheel = {
+      dates: model.dates,
+      start: win.start,
+      end: win.end,
+      dateAt: dateAt,
+      scroller: scroller
+    };
     pinScroll();
     if (pinnedDate) showTip(pinnedDate);
     requestAnimationFrame(function () {
@@ -3493,6 +3510,10 @@
         closePxCal();
         renderPriceChart();
       };
+    }
+    var pxChartHost = document.getElementById("st-px-chart");
+    if (pxChartHost) {
+      pxChartHost.addEventListener("wheel", zoomPxByWheel, { passive: false });
     }
     document.addEventListener("pointermove", function (ev) {
       if (!pxRangeDrag) return;
