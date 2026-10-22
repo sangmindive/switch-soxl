@@ -1429,6 +1429,7 @@
     if (ret && ret.classList.contains("hero-ret")) {
       ret.className = "hero-ret " + (cycleRet >= 0 ? "pos" : "neg");
     }
+    applyHomePnlFold();
     var sym = document.getElementById("set-symbol-label");
     if (sym) sym.textContent = s.symbol;
 
@@ -4844,8 +4845,36 @@
       });
   }
 
+  var HOME_PNL_KEY = "switch-home-pnl-open";
+
+  function homePnlOpen() {
+    try {
+      return localStorage.getItem(HOME_PNL_KEY) !== "0";
+    } catch (e) {
+      return true;
+    }
+  }
+
+  function applyHomePnlFold() {
+    var open = homePnlOpen();
+    var row = document.getElementById("home-pnl-row");
+    var btn = document.getElementById("home-pnl-toggle");
+    if (row) row.hidden = !open;
+    if (btn) btn.setAttribute("aria-expanded", open ? "true" : "false");
+  }
+
+  var homePnlToggle = document.getElementById("home-pnl-toggle");
+  if (homePnlToggle) {
+    homePnlToggle.onclick = function () {
+      try {
+        localStorage.setItem(HOME_PNL_KEY, homePnlOpen() ? "0" : "1");
+      } catch (e) {}
+      applyHomePnlFold();
+    };
+  }
+
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("sw.js?v=22", { updateViaCache: "none" }).catch(function () {});
+    navigator.serviceWorker.register("sw.js?v=23", { updateViaCache: "none" }).catch(function () {});
   }
 
   function syncNow() {

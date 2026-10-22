@@ -280,12 +280,34 @@ body {
 .v.sell, .neg { color: var(--red); }
 .v.empty { color: #9ca3af; font-weight: 600; }
 
+.home-pnl-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 8px 0 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  cursor: pointer;
+}
+.home-pnl-mark {
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 5px solid var(--muted);
+}
+.home-pnl-toggle[aria-expanded="false"] .home-pnl-mark {
+  transform: rotate(-90deg);
+}
 .hero-pnl-row {
   display: flex;
   align-items: baseline;
   gap: 10px;
   margin: 4px 0 2px;
 }
+.hero-pnl-row[hidden] { display: none; }
 .quote-px-row {
   display: flex;
   align-items: baseline;

@@ -13,7 +13,7 @@
   <link rel="apple-touch-icon" href="icon-192.png" />
   <link rel="icon" href="icon-192.png" />
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
-  <link rel="stylesheet" href="styles.css?v=20261023b" />
+  <link rel="stylesheet" href="styles.css?v=20261023e" />
 </head>
 <body>
   <div class="app">
@@ -55,8 +55,11 @@
             <div class="hero-quote" id="live-chg">—</div>
           </div>
         </div>
-        <div class="k">실현손익</div>
-        <div class="hero-pnl-row">
+        <button type="button" class="home-pnl-toggle" id="home-pnl-toggle" aria-expanded="true">
+          <span class="k">실현손익</span>
+          <span class="home-pnl-mark" aria-hidden="true"></span>
+        </button>
+        <div class="hero-pnl-row" id="home-pnl-row">
           <div class="hero-pnl pos" id="home-pnl">—</div>
           <div class="hero-ret pos" id="v-L3"></div>
         </div>
@@ -610,6 +613,6 @@
   </div>
   <script src="engine.js?v=20261023d"></script>
   <script src="seed.js?v=20260924c"></script>
-  <script src="app.js?v=20261023d"></script>
+  <script src="app.js?v=20261023e"></script>
 </body>
 </html>
