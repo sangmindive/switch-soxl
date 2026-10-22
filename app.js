@@ -3629,6 +3629,18 @@
     }
   }
 
+  function latestJournalDate() {
+    var best = "";
+    function scan(list) {
+      (list || []).forEach(function (t) {
+        if (t && t.date && t.date > best) best = t.date;
+      });
+    }
+    scan(state.updownTrades);
+    scan(state.tteolTrades);
+    return best;
+  }
+
   function renderUdLog() {
     if (isEscapeView()) {
       var esc = loadEscape();
@@ -3679,7 +3691,7 @@
           "data-ud",
           idx,
           "ud",
-          idx === 0
+          idx === 0 && t.date === latestJournalDate()
         );
       })
       .join("");
@@ -3747,7 +3759,7 @@
           "data-tt",
           idx,
           "tt",
-          idx === 0
+          idx === 0 && t.date === latestJournalDate()
         );
       })
       .join("");
@@ -4831,7 +4843,7 @@
   }
 
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("sw.js?v=17", { updateViaCache: "none" }).catch(function () {});
+    navigator.serviceWorker.register("sw.js?v=18", { updateViaCache: "none" }).catch(function () {});
   }
 
   function syncNow() {
