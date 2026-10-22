@@ -1418,14 +1418,16 @@
     } else {
       badge.style.display = "none";
     }
+    var cyclePnl = Number(out.H8) || 0;
+    var cycleRet = s.capital ? cyclePnl / s.capital : 0;
     var pnl = document.getElementById("home-pnl");
     if (pnl) {
-      pnl.textContent = (out.K3 >= 0 ? "+" : "") + money(out.K3);
-      pnl.className = "hero-pnl " + (out.K3 >= 0 ? "pos" : "neg");
+      pnl.textContent = (cyclePnl >= 0 ? "+" : "") + money(cyclePnl);
+      pnl.className = "hero-pnl " + (cyclePnl >= 0 ? "pos" : "neg");
     }
     var ret = document.getElementById("v-L3");
     if (ret && ret.classList.contains("hero-ret")) {
-      ret.className = "hero-ret " + (out.L3 >= 0 ? "pos" : "neg");
+      ret.className = "hero-ret " + (cycleRet >= 0 ? "pos" : "neg");
     }
     var sym = document.getElementById("set-symbol-label");
     if (sym) sym.textContent = s.symbol;
@@ -1512,7 +1514,7 @@
     fillText("v-I3", money(out.I3));
     fillText("v-J3", out.J3);
     fillText("v-K3", money(out.K3));
-    fillText("v-L3", pct(out.L3));
+    fillText("v-L3", pct(s.capital ? (Number(out.H8) || 0) / s.capital : 0));
     fillText("v-B8", out.B8);
     var seedUsed = (out.E16 || 0) + (out.K16 || 0);
     var seedRatio = out.C8 > 0 ? seedUsed / out.C8 : 0;
@@ -4843,7 +4845,7 @@
   }
 
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("sw.js?v=18", { updateViaCache: "none" }).catch(function () {});
+    navigator.serviceWorker.register("sw.js?v=19", { updateViaCache: "none" }).catch(function () {});
   }
 
   function syncNow() {
