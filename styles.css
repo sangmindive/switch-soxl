@@ -564,6 +564,7 @@ table.sheet th, table.sheet td {
 }
 table.sheet th { color: var(--muted); font-weight: 600; text-align: center; }
 table.sheet td:first-child { text-align: center; font-weight: 700; }
+#page-orders tr.ladder-last td { background: #fff4cc; }
 table.sheet td.buy { color: var(--blue); font-weight: 700; }
 table.sheet td.sell { color: var(--red); font-weight: 700; }
 table.sheet td.empty { color: #9ca3af; font-weight: 600; }

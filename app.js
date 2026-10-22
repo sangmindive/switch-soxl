@@ -419,7 +419,14 @@
         ""
       );
       tb.innerHTML = html;
+      paintLastLadder(tb);
     }
+  }
+  function paintLastLadder(tb) {
+    if (!tb) return;
+    var rows = tb.querySelectorAll("tr");
+    if (!rows.length) return;
+    rows[rows.length - 1].classList.add("ladder-last");
   }
   function applyEscapeFill(type, opts) {
     var silent = !!(opts && opts.silent);
@@ -3286,6 +3293,7 @@
       });
     }
     tb.innerHTML = html;
+    paintLastLadder(tb);
   }
 
   function renderSuggested(out) {
@@ -4708,19 +4716,19 @@
         var echoedPrev = isFinite(q.prevClose) && near(q.lastClose, q.prevClose, 1e-4);
         if (!echoedPrev && expectedPrev && isFinite(q.prevClose) && q.prevClose > 0) {
           if (state.market.prevCloseDate !== expectedPrev || !near(state.market.prevClose, q.prevClose, 1e-6)) {
-            state.market.prevPrevClose = state.market.prevClose;
-            state.market.prevCloseDate = expectedPrev;
-            state.market.prevClose = q.prevClose;
+          state.market.prevPrevClose = state.market.prevClose;
+          state.market.prevCloseDate = expectedPrev;
+          state.market.prevClose = q.prevClose;
+          closeDirty = true;
+        }
+        }
+        if (!echoedPrev && !near(curClose, q.lastClose, 1e-6)) {
+            state.market.lastClose = q.lastClose;
+            state.market.tradeDate = q.sessionDate;
             closeDirty = true;
           }
         }
-        if (!echoedPrev && !near(curClose, q.lastClose, 1e-6)) {
-          state.market.lastClose = q.lastClose;
-          state.market.tradeDate = q.sessionDate;
-          closeDirty = true;
-        }
       }
-    }
     var echoed = isFinite(q.prevClose) && near(q.lastClose, q.prevClose, 1e-4);
     if (q.phase && q.phase !== "REG_MKT" && closeIsFinal(q.sessionDate) && isFinite(q.lastClose) && q.lastClose > 0 && !echoed && !near(state.market.lastClose, q.lastClose, 1e-6)) {
       state.market.lastClose = q.lastClose;
@@ -4828,7 +4836,7 @@
   }
 
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("sw.js?v=15", { updateViaCache: "none" }).catch(function () {});
+    navigator.serviceWorker.register("sw.js?v=16", { updateViaCache: "none" }).catch(function () {});
   }
 
   function syncNow() {
