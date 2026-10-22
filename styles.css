@@ -629,7 +629,7 @@ table.sheet tr.ladder-sell td { background: #fffafa; }
   padding: 10px 12px;
   margin-bottom: 0;
 }
-.log-row.log-latest { background: #fff4cc; }
+.log-row.log-latest { background: #fffdf2; }
 .log-main {
   flex: 1;
   min-width: 0;

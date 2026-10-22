@@ -3246,7 +3246,7 @@
     var dropText = drop === "" || drop == null || Number.isNaN(drop) ? "" : pct(drop);
     return (
       "<tr class='ladder-" +
-      (label === "매도" ? "sell" : label === "매수" ? "buy" : "step") +
+      (labelClass === "sell" ? "sell" : label === "매수" ? "buy" : "step") +
       "'><td class='" +
       labelClass +
       "'>" +
@@ -4845,7 +4845,7 @@
   }
 
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("sw.js?v=19", { updateViaCache: "none" }).catch(function () {});
+    navigator.serviceWorker.register("sw.js?v=20", { updateViaCache: "none" }).catch(function () {});
   }
 
   function syncNow() {
