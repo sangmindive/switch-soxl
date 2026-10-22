@@ -474,21 +474,8 @@
         return a.sellPrice - b.sellPrice;
       });
 
-    var ttBuyLast = null;
-    for (var tbi = 0; tbi < tt.length; tbi++) {
-      if (tt[tbi].type === "매수") {
-        ttBuyLast = tt[tbi];
-        break;
-      }
-    }
-    var ttFollow =
-      ttBuyLast && ttBuyLast.cycle != null && ttBuyLast.cycle !== ""
-        ? ttBuyLast.cycle
-        : ttLast && ttLast.cycle;
     var remainRank = "";
-    if (B13 === 0 || !cycleEq(B8, ttFollow)) {
-      if (openRanks.length) remainRank = openRanks[0].rank;
-    }
+    if (B13 === 0 && openRanks.length) remainRank = openRanks[0].rank;
     var overRank = "";
     if (s.rankHoldDays) {
       for (var ri = 0; ri < openRanks.length; ri++) {
