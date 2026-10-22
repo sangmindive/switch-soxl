@@ -924,6 +924,69 @@
     });
   }
 
+  function retargetCloseFills(book, date, oldClose, nextClose) {
+    if (!book || !date) return false;
+    oldClose = Number(oldClose);
+    nextClose = Number(nextClose);
+    if (!isFiniteNumber(oldClose) || !isFiniteNumber(nextClose) || oldClose <= 0 || nextClose <= 0) return false;
+    if (Math.abs(oldClose - nextClose) <= 1e-6) return false;
+    var feeRate = book.settings && book.settings.fee;
+    var changed = false;
+    function patch(list, side) {
+      if (!list || !list.length) return;
+      var touched = [];
+      for (var i = 0; i < list.length; i++) {
+        var t = list[i];
+        if (!t || t.date !== date) continue;
+        if (Math.abs(Number(t.price) - oldClose) > 1e-4) continue;
+        t.price = nextClose;
+        var qty = Number(t.qty) || 0;
+        t.amount = nextClose * qty;
+        if (!(Number(t.fee) < 0)) t.fee = excelRoundDown(t.amount * (Number(feeRate) || 0), 2);
+        touched.push(t);
+      }
+      if (!touched.length) return;
+      changed = true;
+      for (var k = 0; k < touched.length; k++) recomputeFromEdit(list, touched[k], side, feeRate, "price");
+    }
+    patch(book.updownTrades, "ud");
+    patch(book.tteolTrades, "tt");
+    return changed;
+  }
+
+  function retargetBooks(state, date, oldClose, nextClose) {
+    if (!state) return false;
+    var changed = false;
+    var seen = [];
+    function once(book) {
+      if (!book || seen.indexOf(book) !== -1) return;
+      seen.push(book);
+      if (retargetCloseFills(book, date, oldClose, nextClose)) changed = true;
+    }
+    once(state);
+    var accounts = state.accounts || {};
+    Object.keys(accounts).forEach(function (id) {
+      once(accounts[id]);
+    });
+    return changed;
+  }
+
+  function repairSpikedCloses(state) {
+    if (!state) return false;
+    var rows = []
+      .concat(state.closeDb || [])
+      .concat((state.market && state.market.closeHistory) || []);
+    var seen = {};
+    var changed = false;
+    rows.forEach(function (row) {
+      if (!row || !row.date || seen[row.date]) return;
+      if (Math.abs(Number(row.close) - 103.24) > 1e-4) return;
+      seen[row.date] = 1;
+      if (retargetBooks(state, row.date, 103.4, 103.24)) changed = true;
+    });
+    return changed;
+  }
+
   function recomputeFromEdit(trades, edited, side, feeRate, key) {
     if (!edited) return;
     var rate = Number(feeRate) || 0;
@@ -1219,6 +1282,8 @@
     nextTradingDate: nextTradingDate,
     applySuggested: applySuggested,
     recomputeFromEdit: recomputeFromEdit,
+    retargetBooks: retargetBooks,
+    repairSpikedCloses: repairSpikedCloses,
     transferOneRank: transferOneRank,
     liquidateAll: liquidateAll,
     applyPreset: applyPreset,

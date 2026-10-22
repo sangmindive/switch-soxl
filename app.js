@@ -1375,6 +1375,10 @@
       persist({ keepRev: true, noUndo: true });
       return;
     }
+    if (E.repairSpikedCloses(state)) {
+      persist({ noUndo: true });
+      return;
+    }
     if (dropOpenSessionCloses()) {
       persist({ noUndo: true, keepRev: true });
       return;
@@ -4499,7 +4503,9 @@
       if (m.closeHistory[i].date === date) {
         if (near(m.closeHistory[i].close, close, 1e-6)) return false;
         if (!closeRevisionOk(m.closeHistory[i].close, close, settle)) return false;
+        var oldClose = Number(m.closeHistory[i].close);
         m.closeHistory[i].close = close;
+        if (m === state.market) E.retargetBooks(state, date, oldClose, close);
         return true;
       }
     }
@@ -4518,7 +4524,9 @@
       if (state.closeDb[i].date === date) {
         if (near(state.closeDb[i].close, close, 1e-6)) return false;
         if (!closeRevisionOk(state.closeDb[i].close, close, settle)) return false;
+        var oldClose = Number(state.closeDb[i].close);
         state.closeDb[i].close = close;
+        E.retargetBooks(state, date, oldClose, close);
         return true;
       }
     }
@@ -4820,7 +4828,7 @@
   }
 
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("sw.js?v=14", { updateViaCache: "none" }).catch(function () {});
+    navigator.serviceWorker.register("sw.js?v=15", { updateViaCache: "none" }).catch(function () {});
   }
 
   function syncNow() {

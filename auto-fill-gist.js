@@ -328,12 +328,18 @@ function applyQuote(state, q) {
   var sessionDate = q.sessionDate || state.market.closeDate;
   var echoedPrev = isFinite(q.prevClose) && q.prevClose > 0 && isFinite(lastClose) && Math.abs(q.prevClose - lastClose) <= 1e-4;
   if (lastClose && sessionDate && !echoedPrev) {
+    var priorClose = null;
+    (state.closeDb || []).forEach(function (row) {
+      if (row && row.date === sessionDate) priorClose = Number(row.close);
+    });
     state.market.lastClose = lastClose;
     state.market.closeDate = sessionDate;
     state.market.tradeDate = sessionDate;
     if (q.phase && q.phase !== "REG_MKT") {
+      if (priorClose && Math.abs(priorClose - lastClose) > 1e-4) E.retargetBooks(state, sessionDate, priorClose, lastClose);
       state.closeDb = upsertClose(state.closeDb, sessionDate, lastClose);
       state.market.closeHistory = upsertClose(state.market.closeHistory, sessionDate, lastClose);
+      E.repairSpikedCloses(state);
     }
   }
   if (isFinite(q.prevClose) && q.prevClose > 0 && !echoedPrev) state.market.prevClose = q.prevClose;
