@@ -419,14 +419,7 @@
         ""
       );
       tb.innerHTML = html;
-      paintLastLadder(tb);
     }
-  }
-  function paintLastLadder(tb) {
-    if (!tb) return;
-    var rows = tb.querySelectorAll("tr");
-    if (!rows.length) return;
-    rows[rows.length - 1].classList.add("ladder-last");
   }
   function applyEscapeFill(type, opts) {
     var silent = !!(opts && opts.silent);
@@ -3293,7 +3286,6 @@
       });
     }
     tb.innerHTML = html;
-    paintLastLadder(tb);
   }
 
   function renderSuggested(out) {
@@ -3389,10 +3381,10 @@
     return "<span class='log-dot'>·</span>";
   }
 
-  function logLine(dateText, restParts, delAttr, idx, side) {
+  function logLine(dateText, restParts, delAttr, idx, side, latest) {
     var d = logEdit(side, idx, "date", dateText, "date");
     return (
-      "<article class='log-row'><div class='log-main'>" +
+      "<article class='log-row" + (latest ? " log-latest" : "") + "'><div class='log-main'>" +
       "<div class='log-date'>" +
       d +
       "</div><div class='log-line'>" +
@@ -3660,7 +3652,8 @@
             ],
             "data-ud",
             idx,
-            "esc"
+            "esc",
+            revIdx === 0
           );
         })
         .join("");
@@ -3685,7 +3678,8 @@
           ],
           "data-ud",
           idx,
-          "ud"
+          "ud",
+          idx === 0
         );
       })
       .join("");
@@ -3752,7 +3746,8 @@
           ],
           "data-tt",
           idx,
-          "tt"
+          "tt",
+          idx === 0
         );
       })
       .join("");
@@ -4836,7 +4831,7 @@
   }
 
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("sw.js?v=16", { updateViaCache: "none" }).catch(function () {});
+    navigator.serviceWorker.register("sw.js?v=17", { updateViaCache: "none" }).catch(function () {});
   }
 
   function syncNow() {
