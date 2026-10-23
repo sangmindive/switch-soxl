@@ -344,6 +344,15 @@ body {
   }
 }
 @media (max-width: 979px) {
+  #page-home .stats:not(.home-extra) > .stat:nth-child(4) {
+    grid-column: 1;
+    grid-row: 2;
+  }
+  #page-home .stats:not(.home-extra) > .stat:nth-child(5) {
+    grid-column: 2;
+    grid-row: 2;
+  }
+  #page-home .home-extra-bar { grid-column: 1 / -1; }
   #page-home .stat .k { font-size: 11px; }
   #page-home .stat .v { font-size: 14px; }
 }
