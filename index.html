@@ -13,7 +13,7 @@
   <link rel="apple-touch-icon" href="icon-192.png" />
   <link rel="icon" href="icon-192.png" />
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
-  <link rel="stylesheet" href="styles.css?v=20261024a" />
+  <link rel="stylesheet" href="styles.css?v=20261024b" />
 </head>
 <body>
   <div class="app">
@@ -432,6 +432,40 @@
         <label class="check"><input type="checkbox" id="set-blocked" /> 매수 불가</label>
         <p class="note">원금이 소진되면 켭니다. LP는 종가, 업다운은 전일 대비, 떨 매수만 막습니다.</p>
       </article>
+      <article class="card rank-card">
+        <button type="button" class="rank-toggle" id="btn-order-hist" aria-expanded="false">
+          <span>주문 이력</span>
+          <span class="rank-arrow" aria-hidden="true">▼</span>
+        </button>
+        <div id="order-hist-wrap" class="hidden order-hist">
+          <div class="order-hist-head">
+            <label class="k" for="order-hist-date">날짜</label>
+            <input id="order-hist-date" type="date" />
+            <span class="k" id="order-hist-lp"></span>
+          </div>
+          <p class="note">고른 날짜의 종가와 LP로 계산한 매수·매도 주문입니다.</p>
+          <div class="desktop-grid">
+            <div>
+              <h2>업다운 정액 계단</h2>
+              <div class="grid-wrap">
+                <table class="sheet">
+                  <thead><tr><th>#</th><th>단가</th><th>추가</th><th>누적</th><th>하락률</th></tr></thead>
+                  <tbody id="hist-ud-ladder"></tbody>
+                </table>
+              </div>
+            </div>
+            <div>
+              <h2>떨 정액 계단</h2>
+              <div class="grid-wrap">
+                <table class="sheet">
+                  <thead><tr><th>#</th><th>단가</th><th>추가</th><th>누적</th><th>하락률</th></tr></thead>
+                  <tbody id="hist-tt-ladder"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </article>
       </div>
       <div class="escape-book">
         <article class="card">
@@ -613,6 +647,6 @@
   </div>
   <script src="engine.js?v=20261023f"></script>
   <script src="seed.js?v=20260924c"></script>
-  <script src="app.js?v=20261023g"></script>
+  <script src="app.js?v=20261024b"></script>
 </body>
 </html>

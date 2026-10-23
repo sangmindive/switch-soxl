@@ -624,6 +624,24 @@ table.sheet tr.ladder-sell td { background: #fffafa; }
   font-size: 12px;
 }
 #rank-table-wrap { padding: 0 12px 12px; }
+.order-hist { padding: 0 12px 14px; }
+.order-hist-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.order-hist-head input[type="date"] {
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  padding: 8px 10px;
+  font: inherit;
+  color: var(--ink);
+  background: #fff;
+}
+.order-hist h2 { font-size: 15px; margin: 0 0 8px; }
+.order-hist .note { margin-top: 0; }
 .add-form-wrap { padding: 0 16px 14px; }
 .set-fold { padding: 0 16px 14px; }
 .journal-rank-slot { display: none; }
