@@ -498,6 +498,12 @@
       suggestedUd = suggestFromPending(state, "ud", opts);
       suggestedTt = suggestFromPending(state, "tteol", opts);
     }
+    if (suggestedTt && suggestedTt.type === "매수" && suggestedTt.orderPrice) {
+      I19 = suggestedTt.orderPrice;
+      H19 = suggestedTt.orderQty;
+      ttLadder = suggestedTt.orderLadder || [];
+      ttDayBuy = dayBuyCash(I19, H19, ttLadder);
+    }
 
     return {
       I3: I3,
@@ -829,7 +835,7 @@
           return { type: "", reason: "시트 F8≥J3−1 제한" };
         }
       }
-      rank = firstEmptyRank(d.openRanks, d.I16);
+      rank = firstEmptyRank(d.openRanks, 20);
       if (!rank) return { type: "", reason: "랭크 분할 가득" };
       type = "매수";
     } else {
@@ -884,7 +890,8 @@
     }
 
     var available = excelRoundDown(d.J16 / fill, 0);
-    ordered = excelRoundDown(d.J16 / (m.prevClose - 0.01), 0);
+    var orderPx = excelRound(m.prevClose - 0.01, 2);
+    ordered = excelRoundDown(d.J16 / orderPx, 0);
     qty = ordered + s.tteolStepQty * Math.min(quotient(available - ordered, s.tteolStepQty), s.tteolLadderCount);
     amount = fill * qty;
     fee = buyFee(fill, ordered, qty - ordered, s.tteolStepQty, s.fee);
@@ -900,6 +907,9 @@
       pnl: "",
       cycle: ttNewCycleOnBuy(d),
       sec: 0,
+      orderPrice: orderPx,
+      orderQty: ordered,
+      orderLadder: buildLadder(ordered, d.J16, s.tteolStepQty, s.tteolLadderCount, orderPx),
     };
   }
 
