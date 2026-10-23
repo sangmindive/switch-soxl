@@ -13,7 +13,7 @@
   <link rel="apple-touch-icon" href="icon-192.png" />
   <link rel="icon" href="icon-192.png" />
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
-  <link rel="stylesheet" href="styles.css?v=20261024b" />
+  <link rel="stylesheet" href="styles.css?v=20261024c" />
 </head>
 <body>
   <div class="app">
@@ -446,7 +446,19 @@
           <p class="note">고른 날짜의 종가와 LP로 계산한 매수·매도 주문입니다.</p>
           <div class="desktop-grid">
             <div>
-              <h2>업다운 정액 계단</h2>
+              <div class="card-head">
+                <h2>업다운 정액 계단</h2>
+                <div class="ladder-picks">
+                  <button type="button" class="num-pick" data-hist="udLadderCount" data-title="주문 수">
+                    <span class="k">주문 수</span>
+                    <strong id="hist-ud-orders">—</strong>
+                  </button>
+                  <button type="button" class="num-pick" data-hist="udStepQty" data-title="계단 수">
+                    <span class="k">계단 수</span>
+                    <strong id="hist-ud-step">—</strong>
+                  </button>
+                </div>
+              </div>
               <div class="grid-wrap">
                 <table class="sheet">
                   <thead><tr><th>#</th><th>단가</th><th>추가</th><th>누적</th><th>하락률</th></tr></thead>
@@ -455,7 +467,19 @@
               </div>
             </div>
             <div>
-              <h2>떨 정액 계단</h2>
+              <div class="card-head">
+                <h2>떨 정액 계단</h2>
+                <div class="ladder-picks">
+                  <button type="button" class="num-pick" data-hist="tteolLadderCount" data-title="주문 수">
+                    <span class="k">주문 수</span>
+                    <strong id="hist-tt-orders">—</strong>
+                  </button>
+                  <button type="button" class="num-pick" data-hist="tteolStepQty" data-title="계단 수">
+                    <span class="k">계단 수</span>
+                    <strong id="hist-tt-step">—</strong>
+                  </button>
+                </div>
+              </div>
               <div class="grid-wrap">
                 <table class="sheet">
                   <thead><tr><th>#</th><th>단가</th><th>추가</th><th>누적</th><th>하락률</th></tr></thead>
@@ -647,6 +671,6 @@
   </div>
   <script src="engine.js?v=20261023f"></script>
   <script src="seed.js?v=20260924c"></script>
-  <script src="app.js?v=20261024b"></script>
+  <script src="app.js?v=20261024c"></script>
 </body>
 </html>

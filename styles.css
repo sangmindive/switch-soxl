@@ -641,6 +641,8 @@ table.sheet tr.ladder-sell td { background: #fffafa; }
   background: #fff;
 }
 .order-hist h2 { font-size: 15px; margin: 0 0 8px; }
+.order-hist .card-head { margin-bottom: 8px; }
+.order-hist .card-head h2 { margin: 0; }
 .order-hist .note { margin-top: 0; }
 .add-form-wrap { padding: 0 16px 14px; }
 .set-fold { padding: 0 16px 14px; }

@@ -60,6 +60,7 @@
   var autoFillBusy = false;
   var fillAsOf = "";
   var orderHistDate = "";
+  var histLadder = null;
 
   function bookOf(s) {
     return {
@@ -3279,6 +3280,21 @@
     return NaN;
   }
 
+  function histLadderNow() {
+    var s = (state && state.settings) || {};
+    var id = state && state.accountId;
+    if (!histLadder || histLadder.accountId !== id) {
+      histLadder = {
+        accountId: id,
+        udLadderCount: Number(s.udLadderCount) || 0,
+        udStepQty: Number(s.udStepQty) || 0,
+        tteolLadderCount: Number(s.tteolLadderCount) || 0,
+        tteolStepQty: Number(s.tteolStepQty) || 0,
+      };
+    }
+    return histLadder;
+  }
+
   function bookOrdersOn(date) {
     if (!date || !state) return null;
     var px = closeOn(date);
@@ -3297,6 +3313,11 @@
     virt.tteolTrades = (virt.tteolTrades || []).filter(function (t) {
       return t.date && t.date <= asOf;
     });
+    var h = histLadderNow();
+    virt.settings.udLadderCount = h.udLadderCount;
+    virt.settings.udStepQty = h.udStepQty;
+    virt.settings.tteolLadderCount = h.tteolLadderCount;
+    virt.settings.tteolStepQty = h.tteolStepQty;
     virt.market = Object.assign({}, virt.market, {
       lastClose: px,
       prevClose: prevPx > 0 ? prevPx : px,
@@ -3318,6 +3339,11 @@
     var date = orderHistDate || (state.market && state.market.closeDate) || "";
     if (input && input.value !== date) input.value = date;
     var lpEl = document.getElementById("order-hist-lp");
+    var h = histLadderNow();
+    fillText("hist-ud-orders", h.udLadderCount);
+    fillText("hist-ud-step", h.udStepQty);
+    fillText("hist-tt-orders", h.tteolLadderCount);
+    fillText("hist-tt-step", h.tteolStepQty);
     var out = bookOrdersOn(date);
     if (!out) {
       if (lpEl) lpEl.textContent = "종가 없음";
@@ -4364,6 +4390,10 @@
           openNumPop(btn.dataset.key, btn.dataset.title, cur);
           return;
         }
+        if (btn.dataset.hist) {
+          openNumPop("hist:" + btn.dataset.hist, btn.dataset.title, histLadderNow()[btn.dataset.hist]);
+          return;
+        }
         openNumPop(btn.dataset.key, btn.dataset.title, state.settings[btn.dataset.key]);
       };
     });
@@ -4373,6 +4403,12 @@
     document.getElementById("num-pop-grid").onclick = function (ev) {
       var n = ev.target.getAttribute("data-num");
       if (n == null || !numPopKey) return;
+      if (numPopKey.indexOf("hist:") === 0) {
+        histLadderNow()[numPopKey.slice(5)] = parseInt(n, 10);
+        closeNumPop();
+        renderOrderHist();
+        return;
+      }
       if (isEscapeView()) {
         var esc = loadEscape();
         if (!esc) {
@@ -4950,7 +4986,7 @@
   }
 
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("sw.js?v=25", { updateViaCache: "none" }).catch(function () {});
+    navigator.serviceWorker.register("sw.js?v=26", { updateViaCache: "none" }).catch(function () {});
   }
 
   function syncNow() {
