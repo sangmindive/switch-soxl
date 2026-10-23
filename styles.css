@@ -644,6 +644,10 @@ table.sheet tr.ladder-sell td { background: #fffafa; }
 .order-hist .card-head { margin-bottom: 8px; }
 .order-hist .card-head h2 { margin: 0; }
 .order-hist .note { margin-top: 0; }
+.order-hist-fill { display: grid; gap: 4px; margin: 0 0 12px; font-weight: 700; }
+.order-hist-fill .buy { color: var(--blue); }
+.order-hist-fill .sell { color: var(--red); }
+.order-hist-fill .muted { color: var(--muted); font-weight: 600; }
 .add-form-wrap { padding: 0 16px 14px; }
 .set-fold { padding: 0 16px 14px; }
 .journal-rank-slot { display: none; }

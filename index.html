@@ -13,7 +13,7 @@
   <link rel="apple-touch-icon" href="icon-192.png" />
   <link rel="icon" href="icon-192.png" />
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
-  <link rel="stylesheet" href="styles.css?v=20261024c" />
+  <link rel="stylesheet" href="styles.css?v=20261024d" />
 </head>
 <body>
   <div class="app">
@@ -443,7 +443,8 @@
             <input id="order-hist-date" type="date" />
             <span class="k" id="order-hist-lp"></span>
           </div>
-          <p class="note">고른 날짜의 종가와 LP로 계산한 매수·매도 주문입니다.</p>
+          <p class="note">고른 날짜에 걸려 있던 주문입니다. LP는 전 거래일이고, 체결은 그날 종가입니다.</p>
+          <div id="order-hist-fill" class="order-hist-fill"></div>
           <div class="desktop-grid">
             <div>
               <div class="card-head">
@@ -671,6 +672,6 @@
   </div>
   <script src="engine.js?v=20261023f"></script>
   <script src="seed.js?v=20260924c"></script>
-  <script src="app.js?v=20261024c"></script>
+  <script src="app.js?v=20261024d"></script>
 </body>
 </html>

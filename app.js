@@ -3270,13 +3270,19 @@
   }
 
   function closeOn(date) {
-    if (!date || !state || !state.market) return NaN;
-    var m = state.market;
-    var hist = m.closeHistory || [];
-    for (var i = 0; i < hist.length; i++) {
-      if (hist[i].date === date) return Number(hist[i].close);
+    if (!date || !state) return NaN;
+    var db = state.closeDb || [];
+    var i;
+    for (i = 0; i < db.length; i++) {
+      if (db[i] && db[i].date === date && Number(db[i].close) > 0) return Number(db[i].close);
     }
-    if (m.closeDate === date) return Number(m.lastClose);
+    var m = state.market || {};
+    var hist = m.closeHistory || [];
+    for (i = 0; i < hist.length; i++) {
+      if (hist[i] && hist[i].date === date && Number(hist[i].close) > 0) return Number(hist[i].close);
+    }
+    if (m.closeDate === date && Number(m.lastClose) > 0) return Number(m.lastClose);
+    if (SOXL_CLOSE_SEED[date] > 0) return SOXL_CLOSE_SEED[date];
     return NaN;
   }
 
@@ -3297,21 +3303,16 @@
 
   function bookOrdersOn(date) {
     if (!date || !state) return null;
-    var px = closeOn(date);
-    var asOf = date;
-    if (!(px > 0)) {
-      asOf = E.previousTradingDate(date);
-      px = closeOn(asOf);
-    }
+    var basis = E.previousTradingDate(date);
+    var px = closeOn(basis);
     if (!(px > 0)) return null;
-    var prevD = E.previousTradingDate(asOf);
-    var prevPx = closeOn(prevD);
+    var prevPx = closeOn(E.previousTradingDate(basis));
     var virt = E.clone(state);
     virt.updownTrades = (virt.updownTrades || []).filter(function (t) {
-      return t.date && t.date <= asOf;
+      return t.date && t.date <= basis;
     });
     virt.tteolTrades = (virt.tteolTrades || []).filter(function (t) {
-      return t.date && t.date <= asOf;
+      return t.date && t.date <= basis;
     });
     var h = histLadderNow();
     virt.settings.udLadderCount = h.udLadderCount;
@@ -3321,15 +3322,55 @@
     virt.market = Object.assign({}, virt.market, {
       lastClose: px,
       prevClose: prevPx > 0 ? prevPx : px,
-      closeDate: asOf,
-      tradeDate: asOf,
+      closeDate: basis,
+      tradeDate: basis,
       price: px,
       changePct: prevPx > 0 ? px / prevPx - 1 : 0,
       phase: "POST_MKT",
     });
     var out = E.compute(virt, { skipSuggest: true });
-    out.histAsOf = asOf;
+    out.histAsOf = basis;
+    out.histSession = date;
+    var fillPx = closeOn(date);
+    if (fillPx > 0) {
+      var fillState = E.clone(virt);
+      fillState.market = Object.assign({}, virt.market, {
+        lastClose: fillPx,
+        prevClose: px,
+        closeDate: date,
+        tradeDate: date,
+        price: fillPx,
+        changePct: px > 0 ? fillPx / px - 1 : 0,
+        phase: "POST_MKT",
+      });
+      var filled = E.compute(fillState, { fillAsOf: date });
+      out.histFillUd = filled.suggestedUd || { type: "" };
+      out.histFillTt = filled.suggestedTt || { type: "" };
+      out.histFillPx = fillPx;
+    }
     return out;
+  }
+
+  function histFillLine(title, sug) {
+    if (!sug || !sug.type) {
+      return "<div class='muted'>" + title + " 체결 없음" + (sug && sug.reason ? " · " + sug.reason : "") + "</div>";
+    }
+    var who = sug.pot != null ? "포트 " + sug.pot : "랭크 " + sug.rank;
+    return (
+      "<div class='" +
+      (sug.type === "매도" ? "sell" : "buy") +
+      "'>" +
+      title +
+      " " +
+      sug.type +
+      " " +
+      money(sug.price) +
+      " × " +
+      sug.qty +
+      "주 · " +
+      who +
+      "</div>"
+    );
   }
 
   function renderOrderHist() {
@@ -3347,6 +3388,8 @@
     var out = bookOrdersOn(date);
     if (!out) {
       if (lpEl) lpEl.textContent = "종가 없음";
+      var fillMiss = document.getElementById("order-hist-fill");
+      if (fillMiss) fillMiss.innerHTML = "";
       var empty = "<tr><td colspan='5'>종가 없음</td></tr>";
       var udEmpty = document.getElementById("hist-ud-ladder");
       var ttEmpty = document.getElementById("hist-tt-ladder");
@@ -3354,10 +3397,12 @@
       if (ttEmpty) ttEmpty.innerHTML = empty;
       return;
     }
-    if (lpEl) {
-      var lpText = "LP " + money(out.D19);
-      if (out.histAsOf && out.histAsOf !== date) lpText += " · 종가 " + out.histAsOf;
-      lpEl.textContent = lpText;
+    if (lpEl) lpEl.textContent = "LP " + money(out.D19) + (out.histAsOf ? " · " + out.histAsOf : "");
+    var fillEl = document.getElementById("order-hist-fill");
+    if (fillEl) {
+      fillEl.innerHTML = out.histFillPx
+        ? histFillLine("업다운", out.histFillUd) + histFillLine("떨", out.histFillTt)
+        : "<div class='muted'>그날 종가 없음</div>";
     }
     renderLadder("hist-ud-ladder", out.udLadder, "ud", out);
     renderLadder("hist-tt-ladder", out.ttLadder, "tt", out);
@@ -4986,7 +5031,7 @@
   }
 
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("sw.js?v=26", { updateViaCache: "none" }).catch(function () {});
+    navigator.serviceWorker.register("sw.js?v=27", { updateViaCache: "none" }).catch(function () {});
   }
 
   function syncNow() {
