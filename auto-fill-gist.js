@@ -111,9 +111,10 @@ function autoTransfer(view, book, lines) {
 function fillBook(book, view) {
   var parts = [];
   var lines = [];
+  var fillOpts = view.market && view.market.closeDate ? { fillAsOf: view.market.closeDate } : undefined;
   var guard = 0;
   while (guard++ < 20) {
-    var r = E.applySuggested(view, "ud");
+    var r = E.applySuggested(view, "ud", fillOpts);
     if (!r.ok) break;
     parts.push("업다운 " + r.trade.type);
     lines.push(fmtLine(book, "업다운", r.trade));
@@ -121,7 +122,7 @@ function fillBook(book, view) {
   }
   guard = 0;
   while (guard++ < 20) {
-    var r2 = E.applySuggested(view, "tteol");
+    var r2 = E.applySuggested(view, "tteol", fillOpts);
     if (!r2.ok) break;
     parts.push("떨 " + r2.trade.type);
     lines.push(fmtLine(book, "떨", r2.trade));

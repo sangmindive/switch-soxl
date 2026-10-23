@@ -1366,7 +1366,7 @@
   function suggestOpts() {
     var opts = {};
     if (fillAsOf) opts.fillAsOf = fillAsOf;
-    else if (state && !state.autoFill && state.market && state.market.closeDate) opts.fillAsOf = state.market.closeDate;
+    else if (state && state.market && state.market.closeDate) opts.fillAsOf = state.market.closeDate;
     return opts;
   }
 
@@ -4874,7 +4874,7 @@
   }
 
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("sw.js?v=23", { updateViaCache: "none" }).catch(function () {});
+    navigator.serviceWorker.register("sw.js?v=24", { updateViaCache: "none" }).catch(function () {});
   }
 
   function syncNow() {
