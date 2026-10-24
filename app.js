@@ -1536,6 +1536,8 @@
     fillText("v-G8", out.G8);
     fillText("v-H8", money(out.H8));
     fillText("v-I8", pct(out.I8));
+    fillText("v-ud-shot", money(out.D16));
+    fillText("v-tt-shot", money(out.J16));
     fillText("v-ud-daybuy", money(out.udDayBuy));
     fillText("v-tt-daybuy", out.ttDayBuy === "" ? "없음" : money(out.ttDayBuy));
     fillText("v-B13", out.B13);
@@ -5031,7 +5033,7 @@
   }
 
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("sw.js?v=27", { updateViaCache: "none" }).catch(function () {});
+    navigator.serviceWorker.register("sw.js?v=28", { updateViaCache: "none" }).catch(function () {});
   }
 
   function syncNow() {
