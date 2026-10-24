@@ -340,7 +340,7 @@ body {
 #page-home .home-extra-bar { grid-column: 1 / 4; }
 @media (min-width: 980px) {
   #page-home .stats {
-    grid-template-columns: 1fr 1fr 1fr 1fr 1fr;
+    grid-template-columns: 1fr 1fr 1fr 1fr 1fr 1fr;
   }
 }
 @media (max-width: 979px) {
@@ -350,6 +350,10 @@ body {
   }
   #page-home .stats:not(.home-extra) > .stat:nth-child(5) {
     grid-column: 2;
+    grid-row: 2;
+  }
+  #page-home .stats:not(.home-extra) > .stat:nth-child(6) {
+    grid-column: 3;
     grid-row: 2;
   }
   #page-home .home-extra-bar { grid-column: 1 / -1; }

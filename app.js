@@ -1138,6 +1138,15 @@
     return money(sum);
   }
 
+  function homeDayShot(out) {
+    var d = Number(out.D16);
+    var j = Number(out.J16);
+    if (!isFinite(d)) d = 0;
+    if (!isFinite(j)) j = 0;
+    if (d <= 0 && j <= 0) return "없음";
+    return money(d + j);
+  }
+
   function toast(msg) {
     var el = document.getElementById("toast");
     el.textContent = msg;
@@ -1529,7 +1538,9 @@
     fillText("v-C8", money(out.C8));
     fillText("v-seed-used", money(seedUsed));
     fillText("v-D8", money(out.D8));
+    fillText("v-dayshot", homeDayShot(out));
     fillText("v-daybuy", homeDayBuy(out));
+    fillText("v-pr", out.F8);
     fillText("v-hold-total", (out.G8 || 0) + "주");
     fillText("v-E8", pct(out.E8));
     fillText("v-F8", out.F8);
@@ -5033,7 +5044,7 @@
   }
 
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("sw.js?v=28", { updateViaCache: "none" }).catch(function () {});
+    navigator.serviceWorker.register("sw.js?v=29", { updateViaCache: "none" }).catch(function () {});
   }
 
   function syncNow() {
