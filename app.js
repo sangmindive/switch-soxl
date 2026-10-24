@@ -5044,7 +5044,7 @@
   }
 
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("sw.js?v=29", { updateViaCache: "none" }).catch(function () {});
+    navigator.serviceWorker.register("sw.js?v=30", { updateViaCache: "none" }).catch(function () {});
   }
 
   function syncNow() {

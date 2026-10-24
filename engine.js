@@ -417,9 +417,7 @@
     }
 
     var D16 = excelRoundDown(J3 ? C8 / J3 : 0, 2);
-    var cycleMark = E13 + K13;
-    var j16Raw = !I16 ? D16 : D16 + ((cycleMark < 0 ? 0 : cycleMark) * s.reinvest) / I16;
-    var J16 = j16Raw;
+    var J16 = !I16 ? D16 : D16 + (K13 * s.reinvest) / I16;
     var F16 = E16 + K16 ? E16 / (E16 + K16) : 0;
     var L16 = E16 + K16 ? K16 / (E16 + K16) : 0;
 
