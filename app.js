@@ -1390,6 +1390,10 @@
       persist({ noUndo: true });
       return;
     }
+    if (E.repairOffCentPrices(state)) {
+      persist({ noUndo: true });
+      return;
+    }
     if (dropOpenSessionCloses()) {
       persist({ noUndo: true, keepRev: true });
       return;
@@ -5044,7 +5048,7 @@
   }
 
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("sw.js?v=30", { updateViaCache: "none" }).catch(function () {});
+    navigator.serviceWorker.register("sw.js?v=31", { updateViaCache: "none" }).catch(function () {});
   }
 
   function syncNow() {

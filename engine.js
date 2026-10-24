@@ -977,6 +977,42 @@
     return changed;
   }
 
+  function repairOffCentPrices(state) {
+    if (!state) return false;
+    var changed = false;
+    var seen = [];
+    function patchList(list) {
+      (list || []).forEach(function (t) {
+        if (!t) return;
+        var px = Number(t.price);
+        var qty = Number(t.qty) || 0;
+        if (!isFiniteNumber(px) || px <= 0 || !qty) return;
+        var rounded = excelRound(px, 2);
+        if (Math.abs(px - rounded) <= 1e-8) return;
+        var oldAmount = t.amount != null && t.amount !== "" && isFiniteNumber(Number(t.amount)) ? Number(t.amount) : px * qty;
+        var newAmount = excelRound(rounded * qty, 2);
+        t.price = rounded;
+        t.amount = newAmount;
+        if (t.pnl != null && t.pnl !== "" && isFiniteNumber(Number(t.pnl))) {
+          t.pnl = Number(t.pnl) - (oldAmount - newAmount);
+        }
+        changed = true;
+      });
+    }
+    function once(book) {
+      if (!book || seen.indexOf(book) !== -1) return;
+      seen.push(book);
+      patchList(book.updownTrades);
+      patchList(book.tteolTrades);
+    }
+    once(state);
+    var accounts = state.accounts || {};
+    Object.keys(accounts).forEach(function (id) {
+      once(accounts[id]);
+    });
+    return changed;
+  }
+
   function repairSpikedCloses(state) {
     if (!state) return false;
     var rows = []
@@ -1290,6 +1326,7 @@
     recomputeFromEdit: recomputeFromEdit,
     retargetBooks: retargetBooks,
     repairSpikedCloses: repairSpikedCloses,
+    repairOffCentPrices: repairOffCentPrices,
     transferOneRank: transferOneRank,
     liquidateAll: liquidateAll,
     applyPreset: applyPreset,
