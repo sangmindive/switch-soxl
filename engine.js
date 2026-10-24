@@ -417,7 +417,11 @@
     }
 
     var D16 = excelRoundDown(J3 ? C8 / J3 : 0, 2);
-    var J16 = !I16 ? D16 : D16 + (K13 * s.reinvest) / I16;
+    // 꿈통 시트 J16 = MIN(IF(I16=0,D16,D16+IF(E13+K13<0,0,E13+K13)*N3/I16), D8-D16)
+    // 대출 시트만 j16Mode "loan": IF(I16=0,D16,D16+(K13*N3)/I16)
+    var pool = s.j16Mode === "loan" ? K13 : (E13 + K13 < 0 ? 0 : E13 + K13);
+    var rawJ16 = !I16 ? D16 : D16 + (pool * s.reinvest) / I16;
+    var J16 = s.j16Mode === "loan" ? rawJ16 : Math.min(rawJ16, D8 - D16);
     var F16 = E16 + K16 ? E16 / (E16 + K16) : 0;
     var L16 = E16 + K16 ? K16 / (E16 + K16) : 0;
 
@@ -977,6 +981,52 @@
     return changed;
   }
 
+  function repairAccountSheets(state) {
+    if (!state || !state.accounts) return false;
+    var changed = false;
+    var rev = Date.now();
+    function patchSettings(id, fn) {
+      var book = state.accounts[id];
+      if (!book || !book.settings) return;
+      if (!fn(book.settings)) return;
+      book.settingsRev = rev;
+      if (state.accountId === id) state.settingsRev = rev;
+      changed = true;
+    }
+    patchSettings("1", function (s) {
+      if (s.ladderSheetSync) return false;
+      if (Number(s.udLadderCount) !== 14 || Number(s.tteolLadderCount) !== 14) return false;
+      if (Number(s.udStepQty) !== 5 || Number(s.tteolStepQty) !== 5) return false;
+      s.udLadderCount = 20;
+      s.tteolLadderCount = 20;
+      s.ladderSheetSync = 1;
+      return true;
+    });
+    patchSettings("2", function (s) {
+      if (s.j16Mode) return false;
+      s.j16Mode = "loan";
+      return true;
+    });
+    var seen = [];
+    function zeroFlatRoundTrip(list) {
+      if (!list || seen.indexOf(list) !== -1) return;
+      seen.push(list);
+      list.forEach(function (t) {
+        if (!t || t.type !== "매도" || t.date !== "2026-08-27") return;
+        if (Number(t.rank) !== 1 || Number(t.qty) !== 192) return;
+        if (Math.abs(Number(t.price) - 129.1) > 1e-6) return;
+        var pnl = Number(t.pnl);
+        if (!isFiniteNumber(pnl) || Math.abs(pnl + 0.56) > 0.02) return;
+        t.pnl = 0;
+        changed = true;
+      });
+    }
+    var book1 = state.accounts["1"];
+    if (book1) zeroFlatRoundTrip(book1.tteolTrades);
+    if (state.accountId === "1") zeroFlatRoundTrip(state.tteolTrades);
+    return changed;
+  }
+
   function repairOffCentPrices(state) {
     if (!state) return false;
     var changed = false;
@@ -1327,6 +1377,7 @@
     retargetBooks: retargetBooks,
     repairSpikedCloses: repairSpikedCloses,
     repairOffCentPrices: repairOffCentPrices,
+    repairAccountSheets: repairAccountSheets,
     transferOneRank: transferOneRank,
     liquidateAll: liquidateAll,
     applyPreset: applyPreset,
