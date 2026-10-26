@@ -411,8 +411,86 @@ async function main() {
     console.log("autoFill off · skip");
     return;
   }
+
+  async function patchState(nextEsc, escDirty) {
+    var files = {};
+    files[STATE_FILE] = { content: JSON.stringify(state) };
+    if (escDirty && nextEsc) files[ESCAPE_FILE] = { content: JSON.stringify(nextEsc) };
+    var patch = await fetch("https://api.github.com/gists/" + gistId, {
+      method: "PATCH",
+      headers: Object.assign({ "Content-Type": "application/json" }, gistHeaders(token)),
+      body: JSON.stringify({ files: files }),
+    });
+    if (!patch.ok) throw new Error("gist patch " + patch.status + " " + (await patch.text()));
+  }
+
+  function linesForClose(closeDate) {
+    var lines = [];
+    if (!closeDate) return lines;
+    function take(book, kind, list) {
+      var rows = (list || []).filter(function (t) {
+        return t && t.date === closeDate;
+      });
+      rows.sort(function (a, b) {
+        return (a.seq || 0) - (b.seq || 0);
+      });
+      rows.forEach(function (t) {
+        lines.push(fmtLine(book, kind, t));
+      });
+    }
+    ["1", "2"].forEach(function (id) {
+      var book = state.accounts[id];
+      if (!book) return;
+      var label = id === "2" ? "2번 계좌" : "1번 계좌";
+      take(label, "업다운", book.updownTrades);
+      take(label, "떨", book.tteolTrades);
+    });
+    if (esc && esc.trades) {
+      var escRows = esc.trades.filter(function (t) {
+        return t && t.date === closeDate && t.type !== "이관";
+      });
+      escRows.forEach(function (t) {
+        lines.push(fmtLine("탈출 업다운", "업다운", t));
+      });
+    }
+    return lines;
+  }
+
+  async function deliver(lines, closeDate) {
+    var note = [];
+    function push(line) {
+      if (line && note.indexOf(line) < 0) note.push(line);
+    }
+    (Array.isArray(state.telegramPending) ? state.telegramPending : []).forEach(push);
+    (lines || []).forEach(push);
+    if (closeDate && state.telegramSentClose !== closeDate) linesForClose(closeDate).forEach(push);
+    if (!note.length) {
+      console.log("telegram skip · no new rows");
+      return false;
+    }
+    var head = "Switch 자동 기입 " + day + "\n";
+    var chunk = head;
+    for (var i = 0; i < note.length; i++) {
+      var row = note[i] + (i === note.length - 1 ? "" : "\n");
+      if (chunk.length + row.length > 3500 && chunk !== head) {
+        await sendTelegram(chunk.replace(/\n$/, ""));
+        chunk = head;
+      }
+      chunk += row;
+    }
+    await sendTelegram(chunk.replace(/\n$/, ""));
+    state.telegramPending = [];
+    if (closeDate) state.telegramSentClose = closeDate;
+    return true;
+  }
+
   if (state.autoFillLast === day) {
     console.log("already filled " + day);
+    var filledClose = state.market && state.market.closeDate;
+    if (await deliver([], filledClose)) {
+      state.rev = Date.now();
+      await patchState(null, false);
+    }
     return;
   }
 
@@ -468,22 +546,10 @@ async function main() {
     state.tteolTrades = cur.tteolTrades;
   }
 
-  var files = {};
-  files[STATE_FILE] = { content: JSON.stringify(state) };
-  if (escDirty && esc) files[ESCAPE_FILE] = { content: JSON.stringify(esc) };
-
-  var patch = await fetch("https://api.github.com/gists/" + gistId, {
-    method: "PATCH",
-    headers: Object.assign({ "Content-Type": "application/json" }, gistHeaders(token)),
-    body: JSON.stringify({ files: files }),
-  });
-  if (!patch.ok) throw new Error("gist patch " + patch.status + " " + (await patch.text()));
+  await patchState(esc, escDirty);
   console.log("자동 기입 · " + notes.join(" / "));
-  if (added.length) {
-    await sendTelegram("Switch 자동 기입 " + day + "\n" + added.join("\n"));
-  } else {
-    console.log("telegram skip · no new rows");
-  }
+  var runClose = state.market && state.market.closeDate;
+  if (await deliver(added, runClose)) await patchState(esc, escDirty);
 }
 
 main().catch(function (err) {

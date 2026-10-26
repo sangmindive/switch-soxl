@@ -824,6 +824,8 @@
     next.barRev = Math.max(localBarRev, remoteBarRev);
     next.autoFill = !!barSrc.autoFill;
     next.autoFillLast = barSrc.autoFillLast || local.autoFillLast || remote.autoFillLast || "";
+    next.telegramPending = Array.isArray(base.telegramPending) ? base.telegramPending.slice() : [];
+    next.telegramSentClose = base.telegramSentClose || "";
     next.view = remoteRev > localRev ? remote.view || local.view : local.view || remote.view;
     if (next.view !== "1" && next.view !== "2" && next.view !== "escape") next.view = next.accountId || "1";
     next.settings = next.accounts[next.accountId].settings;
@@ -1297,8 +1299,54 @@
     state.deletedTt = book.deletedTt || [];
   }
 
+  function fmtFillLine(book, kind, t) {
+    if (!t) return "";
+    var px = t.price != null && t.price !== "" ? Number(t.price) : "";
+    var qty = t.qty != null ? t.qty : "";
+    var extra = t.pot != null && t.pot !== "" ? " 포트" + t.pot : t.rank != null && t.rank !== "" ? " 랭크" + t.rank : "";
+    var pxText = px === "" || !isFinite(px) ? "-" : E.excelRound(px, 2);
+    return (t.date || "") + " · " + book + " · " + kind + " " + (t.type || "") + extra + " · $" + pxText + " × " + qty + "주";
+  }
+
+  function queueFillLines(lines) {
+    if (!lines || !lines.length) return;
+    if (!Array.isArray(state.telegramPending)) state.telegramPending = [];
+    lines.forEach(function (line) {
+      if (line && state.telegramPending.indexOf(line) < 0) state.telegramPending.push(line);
+    });
+  }
+
+  function idSet(list) {
+    var map = {};
+    (list || []).forEach(function (t) {
+      if (t && t.id) map[t.id] = 1;
+    });
+    return map;
+  }
+
+  function linesAfter(book, kind, list, before) {
+    var lines = [];
+    (list || []).forEach(function (t) {
+      if (!t || (t.id && before[t.id])) return;
+      lines.push(fmtFillLine(book, kind, t));
+    });
+    return lines;
+  }
+
   function fillCurrentSilent() {
-    if (isEscapeView()) return applyEscapeFill("", { silent: true }) || "제안 없음";
+    if (isEscapeView()) {
+      var escBefore = loadEscape();
+      var beforeN = escBefore && escBefore.trades ? escBefore.trades.length : 0;
+      var escText = applyEscapeFill("", { silent: true }) || "제안 없음";
+      var escAfter = loadEscape();
+      if (escAfter && escAfter.trades && escAfter.trades.length > beforeN) {
+        queueFillLines([fmtFillLine("탈출 업다운", "업다운", escAfter.trades[escAfter.trades.length - 1])]);
+      }
+      return escText;
+    }
+    var book = state.accountId === "2" ? "2번 계좌" : "1번 계좌";
+    var beforeUd = idSet(state.updownTrades);
+    var beforeTt = idSet(state.tteolTrades);
     var parts = [];
     var r = E.applySuggested(state, "ud");
     if (r.ok) {
@@ -1310,6 +1358,7 @@
       maybeAutoTransfer();
       parts.push("떨 " + r2.trade.type);
     }
+    queueFillLines(linesAfter(book, "업다운", state.updownTrades, beforeUd).concat(linesAfter(book, "떨", state.tteolTrades, beforeTt)));
     return parts.length ? parts.join(" · ") : "제안 없음";
   }
 
@@ -5060,7 +5109,7 @@
   }
 
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("sw.js?v=36", { updateViaCache: "none" }).catch(function () {});
+    navigator.serviceWorker.register("sw.js?v=37", { updateViaCache: "none" }).catch(function () {});
   }
 
   function syncNow() {
