@@ -1486,6 +1486,8 @@
     document.getElementById("set-fixed").checked = !!s.seedSplitFixed;
     document.getElementById("set-blocked").checked = !!s.buyBlocked;
     document.getElementById("set-f8").checked = !!s.applySheetF8Limit;
+    var j16El = document.getElementById("set-j16");
+    if (j16El) j16El.value = s.j16Mode === "loan" ? "loan" : "cap";
     document.getElementById("set-auto").checked = !!s.autoTransfer;
     document.getElementById("set-ud-steps").value = s.udLadderCount;
     document.getElementById("set-tt-steps").value = s.tteolLadderCount;
@@ -4013,6 +4015,8 @@
     s.seedSplitFixed = document.getElementById("set-fixed").checked;
     s.buyBlocked = document.getElementById("set-blocked").checked;
     s.applySheetF8Limit = document.getElementById("set-f8").checked;
+    var j16El = document.getElementById("set-j16");
+    if (j16El) s.j16Mode = j16El.value === "loan" ? "loan" : "cap";
     s.autoTransfer = document.getElementById("set-auto").checked;
     s.udLadderCount = parseInt(document.getElementById("set-ud-steps").value, 10) || 0;
     s.tteolLadderCount = parseInt(document.getElementById("set-tt-steps").value, 10) || 0;
@@ -4314,6 +4318,7 @@
       "set-tt-qty",
       "set-bar-left",
       "set-bar-right",
+      "set-j16",
     ].forEach(function (id) {
       document.getElementById(id).addEventListener("change", readSettingsFromForm);
     });
@@ -5052,7 +5057,7 @@
   }
 
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("sw.js?v=32", { updateViaCache: "none" }).catch(function () {});
+    navigator.serviceWorker.register("sw.js?v=33", { updateViaCache: "none" }).catch(function () {});
   }
 
   function syncNow() {

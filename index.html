@@ -615,6 +615,12 @@
         <div class="setting-row"><span class="k">떨 계단 주수</span><input id="set-tt-qty" type="number" min="0" max="20" /></div>
         <div class="setting-row"><span class="k">떨 1회 / 복리 기준</span><span><span id="v-J16"></span> · <span id="v-I16"></span></span></div>
         <div class="setting-row"><span class="k">떨 시드 사용</span><span><span id="v-K16"></span> · <span id="v-L16"></span></span></div>
+        <div class="setting-row"><span class="k">떨사 1회 매수금</span>
+          <select id="set-j16">
+            <option value="cap">상한O</option>
+            <option value="loan">상한X</option>
+          </select>
+        </div>
         <label class="check"><input type="checkbox" id="set-f8" /> 시트 마지막 분할 제한</label>
         <p class="note">입력한 값만 저장됩니다. 수량은 내림, 매도 단가는 LP입니다.</p>
         </div>
@@ -676,6 +682,6 @@
   </div>
   <script src="engine.js?v=20261025c"></script>
   <script src="seed.js?v=20260924c"></script>
-  <script src="app.js?v=20261025e"></script>
+  <script src="app.js?v=20261026a"></script>
 </body>
 </html>
