@@ -1510,6 +1510,9 @@
     fillText("v-tt-step", isEscapeView() ? 0 : s.tteolStepQty);
 
     fillText("live-price", money(m.price));
+    var tabPx = usd(m.price);
+    var tabSym = String((s && s.symbol) || "SOXL").toUpperCase();
+    document.title = tabPx ? "Switch · " + tabSym + " " + tabPx : "Switch · " + tabSym;
     var chgEl = document.getElementById("live-chg");
     if (chgEl) {
       chgEl.textContent = pct(m.changePct);
@@ -5013,7 +5016,7 @@
   }
 
   function fetchQuote() {
-    if (quoteBusy || document.hidden) return;
+    if (quoteBusy) return;
     quoteBusy = true;
     var symbol = String(state.settings.symbol || "SOXL").toUpperCase();
     fetchCnbcQuote(symbol)
@@ -5057,7 +5060,7 @@
   }
 
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("sw.js?v=34", { updateViaCache: "none" }).catch(function () {});
+    navigator.serviceWorker.register("sw.js?v=35", { updateViaCache: "none" }).catch(function () {});
   }
 
   function syncNow() {
