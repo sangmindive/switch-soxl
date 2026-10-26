@@ -1511,8 +1511,8 @@
 
     fillText("live-price", money(m.price));
     var tabPx = usd(m.price);
-    var tabSym = String((s && s.symbol) || "SOXL").toUpperCase();
-    document.title = tabPx ? "Switch · " + tabSym + " " + tabPx : "Switch · " + tabSym;
+    var tabChg = signedPct(m.changePct);
+    document.title = tabPx && tabChg !== "—" ? "Switch · " + tabPx + " · " + tabChg : tabPx ? "Switch · " + tabPx : "Switch · SOXL";
     var chgEl = document.getElementById("live-chg");
     if (chgEl) {
       chgEl.textContent = pct(m.changePct);
@@ -5060,7 +5060,7 @@
   }
 
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("sw.js?v=35", { updateViaCache: "none" }).catch(function () {});
+    navigator.serviceWorker.register("sw.js?v=36", { updateViaCache: "none" }).catch(function () {});
   }
 
   function syncNow() {
