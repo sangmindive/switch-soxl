@@ -2699,7 +2699,7 @@
           var x = baseX;
           var y = yOf(value);
           var up = m.pnl > 0;
-          var tipY = up ? y + i * 12 : y - i * 12;
+          var tipY = up ? y - i * 12 : y + i * 12;
           var label = markerLabel(m.pct);
           if (label === "+0.0%" || label === "-0.0%" || label === "+0.00%" || label === "-0.00%") label = "";
           var labelW = Math.max(28, label.length * 5.6);
@@ -2710,11 +2710,11 @@
             }
             return false;
           }
-          var labelY = up ? tipY + 19 : tipY - 11;
+          var labelY = up ? tipY - 11 : tipY + 19;
           var labelX = x;
           var guard = 0;
           while (label && guard < 8 && hits({ x: labelX, y: labelY, w: labelW })) {
-            labelY += up ? 11 : -11;
+            labelY += up ? -11 : 11;
             guard++;
           }
           if (labelY < 11) labelY = 11;
@@ -2722,7 +2722,7 @@
           if (label && hits({ x: labelX, y: labelY, w: labelW })) label = "";
           if (label) placed.push({ x: labelX, y: labelY, w: labelW });
           var color = up ? "#ef4444" : "#2563eb";
-          var tri = up ? "0,0 5,8 -5,8" : "0,0 5,-8 -5,-8";
+          var tri = up ? "0,0 5,-8 -5,-8" : "0,0 5,8 -5,8";
           var tip = m.date + " " + sideLabel(m.side) + (up ? " 매도 수익 " : " 매도 손절 ") + (label || "") + " " + money(m.pnl);
           plot.push("<g>");
           plot.push("<title>" + xmlEsc(tip) + "</title>");
@@ -5057,7 +5057,7 @@
   }
 
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("sw.js?v=33", { updateViaCache: "none" }).catch(function () {});
+    navigator.serviceWorker.register("sw.js?v=34", { updateViaCache: "none" }).catch(function () {});
   }
 
   function syncNow() {
