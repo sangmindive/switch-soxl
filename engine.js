@@ -950,6 +950,7 @@
         if (!t || t.date !== date) continue;
         if (Math.abs(Number(t.price) - oldClose) > 1e-4) continue;
         t.price = nextClose;
+        t.editedAt = Date.now();
         var qty = Number(t.qty) || 0;
         t.amount = nextClose * qty;
         if (!(Number(t.fee) < 0)) t.fee = excelRoundDown(t.amount * (Number(feeRate) || 0), 2);
@@ -988,7 +989,14 @@
     function patchSettings(id, fn) {
       var book = state.accounts[id];
       if (!book || !book.settings) return;
+      var before = JSON.parse(JSON.stringify(book.settings));
       if (!fn(book.settings)) return;
+      var now = Date.now();
+      if (!book.settings.fieldRev || typeof book.settings.fieldRev !== "object") book.settings.fieldRev = {};
+      Object.keys(book.settings).forEach(function (k) {
+        if (k === "fieldRev") return;
+        if (JSON.stringify(before[k]) !== JSON.stringify(book.settings[k])) book.settings.fieldRev[k] = now;
+      });
       book.settingsRev = rev;
       if (state.accountId === id) state.settingsRev = rev;
       changed = true;
@@ -1018,6 +1026,7 @@
         var pnl = Number(t.pnl);
         if (!isFiniteNumber(pnl) || Math.abs(pnl + 0.56) > 0.02) return;
         t.pnl = 0;
+        t.editedAt = Date.now();
         changed = true;
       });
     }
@@ -1169,7 +1178,7 @@
     var fillDate = sug.date || state.market.closeDate;
     if (which === "tteol") {
       state.tteolTrades.unshift({
-        id: newTradeId(),
+        id: newTradeId(), editedAt: Date.now(),
         date: fillDate,
         seq: nextSeq(state.tteolTrades, fillDate),
         type: sug.type,
@@ -1183,7 +1192,7 @@
       });
     } else {
       state.updownTrades.unshift({
-        id: newTradeId(),
+        id: newTradeId(), editedAt: Date.now(),
         date: fillDate,
         seq: nextSeq(state.updownTrades, fillDate),
         type: sug.type,
@@ -1221,7 +1230,7 @@
     var avg = pos.price;
 
     state.updownTrades.unshift({
-      id: newTradeId(),
+      id: newTradeId(), editedAt: Date.now(),
       date: date,
       seq: nextSeq(state.updownTrades, date),
       type: "떨",
@@ -1238,7 +1247,7 @@
     });
 
     state.tteolTrades.unshift({
-      id: newTradeId(),
+      id: newTradeId(), editedAt: Date.now(),
       date: date,
       seq: nextSeq(state.tteolTrades, date),
       type: "매도",
@@ -1277,7 +1286,7 @@
       var sec = secFee(amount);
       var pnl = amount - pos.price * qty - ((pos.fee || 0) + fee + sec);
       state.tteolTrades.unshift({
-        id: newTradeId(),
+        id: newTradeId(), editedAt: Date.now(),
         date: date,
         seq: nextSeq(state.tteolTrades, date),
         type: "매도",
@@ -1309,7 +1318,7 @@
     }
 
     state.updownTrades.unshift({
-      id: newTradeId(),
+      id: newTradeId(), editedAt: Date.now(),
       date: date,
       seq: nextSeq(state.updownTrades, date),
       type: "매도",

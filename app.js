@@ -7,6 +7,12 @@
   var SYNC_KEY = "switch-v3-sync";
   var ESCAPE_KEY = "switch-escape-v1";
   var ESCAPE_FILE = "switch-escape-v1.json";
+  var PENDING_KEY = "switch-v3-pending";
+  var ESCAPE_PENDING_KEY = "switch-v3-escape-pending";
+  var localPending = false;
+  var escapePending = false;
+  try { localPending = localStorage.getItem(PENDING_KEY) === "1"; } catch (e) {}
+  try { escapePending = localStorage.getItem(ESCAPE_PENDING_KEY) === "1"; } catch (e) {}
   var BAR_SLOTS = {
     acc1: { label: "1번 계좌" },
     acc2: { label: "2번 계좌" },
@@ -184,6 +190,7 @@
     state.rev = Date.now();
     if (snap.escape == null) localStorage.removeItem(ESCAPE_KEY);
     else localStorage.setItem(ESCAPE_KEY, snap.escape);
+    setPending(true);
     saveState();
     lastSnap = captureSnap();
     schedulePush();
@@ -205,6 +212,7 @@
     if (!(opts && opts.noUndo)) pushLastSnap();
     esc.rev = Date.now();
     localStorage.setItem(ESCAPE_KEY, JSON.stringify(esc));
+    setEscapePending(true);
     lastSnap = captureSnap();
     scheduleEscapePush();
   }
@@ -517,6 +525,26 @@
     localStorage.setItem(KEY, JSON.stringify(state));
   }
 
+  function setPending(on) {
+    localPending = !!on;
+    try {
+      if (on) localStorage.setItem(PENDING_KEY, "1");
+      else localStorage.removeItem(PENDING_KEY);
+    } catch (e) {}
+  }
+
+  function setEscapePending(on) {
+    escapePending = !!on;
+    try {
+      if (on) localStorage.setItem(ESCAPE_PENDING_KEY, "1");
+      else localStorage.removeItem(ESCAPE_PENDING_KEY);
+    } catch (e) {}
+  }
+
+  function newSyncNonce() {
+    return String(Date.now()) + "-" + Math.random().toString(36).slice(2);
+  }
+
   function loadSyncCfg() {
     try {
       var cfg = JSON.parse(localStorage.getItem(SYNC_KEY) || "{}");
@@ -663,22 +691,30 @@
     return Object.keys(map);
   }
 
-  function mergeTradeLists(localList, remoteList, deleted) {
+  function mergeTradeLists(localList, remoteList, deleted, localRev, remoteRev) {
     var drop = {};
     (deleted || []).forEach(function (k) {
       drop[k] = 1;
     });
     var map = {};
-    function put(list) {
+    function put(list, overwriteTie) {
       (list || []).forEach(function (t) {
         if (!t) return;
         var k = tradeKey(t);
         if (drop[k]) return;
-        map[k] = t;
+        var prev = map[k];
+        if (!prev) {
+          map[k] = t;
+          return;
+        }
+        var pe = Number(prev.editedAt) || 0;
+        var te = Number(t.editedAt) || 0;
+        if (te > pe || (te === pe && overwriteTie)) map[k] = t;
       });
     }
-    put(remoteList);
-    put(localList);
+    var remoteNewer = (Number(remoteRev) || 0) >= (Number(localRev) || 0);
+    put(remoteNewer ? localList : remoteList, false);
+    put(remoteNewer ? remoteList : localList, true);
     return Object.keys(map)
       .map(function (k) {
         return map[k];
@@ -736,6 +772,47 @@
     return null;
   }
 
+  function settingScore(touch, key, bookRev, otherTouch) {
+    var t = Number(touch && touch[key]) || 0;
+    if (t) return t;
+    var other = Number(otherTouch && otherTouch[key]) || 0;
+    if (other) return 0;
+    return Number(bookRev) || 0;
+  }
+
+  function mergeSettings(localBook, remoteBook) {
+    var ls = (localBook && localBook.settings) || {};
+    var rs = (remoteBook && remoteBook.settings) || {};
+    var lrev = Number(localBook && localBook.settingsRev) || 0;
+    var rrev = Number(remoteBook && remoteBook.settingsRev) || 0;
+    var lt = ls.fieldRev || {};
+    var rt = rs.fieldRev || {};
+    var keys = {};
+    Object.keys(ls).forEach(function (k) { keys[k] = 1; });
+    Object.keys(rs).forEach(function (k) { keys[k] = 1; });
+    delete keys.fieldRev;
+    var settings = {};
+    var fieldRev = {};
+    Object.keys(keys).forEach(function (k) {
+      var lHas = Object.prototype.hasOwnProperty.call(ls, k);
+      var rHas = Object.prototype.hasOwnProperty.call(rs, k);
+      var lScore = lHas ? settingScore(lt, k, lrev, rt) : 0;
+      var rScore = rHas ? settingScore(rt, k, rrev, lt) : 0;
+      var pickRemote = rScore > lScore || (rScore === lScore && rHas);
+      if (pickRemote && rHas) settings[k] = rs[k];
+      else if (lHas) settings[k] = ls[k];
+      else settings[k] = rs[k];
+      var won = pickRemote && rHas ? Number(rt[k]) || 0 : Number(lt[k]) || 0;
+      if (won) fieldRev[k] = won;
+    });
+    settings.fieldRev = fieldRev;
+    var rev = Math.max(lrev, rrev);
+    Object.keys(fieldRev).forEach(function (k) {
+      if (fieldRev[k] > rev) rev = fieldRev[k];
+    });
+    return { settings: settings, settingsRev: rev };
+  }
+
   function mergeBook(localBook, remoteBook, localRev, remoteRev) {
     var newer = remoteRev > localRev ? remoteBook : localBook;
     var base = newer && newer.settings ? newer : localBook && localBook.settings ? localBook : remoteBook;
@@ -745,18 +822,20 @@
     next.updownTrades = mergeTradeLists(
       localBook && localBook.updownTrades,
       remoteBook && remoteBook.updownTrades,
-      next.deletedUd
+      next.deletedUd,
+      localRev,
+      remoteRev
     );
     next.tteolTrades = mergeTradeLists(
       localBook && localBook.tteolTrades,
       remoteBook && remoteBook.tteolTrades,
-      next.deletedTt
+      next.deletedTt,
+      localRev,
+      remoteRev
     );
-    var settingsSrc = newerSettings(localBook, remoteBook);
-    if (settingsSrc) {
-      next.settings = JSON.parse(JSON.stringify(settingsSrc.settings));
-      next.settingsRev = Number(settingsSrc.settingsRev) || 0;
-    }
+    var merged = mergeSettings(localBook, remoteBook);
+    next.settings = merged.settings;
+    next.settingsRev = merged.settingsRev;
     return next;
   }
 
@@ -816,8 +895,17 @@
     next.barLeftOff = !!barSrc.barLeftOff;
     next.barRightOff = !!barSrc.barRightOff;
     next.barRev = Math.max(localBarRev, remoteBarRev);
-    next.autoFill = !!barSrc.autoFill;
-    next.autoFillLast = barSrc.autoFillLast || local.autoFillLast || remote.autoFillLast || "";
+    var lFillAt = Number(local.autoFillAt) || 0;
+    var rFillAt = Number(remote.autoFillAt) || 0;
+    if (lFillAt || rFillAt) {
+      next.autoFill = lFillAt > rFillAt ? !!local.autoFill : !!remote.autoFill;
+      next.autoFillAt = Math.max(lFillAt, rFillAt);
+    } else {
+      next.autoFill = !!barSrc.autoFill;
+    }
+    var lDay = local.autoFillLast || "";
+    var rDay = remote.autoFillLast || "";
+    next.autoFillLast = lDay > rDay ? lDay : rDay;
     next.telegramPending = Array.isArray(base.telegramPending) ? base.telegramPending.slice() : [];
     next.telegramSentClose = base.telegramSentClose || "";
     next.view = remoteRev > localRev ? remote.view || local.view : local.view || remote.view;
@@ -839,7 +927,12 @@
     var after = JSON.stringify(syncSnapshot(next));
     var remoteSnap = JSON.stringify(syncSnapshot(remote));
     var push = after !== remoteSnap || !remoteHadAccounts;
-    next.rev = push ? Date.now() : higherRev;
+    if (push) {
+      next.rev = Date.now();
+      next.syncNonce = newSyncNonce();
+    } else {
+      next.rev = higherRev;
+    }
     return { state: next, push: push, changed: before !== after };
   }
 
@@ -885,11 +978,19 @@
       var local = loadEscape();
       var lr = Number(local && local.rev) || 0;
       var rr = Number(remote && remote.rev) || 0;
+      if (!escapePending) {
+        if (localStorage.getItem(ESCAPE_KEY) !== file.content) {
+          localStorage.setItem(ESCAPE_KEY, file.content);
+          return true;
+        }
+        return false;
+      }
       if (rr > lr) {
         localStorage.setItem(ESCAPE_KEY, file.content);
+        setEscapePending(false);
         return true;
       }
-      if (lr > rr) scheduleEscapePush();
+      if (lr >= rr) scheduleEscapePush();
     } catch (e) {}
     return false;
   }
@@ -897,25 +998,54 @@
   var escapePushTimer = null;
   function scheduleEscapePush() {
     var cfg = loadSyncCfg();
-    if (!cfg.token || !cfg.gistId) return;
+    if (!cfg.token || !cfg.gistId || !escapePending) return;
     clearTimeout(escapePushTimer);
     escapePushTimer = setTimeout(function () {
       var esc = loadEscape();
-      if (!esc) return;
+      if (!esc || !escapePending) return;
       var body = { files: {} };
       body.files[ESCAPE_FILE] = { content: JSON.stringify(esc) };
       fetch("https://api.github.com/gists/" + cfg.gistId, {
         method: "PATCH",
         headers: gistHeaders(cfg.token),
         body: JSON.stringify(body),
+      }).then(function (r) {
+        if (r.ok) setEscapePending(false);
       }).catch(function () {});
     }, 700);
   }
 
   function markSyncReady() {
-    if (firstSyncDone) return;
     firstSyncDone = true;
-    schedulePush();
+  }
+
+  function adoptRemote(local, remote) {
+    var next = JSON.parse(JSON.stringify(remote));
+    var live = (local && local.market) || {};
+    if (!next.market) next.market = {};
+    if (live.price) next.market.price = live.price;
+    if (live.changePct != null && live.changePct !== "") next.market.changePct = live.changePct;
+    if (live.phase) next.market.phase = live.phase;
+    var view = local && local.view;
+    var accountId = local && local.accountId;
+    next = attachAccounts(next);
+    if (view === "1" || view === "2") {
+      next.view = view;
+      if (next.accountId !== view) {
+        next.accountId = view;
+        var book = next.accounts[view];
+        next.settings = book.settings;
+        next.settingsRev = Number(book.settingsRev) || 0;
+        next.updownTrades = book.updownTrades || [];
+        next.tteolTrades = book.tteolTrades || [];
+        next.deletedUd = book.deletedUd || [];
+        next.deletedTt = book.deletedTt || [];
+      }
+    } else if (view === "escape") {
+      next.view = "escape";
+      if (accountId === "1" || accountId === "2") next.accountId = accountId;
+    }
+    return next;
   }
 
   function pullRemote() {
@@ -942,11 +1072,31 @@
             pullQueued = false;
             return pullRemote();
           }
-          if (!pushQueued) return escChanged;
+          if (localPending && pushQueued) {
+            pushQueued = false;
+            return pushRemote().then(function () {
+              return escChanged;
+            });
+          }
           pushQueued = false;
-          return pushRemote().then(function () {
-            return escChanged;
-          });
+          return escChanged;
+        }
+        if (!localPending) {
+          var adopted = adoptRemote(state, remote);
+          var changed = JSON.stringify(syncSnapshot(state)) !== JSON.stringify(syncSnapshot(adopted));
+          state = adopted;
+          saveState();
+          syncing = false;
+          markSyncReady();
+          if (changed || escChanged) render();
+          lastSnap = captureSnap();
+          scheduleAutoFill();
+          maybeCatchUpAutoFill();
+          if (pullQueued) {
+            pullQueued = false;
+            return pullRemote();
+          }
+          return changed;
         }
         var rec = reconcile(state, remote);
         state = rec.state;
@@ -961,7 +1111,10 @@
           pullQueued = false;
           return pullRemote();
         }
-        if (!rec.push && !pushQueued) return rec.changed;
+        if (!rec.push && !pushQueued) {
+          setPending(false);
+          return rec.changed;
+        }
         pushQueued = false;
         return pushRemote().then(function () {
           return true;
@@ -974,7 +1127,7 @@
       });
   }
 
-  function pushRemote() {
+  function pushRemote(attempt) {
     var cfg = loadSyncCfg();
     if (!cfg.token || !cfg.gistId) return Promise.resolve();
     if (syncing) {
@@ -983,6 +1136,7 @@
     }
     syncing = true;
     pushQueued = false;
+    attempt = attempt || 0;
     return fetch("https://api.github.com/gists/" + cfg.gistId, { headers: gistHeaders(cfg.token) })
       .then(readGistResponse)
       .then(function (gist) {
@@ -993,26 +1147,41 @@
           saveState();
           lastSnap = captureSnap();
           if (!rec.push) {
-            syncing = false;
+            setPending(false);
             if (rec.changed) render();
-            if (pushQueued) return pushRemote();
-            return;
+            return null;
           }
+        } else {
+          state.rev = Date.now();
+          state.syncNonce = newSyncNonce();
+          saveState();
         }
+        var sentNonce = state.syncNonce;
         return fetch("https://api.github.com/gists/" + cfg.gistId, {
           method: "PATCH",
           headers: gistHeaders(cfg.token),
           body: JSON.stringify(gistBody()),
-        }).then(readGistResponse);
+        })
+          .then(readGistResponse)
+          .then(function () {
+            return fetch("https://api.github.com/gists/" + cfg.gistId, { headers: gistHeaders(cfg.token) }).then(readGistResponse);
+          })
+          .then(function (again) {
+            var saved = readRemoteState(again);
+            if (sentNonce && saved && saved.syncNonce !== sentNonce && attempt < 4) return { retry: true };
+            if (!saved || saved.syncNonce === sentNonce) setPending(false);
+            return null;
+          });
       })
-      .then(function () {
+      .then(function (step) {
         syncing = false;
         markSyncReady();
+        if (step && step.retry) return pushRemote(attempt + 1);
         if (pullQueued) {
           pullQueued = false;
           return pullRemote();
         }
-        if (pushQueued) return pushRemote();
+        if (pushQueued) return pushRemote(0);
       })
       .catch(function (err) {
         syncing = false;
@@ -1071,7 +1240,6 @@
       pullRemote()
         .then(function (changed) {
           toast(changed ? "다른 기기 데이터를 불러왔습니다" : "연결됨 · 이미 최신");
-          if (!changed) schedulePush();
         })
         .catch(function (err) {
           toast("불러오기 실패 · " + (err.message || "네트워크"));
@@ -1219,11 +1387,13 @@
   function persist(opts) {
     if (!(opts && (opts.noUndo || opts.keepRev))) pushLastSnap();
     if (!(opts && opts.keepRev)) state.rev = Date.now();
+    var publish = !(opts && opts.sync === false);
+    if (publish) setPending(true);
     saveState();
     lastSnap = captureSnap();
     render();
     updateUndoBtn();
-    if (firstSyncDone && !(opts && opts.sync === false)) schedulePush();
+    if (publish && firstSyncDone) schedulePush();
   }
 
   function barKey(side) {
@@ -1424,29 +1594,35 @@
     return opts;
   }
 
+  function repairPersist(opts) {
+    opts = opts || {};
+    if (!firstSyncDone) opts.sync = false;
+    persist(opts);
+  }
+
   function render() {
     if (repairCopiedClose()) {
-      persist({ keepRev: true, noUndo: true });
+      repairPersist({ keepRev: true, noUndo: true });
       return;
     }
     if (E.repairSpikedCloses(state)) {
-      persist({ noUndo: true });
+      repairPersist({ noUndo: true });
       return;
     }
     if (E.repairOffCentPrices(state)) {
-      persist({ noUndo: true });
+      repairPersist({ noUndo: true });
       return;
     }
     if (E.repairAccountSheets(state)) {
-      persist({ noUndo: true });
+      repairPersist({ noUndo: true });
       return;
     }
     if (dropOpenSessionCloses()) {
-      persist({ noUndo: true, keepRev: true });
+      repairPersist({ noUndo: true, keepRev: true });
       return;
     }
     if (backfillCloseSeed()) {
-      persist({ noUndo: true, keepRev: true });
+      repairPersist({ noUndo: true, keepRev: true });
       return;
     }
     var appEl = document.querySelector(".app");
@@ -1467,7 +1643,10 @@
       state.rev = Date.now();
       saveState();
       lastSnap = captureSnap();
-      if (firstSyncDone) schedulePush();
+      if (firstSyncDone) {
+        setPending(true);
+        schedulePush();
+      }
     }
     var s = state.settings;
     var m = state.market;
@@ -4023,7 +4202,10 @@
     var autoEl = document.getElementById("set-auto-fill");
     var autoFill = !!(autoEl && autoEl.checked);
     var turnedOn = autoFill && !state.autoFill;
-    if (!!state.autoFill !== autoFill) state.barRev = Date.now();
+    if (!!state.autoFill !== autoFill) {
+      state.barRev = Date.now();
+      state.autoFillAt = Date.now();
+    }
     state.autoFill = autoFill;
     if (autoFill) fillAsOf = "";
     scheduleAutoFill();
@@ -4050,6 +4232,7 @@
       return;
     }
     var s = state.settings;
+    var prev = JSON.parse(JSON.stringify(s));
     s.symbol = document.getElementById("set-symbol").value.trim() || "SOXL";
     s.capital = parseFloat(document.getElementById("set-capital").value) || 0;
     s.fee = parseFloat(document.getElementById("set-fee").value) || 0;
@@ -4068,6 +4251,12 @@
     s.tteolLadderCount = parseInt(document.getElementById("set-tt-steps").value, 10) || 0;
     s.udStepQty = parseInt(document.getElementById("set-ud-qty").value, 10) || 0;
     s.tteolStepQty = parseInt(document.getElementById("set-tt-qty").value, 10) || 0;
+    if (!s.fieldRev || typeof s.fieldRev !== "object") s.fieldRev = {};
+    var stamped = Date.now();
+    Object.keys(s).forEach(function (k) {
+      if (k === "fieldRev") return;
+      if (JSON.stringify(prev[k]) !== JSON.stringify(s[k])) s.fieldRev[k] = stamped;
+    });
     state.settingsRev = Date.now();
     persist();
   }
@@ -4540,6 +4729,8 @@
         return;
       }
       state.settings[numPopKey] = parseInt(n, 10);
+      if (!state.settings.fieldRev || typeof state.settings.fieldRev !== "object") state.settings.fieldRev = {};
+      state.settings.fieldRev[numPopKey] = Date.now();
       state.settingsRev = Date.now();
       closeNumPop();
       persist();
@@ -4672,7 +4863,7 @@
     if (type === "매수" && !last) pot = 1;
     var cycle = prevHold === 0 && (type === "매수" || type === "떨") ? (last ? last.cycle + 1 : 1) : last ? last.cycle : 1;
     state.updownTrades.unshift({
-      id: E.newTradeId(),
+      id: E.newTradeId(), editedAt: Date.now(),
       date: date,
       seq: 1,
       type: type,
@@ -4713,7 +4904,7 @@
       }
     }
     state.tteolTrades.unshift({
-      id: E.newTradeId(),
+      id: E.newTradeId(), editedAt: Date.now(),
       date: date,
       seq: 1,
       type: type,
@@ -5103,7 +5294,7 @@
   }
 
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("sw.js?v=38", { updateViaCache: "none" }).catch(function () {});
+    navigator.serviceWorker.register("sw.js?v=39", { updateViaCache: "none" }).catch(function () {});
   }
 
   function syncNow() {
