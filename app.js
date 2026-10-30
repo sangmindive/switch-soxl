@@ -5488,6 +5488,29 @@
     bindFold("btn-fold-orders", "fold-orders-wrap");
     bindFold("btn-fold-sync", "fold-sync-wrap");
     bindFold("btn-order-hist", "order-hist-wrap", renderOrderHist);
+    bindFold("btn-fold-px", "fold-px-wrap", function () {
+      var open = document.getElementById("btn-fold-px").getAttribute("aria-expanded") === "true";
+      if (!open) {
+        closePxCal();
+        return;
+      }
+      pxChartSig = "";
+      renderPriceChart();
+    });
+    bindFold("btn-fold-ohlc", "fold-ohlc-wrap", function () {
+      var open = document.getElementById("btn-fold-ohlc").getAttribute("aria-expanded") === "true";
+      if (!open) {
+        closeOhlcCal();
+        return;
+      }
+      ohlcChartSig = "";
+      renderOhlcChart();
+    });
+    bindFold("btn-fold-ret", "fold-ret-wrap", function () {
+      var open = document.getElementById("btn-fold-ret").getAttribute("aria-expanded") === "true";
+      var seg = document.getElementById("st-mode");
+      if (seg) seg.hidden = !open;
+    });
     document.getElementById("order-hist-date").addEventListener("change", function () {
       orderHistDate = this.value;
       renderOrderHist();
@@ -6248,7 +6271,7 @@
   }
 
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("sw.js?v=42", { updateViaCache: "none" }).catch(function () {});
+    navigator.serviceWorker.register("sw.js?v=43", { updateViaCache: "none" }).catch(function () {});
   }
 
   function syncNow() {

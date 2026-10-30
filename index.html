@@ -13,7 +13,7 @@
   <link rel="apple-touch-icon" href="icon-192.png" />
   <link rel="icon" href="icon-192.png" />
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
-  <link rel="stylesheet" href="styles.css?v=20261025a" />
+  <link rel="stylesheet" href="styles.css?v=20261031b" />
 </head>
 <body>
   <div class="app">
@@ -224,7 +224,11 @@
         </div>
       </article>
       <article class="card">
-        <h2>종가 · 평단</h2>
+        <button type="button" class="st-fold" id="btn-fold-px" aria-expanded="true" aria-controls="fold-px-wrap">
+          <span class="st-fold-title">종가 · 평단</span>
+          <span class="rank-arrow" aria-hidden="true">▲</span>
+        </button>
+        <div id="fold-px-wrap">
         <div class="px-range-wrap">
           <div class="year-picks px-range" id="px-range">
             <button type="button" data-span="30">1개월</button>
@@ -256,9 +260,14 @@
           <button type="button" class="px-key" data-series="cycle"><i class="px-cycle"></i>사이클 종료</button>
         </div>
         <div class="px-chart" id="st-px-chart"></div>
+        </div>
       </article>
       <article class="card">
-        <h2>SOXL 일봉</h2>
+        <button type="button" class="st-fold" id="btn-fold-ohlc" aria-expanded="true" aria-controls="fold-ohlc-wrap">
+          <span class="st-fold-title">SOXL 일봉</span>
+          <span class="rank-arrow" aria-hidden="true">▲</span>
+        </button>
+        <div id="fold-ohlc-wrap">
         <div class="px-range-wrap" id="ohlc-range-wrap">
           <div class="year-picks px-range" id="ohlc-range">
             <button type="button" data-span="30">1개월</button>
@@ -283,15 +292,20 @@
           </div>
         </div>
         <div class="px-chart" id="ohlc-chart"></div>
+        </div>
       </article>
       <article class="card">
-        <div class="card-head">
-          <h2>수익률</h2>
+        <div class="st-fold-row">
+          <button type="button" class="st-fold" id="btn-fold-ret" aria-expanded="true" aria-controls="fold-ret-wrap">
+            <span class="st-fold-title">수익률</span>
+            <span class="rank-arrow" aria-hidden="true">▲</span>
+          </button>
           <div class="seg compact" id="st-mode">
             <button type="button" class="active" data-mode="month">월별</button>
             <button type="button" data-mode="year">연간</button>
           </div>
         </div>
+        <div id="fold-ret-wrap">
         <div class="year-picks" id="st-years"></div>
         <div class="st-period">
           <div class="k" id="st-period-label">선택 기간</div>
@@ -304,6 +318,7 @@
             <thead><tr><th>기간</th><th>실현손익</th><th>수익률</th></tr></thead>
             <tbody id="st-table"></tbody>
           </table>
+        </div>
         </div>
       </article>
       <article class="card">
@@ -710,6 +725,6 @@
   </div>
   <script src="engine.js?v=20261031a"></script>
   <script src="seed.js?v=20260924c"></script>
-  <script src="app.js?v=20261031c"></script>
+  <script src="app.js?v=20261031d"></script>
 </body>
 </html>

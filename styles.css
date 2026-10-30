@@ -199,6 +199,36 @@ body {
   margin-bottom: 12px;
 }
 .card-head h2 { margin: 0; padding-top: 4px; }
+.st-fold {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  margin: 0 0 12px;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+.st-fold-title {
+  font-size: 13px;
+  color: var(--muted);
+  font-weight: 600;
+}
+.st-fold[aria-expanded="false"] { margin-bottom: 0; }
+.st-fold-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.st-fold-row .st-fold { margin: 0; width: auto; flex: 1; }
+.st-fold-row:has(+ .hidden) { margin-bottom: 0; }
 .ladder-picks { display: flex; gap: 8px; }
 .num-pick {
   min-width: 64px;
@@ -784,6 +814,7 @@ table.sheet tr.ladder-sell td { background: #fffafa; }
 .nav-item.active { color: var(--blue); }
 .nav-item svg { width: 22px; height: 22px; }
 .seg.compact { margin: 0; min-width: 140px; }
+#st-mode[hidden] { display: none; }
 .year-picks { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 12px; }
 .year-picks button {
   border: 1px solid var(--line-strong);
