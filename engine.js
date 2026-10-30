@@ -986,9 +986,65 @@
     return changed;
   }
 
-  function repairAccountSheets(state) {
+  function updownCycleOn(trades, date) {
+    var found = null;
+    (trades || []).forEach(function (t) {
+      if (!t || !t.date || t.date > date) return;
+      if (!found || t.date > found.date || (t.date === found.date && (Number(t.seq) || 0) >= (Number(found.seq) || 0))) found = t;
+    });
+    if (!found || found.cycle == null || found.cycle === "") return null;
+    return found.cycle;
+  }
+
+  function repairTteolCycles(state) {
     if (!state || !state.accounts) return false;
     var changed = false;
+    var seen = [];
+    function patch(list, ud) {
+      if (!list || seen.indexOf(list) !== -1) return;
+      seen.push(list);
+      var rows = [];
+      for (var i = 0; i < list.length; i++) if (list[i]) rows.push(list[i]);
+      rows.sort(function (a, b) {
+        if ((a.date || "") !== (b.date || "")) return a.date < b.date ? -1 : 1;
+        return (Number(a.seq) || 0) - (Number(b.seq) || 0);
+      });
+      var open = {};
+      rows.forEach(function (t) {
+        if (t.type === "매수") {
+          var next = updownCycleOn(ud, t.date);
+          if (next != null && !cycleEq(t.cycle, next)) {
+            t.cycle = next;
+            t.editedAt = Date.now();
+            changed = true;
+          }
+          open[t.rank] = t.cycle;
+        } else if (t.type === "매도") {
+          var bought = open[t.rank];
+          if (bought != null && !cycleEq(t.cycle, bought)) {
+            t.cycle = bought;
+            t.editedAt = Date.now();
+            changed = true;
+          }
+          delete open[t.rank];
+        }
+      });
+    }
+    ["1", "2"].forEach(function (id) {
+      var book = state.accounts[id];
+      if (!book) return;
+      patch(book.tteolTrades, book.updownTrades);
+    });
+    var active = state.accounts[state.accountId || "1"];
+    if (active && state.tteolTrades && state.tteolTrades !== active.tteolTrades) {
+      patch(state.tteolTrades, state.updownTrades || active.updownTrades);
+    }
+    return changed;
+  }
+
+  function repairAccountSheets(state) {
+    if (!state || !state.accounts) return false;
+    var changed = repairTteolCycles(state);
     var rev = Date.now();
     function patchSettings(id, fn) {
       var book = state.accounts[id];
