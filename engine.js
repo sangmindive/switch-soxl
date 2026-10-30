@@ -456,6 +456,8 @@
     var ttAvg = I13 ? ttCost / I13 : 0;
     var ttEval = I13 ? (mark - ttAvg) * I13 : 0;
     var ttEvalPct = ttAvg ? mark / ttAvg - 1 : "";
+    var combEval = holdQty ? (mark - combAvg) * holdQty : 0;
+    var combEvalPct = combAvg && holdQty ? mark / combAvg - 1 : "";
 
     var sellTargets = openRanks
       .map(function (r) {
@@ -552,6 +554,8 @@
       ttAvg: ttAvg,
       ttEval: ttEval,
       ttEvalPct: ttEvalPct,
+      combEval: combEval,
+      combEvalPct: combEvalPct,
       udDayBuy: udDayBuy,
       ttDayBuy: ttDayBuy,
       udLadder: udLadder,
