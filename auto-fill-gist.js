@@ -412,7 +412,74 @@ async function main() {
     return;
   }
 
+  function tradeKey(t) {
+    if (t && t.id) return "id:" + t.id;
+    return [
+      t.date || "",
+      t.seq || 0,
+      t.type || "",
+      t.pot == null ? "" : t.pot,
+      t.rank == null ? "" : t.rank,
+      t.price == null ? "" : t.price,
+      t.qty == null ? "" : t.qty,
+    ].join("|");
+  }
+
+  function unionTrades(a, b, deleted) {
+    var drop = {};
+    (deleted || []).forEach(function (k) {
+      if (k) drop[k] = 1;
+    });
+    var map = {};
+    function put(list) {
+      (list || []).forEach(function (t) {
+        if (!t) return;
+        var k = tradeKey(t);
+        if (drop[k]) return;
+        map[k] = t;
+      });
+    }
+    put(a);
+    put(b);
+    return Object.keys(map)
+      .map(function (k) {
+        return map[k];
+      })
+      .sort(function (x, y) {
+        if ((x.date || "") !== (y.date || "")) return x.date < y.date ? 1 : -1;
+        return (y.seq || 0) - (x.seq || 0);
+      });
+  }
+
+  async function keepRemoteTrades() {
+    var again = await fetch("https://api.github.com/gists/" + gistId, { headers: gistHeaders(token) });
+    if (!again.ok) throw new Error("gist reread " + again.status);
+    var remote = attach(readFile(await again.json(), STATE_FILE) || {});
+    ["1", "2"].forEach(function (id) {
+      var local = state.accounts[id];
+      var far = remote.accounts && remote.accounts[id];
+      if (!local || !far) return;
+      local.deletedUd = (local.deletedUd || []).concat(far.deletedUd || []).filter(function (k, i, arr) {
+        return k && arr.indexOf(k) === i;
+      });
+      local.deletedTt = (local.deletedTt || []).concat(far.deletedTt || []).filter(function (k, i, arr) {
+        return k && arr.indexOf(k) === i;
+      });
+      local.updownTrades = unionTrades(local.updownTrades, far.updownTrades, local.deletedUd);
+      local.tteolTrades = unionTrades(local.tteolTrades, far.tteolTrades, local.deletedTt);
+    });
+    var activeId = state.accountId || "1";
+    var active = state.accounts[activeId];
+    if (active) {
+      state.updownTrades = active.updownTrades;
+      state.tteolTrades = active.tteolTrades;
+      state.deletedUd = active.deletedUd || [];
+      state.deletedTt = active.deletedTt || [];
+    }
+  }
+
   async function patchState(nextEsc, escDirty) {
+    await keepRemoteTrades();
     var files = {};
     files[STATE_FILE] = { content: JSON.stringify(state) };
     if (escDirty && nextEsc) files[ESCAPE_FILE] = { content: JSON.stringify(nextEsc) };

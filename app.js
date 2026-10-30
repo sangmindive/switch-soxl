@@ -737,14 +737,9 @@
   }
 
   function mergeBook(localBook, remoteBook, localRev, remoteRev) {
-    var next;
-    if (remoteRev > localRev && remoteBook && remoteBook.settings) {
-      next = JSON.parse(JSON.stringify(remoteBook));
-    } else if (localRev > remoteRev && localBook && localBook.settings) {
-      next = JSON.parse(JSON.stringify(localBook));
-    } else {
-    var base = remoteRev > localRev ? remoteBook : localBook;
-      next = JSON.parse(JSON.stringify(base || blankBook()));
+    var newer = remoteRev > localRev ? remoteBook : localBook;
+    var base = newer && newer.settings ? newer : localBook && localBook.settings ? localBook : remoteBook;
+    var next = JSON.parse(JSON.stringify(base || blankBook()));
     next.deletedUd = mergeIdList(localBook && localBook.deletedUd, remoteBook && remoteBook.deletedUd);
     next.deletedTt = mergeIdList(localBook && localBook.deletedTt, remoteBook && remoteBook.deletedTt);
     next.updownTrades = mergeTradeLists(
@@ -757,7 +752,6 @@
       remoteBook && remoteBook.tteolTrades,
       next.deletedTt
     );
-    }
     var settingsSrc = newerSettings(localBook, remoteBook);
     if (settingsSrc) {
       next.settings = JSON.parse(JSON.stringify(settingsSrc.settings));
@@ -5109,7 +5103,7 @@
   }
 
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("sw.js?v=37", { updateViaCache: "none" }).catch(function () {});
+    navigator.serviceWorker.register("sw.js?v=38", { updateViaCache: "none" }).catch(function () {});
   }
 
   function syncNow() {
