@@ -1473,11 +1473,14 @@
   }
 
   function queueFillLines(lines) {
-    if (!lines || !lines.length) return;
-    if (!Array.isArray(state.telegramPending)) state.telegramPending = [];
-    lines.forEach(function (line) {
-      if (line && state.telegramPending.indexOf(line) < 0) state.telegramPending.push(line);
+    var day = state.market && state.market.closeDate;
+    var next = [];
+    (lines || []).forEach(function (line) {
+      if (!line) return;
+      if (day && String(line).indexOf(day) !== 0) return;
+      if (next.indexOf(line) < 0) next.push(line);
     });
+    state.telegramPending = next;
   }
 
   function idSet(list) {
@@ -1491,7 +1494,7 @@
   function linesAfter(book, kind, list, before) {
     var lines = [];
     (list || []).forEach(function (t) {
-      if (!t || (t.id && before[t.id])) return;
+      if (!t || !t.id || before[t.id]) return;
       lines.push(fmtFillLine(book, kind, t));
     });
     return lines;
@@ -5294,7 +5297,7 @@
   }
 
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("sw.js?v=39", { updateViaCache: "none" }).catch(function () {});
+    navigator.serviceWorker.register("sw.js?v=40", { updateViaCache: "none" }).catch(function () {});
   }
 
   function syncNow() {

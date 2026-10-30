@@ -524,17 +524,21 @@ async function main() {
   }
 
   async function deliver(lines, closeDate) {
+    var hadPending = Array.isArray(state.telegramPending) && state.telegramPending.length > 0;
+    state.telegramPending = [];
     var note = [];
     function push(line) {
-      if (line && note.indexOf(line) < 0) note.push(line);
+      if (!line || note.indexOf(line) >= 0) return;
+      if (closeDate && String(line).indexOf(closeDate) !== 0) return;
+      note.push(line);
     }
-    (Array.isArray(state.telegramPending) ? state.telegramPending : []).forEach(push);
     (lines || []).forEach(push);
-    if (closeDate && state.telegramSentClose !== closeDate) linesForClose(closeDate).forEach(push);
+    if (!note.length && closeDate && state.telegramSentClose !== closeDate) linesForClose(closeDate).forEach(push);
     if (!note.length) {
       console.log("telegram skip · no new rows");
-      return false;
+      return hadPending;
     }
+    console.log("telegram lines " + note.length);
     var head = "Switch 자동 기입 " + day + "\n";
     var chunk = head;
     for (var i = 0; i < note.length; i++) {
@@ -546,7 +550,6 @@ async function main() {
       chunk += row;
     }
     await sendTelegram(chunk.replace(/\n$/, ""));
-    state.telegramPending = [];
     if (closeDate) state.telegramSentClose = closeDate;
     return true;
   }
