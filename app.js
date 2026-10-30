@@ -57,6 +57,29 @@
   var pxPlotTap = null;
   var pxPlotHover = null;
   var pxPlotLeave = null;
+  var OHLC_KEY = "switch-soxl-ohlc-v1";
+  var ohlcSpan = "all";
+  var ohlcCustomFrom = "";
+  var ohlcCustomTo = "";
+  var ohlcStickRight = true;
+  var ohlcChartSig = "";
+  var ohlcViewFrom = "";
+  var ohlcViewTo = "";
+  var ohlcCalTarget = "";
+  var ohlcCalMonth = "2026-10";
+  var ohlcPinned = "";
+  var ohlcUnpin = null;
+  var ohlcDrag = null;
+  var ohlcWheel = null;
+  var ohlcPinch = null;
+  var ohlcTouchZoom = false;
+  var ohlcPlotTap = null;
+  var ohlcPlotHover = null;
+  var ohlcPlotLeave = null;
+  var ohlcBars = null;
+  var ohlcFetched = 0;
+  var ohlcBusy = false;
+  var ohlcErr = "";
   var pushTimer = null;
   var syncing = false;
   var pushQueued = false;
@@ -1371,7 +1394,11 @@
     if (location.hash !== "#" + name) {
       history.replaceState(null, "", "#" + name);
     }
-    if (name === "stats") renderPriceChart();
+    if (name === "stats") {
+      renderPriceChart();
+      ensureOhlc();
+      renderOhlcChart();
+    }
   }
 
   function bindNum(sel, obj, key, asInt) {
@@ -2084,8 +2111,8 @@
     return iso.slice(0, 4) + "." + iso.slice(5, 7) + "." + iso.slice(8, 10);
   }
 
-  function chartViewWidth() {
-    var host = document.getElementById("st-px-chart");
+  function chartViewWidth(hostId) {
+    var host = document.getElementById(hostId || "st-px-chart");
     if (host && host.clientWidth >= 120) return host.clientWidth;
     var page = document.getElementById("page-home");
     if (page && page.clientWidth >= 120) return Math.max(120, page.clientWidth - 32);
@@ -3350,8 +3377,726 @@
   }
 
 
+  function ohlcCacheRead() {
+    try {
+      var raw = localStorage.getItem(OHLC_KEY);
+      if (!raw) return null;
+      var data = JSON.parse(raw);
+      if (!data || !data.bars || !data.bars.length) return null;
+      return data;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function ohlcCacheWrite(bars) {
+    try {
+      localStorage.setItem(OHLC_KEY, JSON.stringify({ fetched: Date.now(), bars: bars }));
+    } catch (e) {}
+  }
+
+  function ohlcParseCnbc(data) {
+    var rows = data && data.barData && data.barData.priceBars;
+    if (!rows || !rows.length) throw new Error("parse");
+    var out = [];
+    rows.forEach(function (b) {
+      var t = String(b.tradeTime || "");
+      if (t.length < 8) return;
+      var date = t.slice(0, 4) + "-" + t.slice(4, 6) + "-" + t.slice(6, 8);
+      var open = Number(b.open);
+      var high = Number(b.high);
+      var low = Number(b.low);
+      var close = Number(b.close);
+      if (!(close > 0) || !(high > 0) || !(low > 0)) return;
+      out.push([date, open > 0 ? open : close, high, low, close]);
+    });
+    out.sort(function (a, b) {
+      return a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0;
+    });
+    if (!out.length) throw new Error("parse");
+    return out;
+  }
+
+  function ohlcSeries() {
+    var rows = (ohlcBars || []).slice();
+    var seen = {};
+    rows.forEach(function (b) {
+      seen[b[0]] = true;
+    });
+    function pushClose(date, close) {
+      close = Number(close);
+      if (!date || seen[date] || !(close > 0) || !closeIsFinal(date)) return;
+      seen[date] = true;
+      rows.push([date, null, close, close, close]);
+    }
+    (state.closeDb || []).forEach(function (r) {
+      if (r) pushClose(r.date, r.close);
+    });
+    var market = state.market || {};
+    pushClose(market.closeDate, market.lastClose);
+    rows.sort(function (a, b) {
+      return a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0;
+    });
+    return rows;
+  }
+
+  function ohlcStale() {
+    if (!ohlcBars || !ohlcBars.length) return true;
+    return Date.now() - ohlcFetched > 6 * 3600 * 1000;
+  }
+
+  function ensureOhlc() {
+    if (!ohlcBars) {
+      var cached = ohlcCacheRead();
+      if (cached) {
+        ohlcBars = cached.bars;
+        ohlcFetched = Number(cached.fetched) || 0;
+      }
+    }
+    if (ohlcBars && ohlcBars.length && !ohlcStale()) return;
+    if (ohlcBusy) return;
+    ohlcBusy = true;
+    ohlcErr = "";
+    var endAt = new Date(Date.now() + 4 * 86400000);
+    function ohlcPad(n) { return n < 10 ? "0" + n : "" + n; }
+    var endStamp = endAt.getUTCFullYear() + ohlcPad(endAt.getUTCMonth() + 1) + ohlcPad(endAt.getUTCDate()) + "000000";
+    var url = "https://ts-api.cnbc.com/harmony/app/bars/SOXL/1D/20100311000000/" + endStamp + "/adjusted/EST5EDT.json";
+    fetchJson(url).then(ohlcParseCnbc).then(function (bars) {
+      ohlcBars = bars;
+      ohlcFetched = Date.now();
+      ohlcErr = "";
+      ohlcCacheWrite(bars);
+      ohlcChartSig = "";
+      renderOhlcChart();
+    }, function () {
+      if (!ohlcBars || !ohlcBars.length) ohlcErr = "일봉을 불러오지 못했습니다.";
+      ohlcChartSig = "";
+      renderOhlcChart();
+    }).then(function () {
+      ohlcBusy = false;
+    });
+  }
+
+  function ohlcWindow(dates) {
+    var end = dates[dates.length - 1];
+    var start = dates[0];
+    if (ohlcSpan === "custom" && ohlcCustomFrom && ohlcCustomTo) {
+      start = ohlcCustomFrom < ohlcCustomTo ? ohlcCustomFrom : ohlcCustomTo;
+      end = ohlcCustomFrom < ohlcCustomTo ? ohlcCustomTo : ohlcCustomFrom;
+    } else if (ohlcSpan !== "all" && ohlcSpan !== "custom") {
+      var cut = isoAddDays(end, -(parseInt(ohlcSpan, 10) - 1));
+      if (cut > start) start = cut;
+    }
+    var sliced = [];
+    dates.forEach(function (d) {
+      if (d >= start && d <= end) sliced.push(d);
+    });
+    return {
+      start: sliced.length ? sliced[0] : start,
+      end: sliced.length ? sliced[sliced.length - 1] : end,
+      dates: sliced
+    };
+  }
+
+  function syncOhlcRange() {
+    document.querySelectorAll("#ohlc-range > button").forEach(function (b) {
+      b.classList.toggle("active", b.dataset.span === String(ohlcSpan));
+    });
+    var custom = document.getElementById("ohlc-custom");
+    if (custom) custom.classList.toggle("active", ohlcSpan === "custom");
+  }
+
+  function paintOhlcDates(start, end) {
+    ohlcViewFrom = start || "";
+    ohlcViewTo = end || "";
+    var fromEl = document.getElementById("ohlc-from");
+    var toEl = document.getElementById("ohlc-to");
+    var showFrom = ohlcSpan === "custom" && ohlcCustomFrom ? ohlcCustomFrom : start;
+    var showTo = ohlcSpan === "custom" && ohlcCustomTo ? ohlcCustomTo : end;
+    if (fromEl && showFrom) fromEl.textContent = shortDot(showFrom);
+    if (toEl && showTo) toEl.textContent = shortDot(showTo);
+  }
+
+  function closeOhlcCal() {
+    var cal = document.getElementById("ohlc-cal");
+    if (cal) cal.hidden = true;
+    ohlcCalTarget = "";
+    var fromEl = document.getElementById("ohlc-from");
+    var toEl = document.getElementById("ohlc-to");
+    if (fromEl) fromEl.classList.remove("open");
+    if (toEl) toEl.classList.remove("open");
+  }
+
+  function renderOhlcCal() {
+    var grid = document.getElementById("ohlc-cal-grid");
+    var title = document.getElementById("ohlc-cal-title");
+    if (!grid || !title) return;
+    var parts = String(ohlcCalMonth || "").split("-");
+    var y = Number(parts[0]);
+    var m = Number(parts[1]);
+    if (!y || !m) return;
+    title.textContent = y + "." + (m < 10 ? "0" : "") + m;
+    var first = new Date(Date.UTC(y, m - 1, 1));
+    var startDow = first.getUTCDay();
+    var days = new Date(Date.UTC(y, m, 0)).getUTCDate();
+    var from = ohlcCustomFrom || ohlcViewFrom;
+    var to = ohlcCustomTo || ohlcViewTo;
+    if (from && to && from > to) {
+      var swap = from;
+      from = to;
+      to = swap;
+    }
+    var html = "";
+    var i;
+    for (i = 0; i < startDow; i++) html += "<span></span>";
+    for (var d = 1; d <= days; d++) {
+      var iso = y + "-" + (m < 10 ? "0" : "") + m + "-" + (d < 10 ? "0" : "") + d;
+      var cls = "";
+      if (from && to && iso >= from && iso <= to) cls = iso === from || iso === to ? "edge" : "in";
+      else if (iso === from || iso === to) cls = "edge";
+      html += "<button type='button' data-date='" + iso + "'" + (cls ? " class='" + cls + "'" : "") + ">" + d + "</button>";
+    }
+    grid.innerHTML = html;
+  }
+
+  function placeOhlcCal(btn) {
+    var wrap = document.getElementById("ohlc-range-wrap");
+    var cal = document.getElementById("ohlc-cal");
+    if (!wrap || !cal || !btn) return;
+    var br = btn.getBoundingClientRect();
+    var wr = wrap.getBoundingClientRect();
+    var calW = cal.offsetWidth || 280;
+    var left = br.left - wr.left;
+    if (left + calW > wr.width) left = Math.max(0, wr.width - calW);
+    cal.style.left = left + "px";
+    cal.style.top = br.bottom - wr.top + 6 + "px";
+  }
+
+  function openOhlcCal(which, btn) {
+    ohlcCalTarget = which;
+    var seed = which === "from" ? ohlcCustomFrom || ohlcViewFrom : ohlcCustomTo || ohlcViewTo;
+    if (!seed) seed = "2010-03-11";
+    ohlcCalMonth = String(seed).slice(0, 7);
+    var fromEl = document.getElementById("ohlc-from");
+    var toEl = document.getElementById("ohlc-to");
+    if (fromEl) fromEl.classList.toggle("open", which === "from");
+    if (toEl) toEl.classList.toggle("open", which === "to");
+    var cal = document.getElementById("ohlc-cal");
+    if (cal) cal.hidden = false;
+    renderOhlcCal();
+    placeOhlcCal(btn);
+  }
+
+  function shiftOhlcCal(delta) {
+    var parts = String(ohlcCalMonth || "").split("-");
+    var dt = new Date(Date.UTC(Number(parts[0]), Number(parts[1]) - 1 + delta, 1));
+    var m = dt.getUTCMonth() + 1;
+    ohlcCalMonth = dt.getUTCFullYear() + "-" + (m < 10 ? "0" : "") + m;
+    renderOhlcCal();
+  }
+
+  function ohlcApplyWindow(left, right, full) {
+    if (!full || full.length < 2) return;
+    var maxI = full.length - 1;
+    if (left < 0) left = 0;
+    if (right > maxI) right = maxI;
+    if (right <= left) return;
+    if (left === 0 && right === maxI) {
+      if (ohlcSpan === "all") return;
+      ohlcSpan = "all";
+      ohlcStickRight = false;
+      renderOhlcChart();
+      return;
+    }
+    var from = full[left];
+    var to = full[right];
+    if (ohlcSpan === "custom" && from === ohlcCustomFrom && to === ohlcCustomTo) return;
+    ohlcSpan = "custom";
+    ohlcCustomFrom = from;
+    ohlcCustomTo = to;
+    ohlcStickRight = false;
+    renderOhlcChart();
+  }
+
+  function zoomOhlcAt(clientX, deltaY) {
+    var w = ohlcWheel;
+    if (!w || !w.dates || w.dates.length < 2 || !w.scroller) return;
+    var full = w.dates;
+    var rect = w.scroller.getBoundingClientRect();
+    var svgX = clientX - rect.left + w.scroller.scrollLeft;
+    var anchor = w.dateAt(svgX);
+    var iAnchor = full.indexOf(anchor);
+    if (iAnchor < 0) iAnchor = full.length - 1;
+    var i0 = full.indexOf(w.start);
+    var i1 = full.indexOf(w.end);
+    if (i0 < 0) i0 = 0;
+    if (i1 < 0) i1 = full.length - 1;
+    if (i1 < i0) i1 = i0;
+    var span = Math.max(1, i1 - i0);
+    var next = Math.round(span * Math.exp(deltaY * 0.002));
+    var minSpan = Math.min(4, full.length - 1);
+    if (next < minSpan) next = minSpan;
+    if (next > full.length - 1) next = full.length - 1;
+    if (next === span) {
+      if (next >= full.length - 1 && ohlcSpan !== "all") {
+        ohlcSpan = "all";
+        ohlcStickRight = false;
+        renderOhlcChart();
+      }
+      return;
+    }
+    var ratio = (iAnchor - i0) / span;
+    if (ratio < 0) ratio = 0;
+    if (ratio > 1) ratio = 1;
+    var left = Math.round(iAnchor - ratio * next);
+    var right = left + next;
+    if (left < 0) {
+      left = 0;
+      right = next;
+    }
+    if (right > full.length - 1) {
+      right = full.length - 1;
+      left = right - next;
+    }
+    if (left < 0) left = 0;
+    ohlcApplyWindow(left, right, full);
+  }
+
+  function ohlcPinchSpan(touches) {
+    var dx = touches[0].clientX - touches[1].clientX;
+    var dy = touches[0].clientY - touches[1].clientY;
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+
+  function queueOhlcPinch(leftF, rightF) {
+    if (!ohlcPinch) return;
+    ohlcPinch.pending = { left: leftF, right: rightF };
+    if (ohlcPinch.frame) return;
+    ohlcPinch.frame = requestAnimationFrame(function () {
+      if (!ohlcPinch) return;
+      ohlcPinch.frame = 0;
+      var pending = ohlcPinch.pending;
+      ohlcPinch.pending = null;
+      if (!pending || !ohlcWheel) return;
+      ohlcApplyWindow(Math.round(pending.left), Math.round(pending.right), ohlcWheel.dates);
+    });
+  }
+
+  function ohlcPinchScale(scale) {
+    if (!ohlcPinch || !(scale > 0)) return;
+    var span0 = Math.max(1, ohlcPinch.i1 - ohlcPinch.i0);
+    var fullN = ohlcPinch.count || span0 + 1;
+    var maxSpan = Math.max(1, fullN - 1);
+    var next = span0 / scale;
+    var minSpan = Math.min(4, maxSpan);
+    if (next < minSpan) next = minSpan;
+    if (next > maxSpan) next = maxSpan;
+    var ratio = (ohlcPinch.anchor - ohlcPinch.i0) / span0;
+    if (ratio < 0) ratio = 0;
+    if (ratio > 1) ratio = 1;
+    var left = ohlcPinch.anchor - ratio * next;
+    var right = left + next;
+    if (left < 0) {
+      left = 0;
+      right = next;
+    }
+    if (right > maxSpan) {
+      right = maxSpan;
+      left = right - next;
+    }
+    if (left < 0) left = 0;
+    queueOhlcPinch(left, right);
+  }
+
+  function ohlcApplyDrag(ev) {
+    var drag = ohlcDrag;
+    if (!drag) return;
+    var brush = document.querySelector("#ohlc-chart .px-brush");
+    var full = drag.dates;
+    var n = full.length;
+    if (n < 2) return;
+    var i0 = drag.i0;
+    var i1 = drag.i1;
+    var span = drag.i1 - drag.i0;
+    if (drag.mode === "move" || drag.mode === "plot") {
+      var days;
+      if (drag.mode === "plot") {
+        days = -((ev.clientX - drag.x) / (drag.plotW || 1)) * span;
+      } else if (brush) {
+        var rect = brush.getBoundingClientRect();
+        if (!rect.width) return;
+        var t0 = (drag.x - rect.left) / rect.width;
+        var t1 = (ev.clientX - rect.left) / rect.width;
+        if (t0 < 0) t0 = 0;
+        if (t0 > 1) t0 = 1;
+        if (t1 < 0) t1 = 0;
+        if (t1 > 1) t1 = 1;
+        days = (t1 - t0) * (n - 1);
+      } else return;
+      var i0f = drag.i0 + days;
+      var maxI0 = n - 1 - span;
+      if (i0f < 0) i0f = 0;
+      if (i0f > maxI0) i0f = maxI0;
+      ohlcApplyWindow(Math.round(i0f), Math.round(i0f) + span, full);
+      return;
+    }
+    if (!brush) return;
+    var bar = brush.getBoundingClientRect();
+    if (!bar.width) return;
+    function idx(clientX) {
+      var t = (clientX - bar.left) / bar.width;
+      if (t < 0) t = 0;
+      if (t > 1) t = 1;
+      return Math.round(t * (n - 1));
+    }
+    if (drag.mode === "start") {
+      i0 = idx(ev.clientX);
+      if (i0 > i1 - 1) i0 = i1 - 1;
+      if (i0 < 0) i0 = 0;
+    } else if (drag.mode === "end") {
+      i1 = idx(ev.clientX);
+      if (i1 < i0 + 1) i1 = i0 + 1;
+      if (i1 > n - 1) i1 = n - 1;
+    }
+    ohlcApplyWindow(i0, i1, full);
+  }
+
+  function ohlcPxText(n) {
+    if (n == null || !isFinite(Number(n))) return "—";
+    var v = Number(n);
+    return usd(v, Math.abs(v) < 10 ? 4 : 2);
+  }
+
+  function renderOhlcChart() {
+    var host = document.getElementById("ohlc-chart");
+    if (!host) return;
+    var mount = ensurePxMount(host);
+    syncOhlcRange();
+    var series = ohlcBars && ohlcBars.length ? ohlcSeries() : [];
+    if (!series.length) {
+      ohlcChartSig = "";
+      ohlcUnpin = null;
+      ohlcPlotTap = null;
+      ohlcPlotHover = null;
+      ohlcPlotLeave = null;
+      mount.body.innerHTML = "<p class='note'>" + (ohlcErr || (ohlcBusy ? "SOXL 일봉을 불러오는 중입니다." : "SOXL 일봉을 불러오는 중입니다.")) + "</p>";
+      mount.layer.style.display = "none";
+      return;
+    }
+    var allDates = series.map(function (b) { return b[0]; });
+    var byDate = {};
+    series.forEach(function (b) { byDate[b[0]] = b; });
+    var win = ohlcWindow(allDates);
+    paintOhlcDates(win.start, win.end);
+    var dates = win.dates;
+    var n = dates.length;
+    if (!n) {
+      ohlcChartSig = "";
+      mount.body.innerHTML = "<p class='note'>이 기간에 기록이 없습니다.</p>";
+      mount.layer.style.display = "none";
+      return;
+    }
+    var H = 268;
+    var axisW = 52;
+    var padL = 10;
+    var padR = 18;
+    var plotT = 28;
+    var plotB = H - 36;
+    var viewW = chartViewWidth("ohlc-chart");
+    var plotW = Math.max(220, viewW - axisW);
+    var indexOf = {};
+    dates.forEach(function (d, i) { indexOf[d] = i; });
+    function xOf(i) {
+      if (n === 1) return plotW / 2;
+      return padL + (i / (n - 1)) * (plotW - padL - padR);
+    }
+    var minY = Infinity;
+    var maxY = -Infinity;
+    dates.forEach(function (d) {
+      var b = byDate[d];
+      if (!b) return;
+      if (b[3] < minY) minY = b[3];
+      if (b[2] > maxY) maxY = b[2];
+    });
+    if (!isFinite(minY) || !isFinite(maxY)) {
+      minY = 0;
+      maxY = 1;
+    }
+    var spanY = maxY - minY || Math.max(1, Math.abs(maxY) * 0.04);
+    minY -= spanY * 0.1;
+    maxY += spanY * 0.12;
+    if (minY < 0) minY = 0;
+    spanY = maxY - minY || 1;
+    var sig = [ohlcSpan, ohlcCustomFrom, ohlcCustomTo, String(plotW), win.start, win.end, String(n), String(series.length)].join("|");
+    if (sig === ohlcChartSig && host.querySelector(".px-scroll")) {
+      ohlcWheel = {
+        dates: allDates,
+        start: win.start,
+        end: win.end,
+        dateAt: ohlcWheel ? ohlcWheel.dateAt : function () { return dates[0]; },
+        scroller: host.querySelector(".px-scroll")
+      };
+      return;
+    }
+    ohlcChartSig = sig;
+    function yOf(v) {
+      return plotB - ((v - minY) / spanY) * (plotB - plotT);
+    }
+    var step = spanY / 4;
+    var mag = Math.pow(10, Math.floor(Math.log10(step)));
+    var err = step / mag;
+    if (err >= 7.5) mag *= 10;
+    else if (err >= 3.5) mag *= 5;
+    else if (err >= 1.5) mag *= 2;
+    var ticks = [];
+    var tickStart = Math.ceil(minY / mag) * mag;
+    for (var tv = tickStart; tv <= maxY + mag * 0.01; tv += mag) ticks.push(tv);
+    var tickDigits = mag < 1 ? 2 : mag < 10 ? 1 : 0;
+    var axis = [];
+    axis.push("<svg class='px-axis' style='width:" + axisW + "px;height:" + H + "px' viewBox='0 0 " + axisW + " " + H + "' aria-hidden='true'>");
+    var plot = [];
+    plot.push("<svg class='px-plot' id='ohlc-plot' style='width:" + plotW + "px;height:" + H + "px' viewBox='0 0 " + plotW + " " + H + "' role='img' aria-label='SOXL 시가, 고가, 저가, 종가'>");
+    ticks.forEach(function (v) {
+      var y = yOf(v);
+      if (y < plotT - 2 || y > plotB + 2) return;
+      plot.push("<line x1='0' y1='" + y.toFixed(2) + "' x2='" + plotW + "' y2='" + y.toFixed(2) + "' stroke='#eef0f4' stroke-width='1'/>");
+      axis.push("<text x='" + (axisW - 6) + "' y='" + y.toFixed(2) + "' text-anchor='end' dominant-baseline='middle' fill='#9ca3af' font-size='10' font-family='Pretendard, sans-serif'>$" + v.toFixed(tickDigits) + "</text>");
+    });
+    axis.push("</svg>");
+    var candles = n <= 320;
+    if (!candles) {
+      var up = "";
+      var down = [];
+      var closeD = "";
+      var pen = false;
+      dates.forEach(function (d, i) {
+        var b = byDate[d];
+        if (!b) return;
+        var x = xOf(i).toFixed(2);
+        up += (i ? "L" : "M") + x + " " + yOf(b[2]).toFixed(2) + " ";
+        down.push(x + " " + yOf(b[3]).toFixed(2));
+        closeD += (pen ? "L" : "M") + x + " " + yOf(b[4]).toFixed(2) + " ";
+        pen = true;
+      });
+      if (down.length) {
+        plot.push("<path d='" + (up + "L" + down.reverse().join(" L") + " Z") + "' fill='rgba(17,24,39,0.08)' stroke='none'/>");
+      }
+      if (closeD) plot.push("<path d='" + closeD.trim() + "' fill='none' stroke='#111827' stroke-width='1.6' stroke-linejoin='round' stroke-linecap='round'/>");
+    } else {
+      var gap = n <= 1 ? 8 : xOf(1) - xOf(0);
+      var bw = Math.max(2.2, Math.min(11, gap * 0.62));
+      dates.forEach(function (d, i) {
+        var b = byDate[d];
+        if (!b) return;
+        var open = b[1];
+        var high = b[2];
+        var low = b[3];
+        var close = b[4];
+        var x = xOf(i);
+        var color = open == null || close >= open ? "#ef4444" : "#2563eb";
+        plot.push("<line x1='" + x.toFixed(2) + "' y1='" + yOf(high).toFixed(2) + "' x2='" + x.toFixed(2) + "' y2='" + yOf(low).toFixed(2) + "' stroke='" + color + "' stroke-width='1.2'/>");
+        if (open != null) {
+          var top = yOf(Math.max(open, close));
+          var bot = yOf(Math.min(open, close));
+          var bh = Math.max(1.2, bot - top);
+          plot.push("<rect x='" + (x - bw / 2).toFixed(2) + "' y='" + top.toFixed(2) + "' width='" + bw.toFixed(2) + "' height='" + bh.toFixed(2) + "' fill='" + color + "'/>");
+        }
+      });
+    }
+    var shown = [];
+    dates.forEach(function (d, i) {
+      var x = xOf(i);
+      var force = i === 0 || i === n - 1;
+      if (!force && shown.length && x - shown[shown.length - 1].x < 70) return;
+      if (!force && plotW - padR - x < 70) return;
+      if (i === n - 1 && shown.length > 1 && x - shown[shown.length - 1].x < 56) shown.pop();
+      shown.push({ i: i, x: x, d: d });
+    });
+    var prevYear = "";
+    shown.forEach(function (item) {
+      var anchor = item.i === 0 ? "start" : item.i === n - 1 ? "end" : "middle";
+      var year = item.d.slice(0, 4);
+      var text = item.d.slice(5).replace("-", ".");
+      if (item.i === 0 || year !== prevYear) text = item.d.slice(2, 4) + "." + text;
+      prevYear = year;
+      plot.push("<text x='" + item.x.toFixed(2) + "' y='" + (H - 16) + "' text-anchor='" + anchor + "' fill='#9ca3af' font-size='10' font-family='Pretendard, sans-serif'>" + text + "</text>");
+    });
+    plot.push("<line class='px-guide' x1='0' y1='" + plotT + "' x2='0' y2='" + plotB + "' stroke='#9ca3af' stroke-dasharray='3 3' stroke-width='1' visibility='hidden'/>");
+    plot.push("<circle class='px-guide-dot' r='4.5' fill='#fff' stroke='#111827' stroke-width='1.6' visibility='hidden'/>");
+    plot.push("</svg>");
+    var html = [];
+    html.push("<div class='px-chart-layout'>");
+    html.push(axis.join(""));
+    html.push("<div class='px-scroll' tabindex='0' aria-label='SOXL 일봉. 마우스 휠이나 두 손가락으로 기간을 늘리거나 줄일 수 있습니다.'>");
+    html.push(plot.join(""));
+    html.push("</div>");
+    html.push("<div class='px-brush' role='slider' aria-orientation='horizontal' aria-label='보이는 기간. 끝을 끌면 늘리거나 줄이고, 가운데를 끌면 이동합니다.' aria-controls='ohlc-plot'>");
+    html.push("<div class='px-brush-track'></div><div class='px-brush-win'></div></div>");
+    html.push("</div>");
+    html.push("<div class='px-tip' hidden></div>");
+    html.push("<p class='note px-span-note'></p>");
+    if (ohlcErr) html.push("<p class='note'>" + xmlEsc(ohlcErr) + "</p>");
+    mount.body.innerHTML = html.join("");
+    placePinchLayer(host);
+    var scroller = host.querySelector(".px-scroll");
+    var brush = host.querySelector(".px-brush");
+    var thumb = host.querySelector(".px-brush-win");
+    var note = host.querySelector(".px-span-note");
+    var guide = host.querySelector(".px-guide");
+    var guideDot = host.querySelector(".px-guide-dot");
+    var tip = host.querySelector(".px-tip");
+    if (ohlcDrag && brush) brush.classList.add("is-drag");
+    var pinnedDate = ohlcPinned && indexOf[ohlcPinned] != null ? ohlcPinned : "";
+    if (ohlcPinned && !pinnedDate) ohlcPinned = "";
+    function hideGuide() {
+      if (guide) guide.setAttribute("visibility", "hidden");
+      if (guideDot) guideDot.setAttribute("visibility", "hidden");
+      if (tip) {
+        tip.hidden = true;
+        tip.classList.remove("is-pin");
+      }
+    }
+    ohlcUnpin = function () {
+      pinnedDate = "";
+      ohlcPinned = "";
+      hideGuide();
+    };
+    function showTip(date) {
+      if (!date || indexOf[date] == null) return hideGuide();
+      var b = byDate[date];
+      var x = xOf(indexOf[date]);
+      if (guide) {
+        guide.setAttribute("x1", x.toFixed(2));
+        guide.setAttribute("x2", x.toFixed(2));
+        guide.setAttribute("visibility", "visible");
+      }
+      if (guideDot && b) {
+        guideDot.setAttribute("cx", x.toFixed(2));
+        guideDot.setAttribute("cy", yOf(b[4]).toFixed(2));
+        guideDot.setAttribute("visibility", "visible");
+      }
+      if (!tip || !b) return;
+      var pinned = pinnedDate === date;
+      tip.classList.toggle("is-pin", pinned);
+      var prev = indexOf[date] > 0 ? byDate[dates[indexOf[date] - 1]] : null;
+      var prevClose = prev ? prev[4] : null;
+      var tone = prevClose != null ? (b[4] > prevClose ? "up" : b[4] < prevClose ? "down" : "") : "";
+      var rows = ["<div class='px-tip-date'>" + xmlEsc(shortDot(date)) + (pinned ? "<span class='px-tip-pin'>고정</span>" : "") + "</div>"];
+      function row(k, v, cls) {
+        rows.push("<div class='px-tip-row'><span>" + xmlEsc(k) + "</span><b class='" + (cls || "") + "'>" + xmlEsc(v) + "</b></div>");
+      }
+      row("종가", ohlcPxText(b[4]), tone);
+      if (b[1] != null) {
+        row("시가", ohlcPxText(b[1]));
+        row("고가", ohlcPxText(b[2]));
+        row("저가", ohlcPxText(b[3]));
+      }
+      tip.innerHTML = rows.join("");
+      tip.hidden = false;
+      var hostRect = host.getBoundingClientRect();
+      var plotRect = scroller.getBoundingClientRect();
+      var localX = plotRect.left - hostRect.left + (x - scroller.scrollLeft);
+      var tipW = tip.offsetWidth || 180;
+      var left = localX + 16;
+      if (left + tipW > host.clientWidth - 6) left = localX - tipW - 16;
+      if (left < 4) left = 4;
+      tip.style.left = left + "px";
+      tip.style.top = "8px";
+    }
+    function dateAt(px) {
+      if (n <= 1) return dates[0];
+      var inner = plotW - padL - padR;
+      var t = (px - padL) / inner;
+      if (t < 0) t = 0;
+      if (t > 1) t = 1;
+      return dates[Math.round(t * (n - 1))];
+    }
+    ohlcPlotTap = function (clientX) {
+      var rect = scroller.getBoundingClientRect();
+      var date = dateAt(clientX - rect.left + scroller.scrollLeft);
+      if (!date) return;
+      if (pinnedDate === date) {
+        pinnedDate = "";
+        ohlcPinned = "";
+        hideGuide();
+        return;
+      }
+      pinnedDate = date;
+      ohlcPinned = date;
+      showTip(date);
+    };
+    ohlcPlotHover = function (clientX) {
+      if (pinnedDate) return;
+      var rect = scroller.getBoundingClientRect();
+      showTip(dateAt(clientX - rect.left + scroller.scrollLeft));
+    };
+    ohlcPlotLeave = function () {
+      if (pinnedDate) return showTip(pinnedDate);
+      hideGuide();
+    };
+    function paintNote() {
+      if (!note) return;
+      note.textContent = dotDate(dates[0]) + " – " + dotDate(dates[n - 1]);
+    }
+    function placeThumb() {
+      var nFull = allDates.length;
+      if (!brush || !thumb) return;
+      brush.classList.remove("is-fit");
+      if (nFull < 2) {
+        thumb.style.left = "0%";
+        thumb.style.width = "100%";
+        return;
+      }
+      var i0 = allDates.indexOf(win.start);
+      var i1 = allDates.indexOf(win.end);
+      if (i0 < 0) i0 = 0;
+      if (i1 < 0) i1 = nFull - 1;
+      var left = (i0 / (nFull - 1)) * 100;
+      var width = ((i1 - i0) / (nFull - 1)) * 100;
+      if (width < 3) {
+        var mid = left + width / 2;
+        width = 3;
+        left = Math.max(0, Math.min(97, mid - 1.5));
+      }
+      if (left + width > 100) left = 100 - width;
+      thumb.style.left = left + "%";
+      thumb.style.width = width + "%";
+    }
+    paintNote();
+    placeThumb();
+    if (brush && thumb) {
+      function brushHit(clientX) {
+        var rect = brush.getBoundingClientRect();
+        var i0 = allDates.indexOf(win.start);
+        var i1 = allDates.indexOf(win.end);
+        if (i0 < 0) i0 = 0;
+        if (i1 < 0) i1 = Math.max(0, allDates.length - 1);
+        var leftPx = allDates.length > 1 ? (i0 / (allDates.length - 1)) * rect.width : 0;
+        var rightPx = allDates.length > 1 ? (i1 / (allDates.length - 1)) * rect.width : rect.width;
+        var x = clientX - rect.left;
+        var edge = rightPx - leftPx < 48 ? 0 : 14;
+        var mode = "move";
+        if (edge && Math.abs(x - leftPx) <= edge) mode = "start";
+        else if (edge && Math.abs(x - rightPx) <= edge) mode = "end";
+        return { i0: i0, i1: i1, mode: mode };
+      }
+      brush.addEventListener("pointerdown", function (ev) {
+        if (allDates.length < 2) return;
+        var hit = brushHit(ev.clientX);
+        ohlcDrag = { mode: hit.mode, i0: hit.i0, i1: hit.i1, x: ev.clientX, dates: allDates.slice() };
+        brush.classList.add("is-drag");
+        try { host.setPointerCapture(ev.pointerId); } catch (err) {}
+        ev.preventDefault();
+      });
+    }
+    ohlcWheel = { dates: allDates, start: win.start, end: win.end, dateAt: dateAt, scroller: scroller };
+    if (pinnedDate) showTip(pinnedDate);
+  }
+
   function renderStats(out) {
     renderPriceChart();
+    ensureOhlc();
+    renderOhlcChart();
     var cap = state.settings.capital || 0;
     var rows = realizedRows();
     fillText("st-k3", (out.K3 >= 0 ? "+" : "") + money(out.K3));
@@ -4483,37 +5228,238 @@
         plotPress = null;
       });
     }
+    document.querySelectorAll("#ohlc-range > button").forEach(function (b) {
+      b.onclick = function () {
+        ohlcSpan = b.dataset.span || "all";
+        ohlcStickRight = true;
+        closeOhlcCal();
+        renderOhlcChart();
+      };
+    });
+    var ohlcFrom = document.getElementById("ohlc-from");
+    var ohlcTo = document.getElementById("ohlc-to");
+    function toggleOhlcCal(which, btn) {
+      var cal = document.getElementById("ohlc-cal");
+      if (ohlcCalTarget === which && cal && !cal.hidden) closeOhlcCal();
+      else openOhlcCal(which, btn);
+    }
+    if (ohlcFrom) {
+      ohlcFrom.onclick = function (ev) {
+        ev.stopPropagation();
+        toggleOhlcCal("from", ohlcFrom);
+      };
+    }
+    if (ohlcTo) {
+      ohlcTo.onclick = function (ev) {
+        ev.stopPropagation();
+        toggleOhlcCal("to", ohlcTo);
+      };
+    }
+    var ohlcCalPrev = document.getElementById("ohlc-cal-prev");
+    var ohlcCalNext = document.getElementById("ohlc-cal-next");
+    if (ohlcCalPrev) ohlcCalPrev.onclick = function (ev) { ev.stopPropagation(); shiftOhlcCal(-1); };
+    if (ohlcCalNext) ohlcCalNext.onclick = function (ev) { ev.stopPropagation(); shiftOhlcCal(1); };
+    var ohlcCalGrid = document.getElementById("ohlc-cal-grid");
+    if (ohlcCalGrid) {
+      ohlcCalGrid.onclick = function (ev) {
+        ev.stopPropagation();
+        var iso = ev.target.getAttribute("data-date");
+        if (!iso) return;
+        var from = ohlcCalTarget === "from" ? iso : ohlcCustomFrom || ohlcViewFrom;
+        var to = ohlcCalTarget === "to" ? iso : ohlcCustomTo || ohlcViewTo;
+        if (!from) from = iso;
+        if (!to) to = iso;
+        if (from > to) {
+          var swap = from;
+          from = to;
+          to = swap;
+        }
+        ohlcCustomFrom = from;
+        ohlcCustomTo = to;
+        ohlcSpan = "custom";
+        ohlcStickRight = true;
+        closeOhlcCal();
+        renderOhlcChart();
+      };
+    }
+    var ohlcHost = document.getElementById("ohlc-chart");
+    if (ohlcHost) {
+      ohlcHost.addEventListener("wheel", function (ev) {
+        ev.preventDefault();
+        var dy = ev.deltaY;
+        if (ev.deltaMode === 1) dy *= 16;
+        else if (ev.deltaMode === 2) dy *= 400;
+        zoomOhlcAt(ev.clientX, dy);
+      }, { passive: false });
+      ohlcHost.addEventListener("touchstart", function (ev) {
+        if (ev.touches.length < 2) return;
+        var w = ohlcWheel;
+        if (!w || !w.dates || w.dates.length < 2) return;
+        ohlcTouchZoom = true;
+        var i0 = w.dates.indexOf(w.start);
+        var i1 = w.dates.indexOf(w.end);
+        if (i0 < 0) i0 = 0;
+        if (i1 < 0) i1 = w.dates.length - 1;
+        var rect = w.scroller.getBoundingClientRect();
+        var midX = (ev.touches[0].clientX + ev.touches[1].clientX) / 2;
+        var t = rect.width ? (midX - rect.left) / rect.width : 0.5;
+        if (t < 0) t = 0;
+        if (t > 1) t = 1;
+        ohlcPinch = { dist: ohlcPinchSpan(ev.touches), i0: i0, i1: i1, anchor: i0 + (i1 - i0) * t, count: w.dates.length, frame: 0, pending: null };
+        ev.preventDefault();
+      }, { passive: false, capture: true });
+      ohlcHost.addEventListener("touchmove", function (ev) {
+        if (ev.touches.length < 2 || !ohlcPinch) return;
+        ev.preventDefault();
+        var dist = ohlcPinchSpan(ev.touches);
+        if (!(ohlcPinch.dist > 8) || !(dist > 8)) return;
+        ohlcPinchScale(dist / ohlcPinch.dist);
+      }, { passive: false, capture: true });
+      var endOhlcPinch = function () {
+        if (ohlcPinch && ohlcPinch.frame) cancelAnimationFrame(ohlcPinch.frame);
+        if (ohlcPinch && ohlcPinch.pending && ohlcWheel) {
+          ohlcApplyWindow(Math.round(ohlcPinch.pending.left), Math.round(ohlcPinch.pending.right), ohlcWheel.dates);
+        }
+        ohlcPinch = null;
+        setTimeout(function () { ohlcTouchZoom = false; }, 400);
+      }
+      ohlcHost.addEventListener("touchend", function (ev) {
+        if (ev.touches.length >= 2) return;
+        endOhlcPinch();
+      }, { passive: false, capture: true });
+      ohlcHost.addEventListener("touchcancel", function (ev) {
+        if (ev.touches.length >= 2) return;
+        endOhlcPinch();
+      }, { passive: false, capture: true });
+      var ohlcPress = null;
+      ohlcHost.addEventListener("pointerdown", function (ev) {
+        if (ev.button) return;
+        var node = ev.target;
+        while (node && node !== ohlcHost) {
+          if (node.classList && node.classList.contains("px-brush")) return;
+          node = node.parentNode;
+        }
+        var scroller = ohlcHost.querySelector(".px-scroll");
+        var onLayer = ev.target.classList && ev.target.classList.contains("px-pinch-layer");
+        if (!scroller || (!scroller.contains(ev.target) && !onLayer)) return;
+        ohlcPress = { x: ev.clientX, y: ev.clientY, id: ev.pointerId, panning: false };
+      });
+      ohlcHost.addEventListener("pointermove", function (ev) {
+        if (ohlcPinch) {
+          ohlcPress = null;
+          return;
+        }
+        if (!ohlcPress || ohlcPress.id !== ev.pointerId || (ohlcDrag && ohlcDrag.mode !== "plot")) return;
+        var dx = ev.clientX - ohlcPress.x;
+        var dy = ev.clientY - ohlcPress.y;
+        if (!ohlcPress.panning) {
+          if (dx * dx + dy * dy < 64) return;
+          if (Math.abs(dx) < Math.abs(dy)) {
+            ohlcPress = null;
+            return;
+          }
+          var w = ohlcWheel;
+          if (!w || !w.dates || w.dates.length < 2) return;
+          var i0 = w.dates.indexOf(w.start);
+          var i1 = w.dates.indexOf(w.end);
+          if (i0 < 0 || i1 <= i0) return;
+          ohlcPress.panning = true;
+          ohlcTouchZoom = true;
+          ohlcDrag = {
+            mode: "plot",
+            i0: i0,
+            i1: i1,
+            x: ohlcPress.x,
+            plotW: (w.scroller.getBoundingClientRect().width || w.scroller.clientWidth || 1),
+            dates: w.dates.slice()
+          };
+          try { ohlcHost.setPointerCapture(ev.pointerId); } catch (err) {}
+        }
+        ohlcApplyDrag(ev);
+        ev.preventDefault();
+      });
+      ohlcHost.addEventListener("pointerup", function (ev) {
+        if (!ohlcPress || ohlcPress.id !== ev.pointerId) return;
+        var panned = ohlcPress.panning;
+        var x0 = ohlcPress.x;
+        var y0 = ohlcPress.y;
+        ohlcPress = null;
+        if (panned) {
+          setTimeout(function () { ohlcTouchZoom = false; }, 400);
+          return;
+        }
+        if (!ohlcPlotTap) return;
+        if (!(ev.target.classList && ev.target.classList.contains("px-pinch-layer"))) return;
+        var dx = ev.clientX - x0;
+        var dy = ev.clientY - y0;
+        if (dx * dx + dy * dy > 36) return;
+        ohlcPlotTap(ev.clientX);
+      });
+      ohlcHost.addEventListener("mousemove", function (ev) {
+        if (!ohlcPlotHover) return;
+        if (!(ev.target.classList && ev.target.classList.contains("px-pinch-layer"))) return;
+        ohlcPlotHover(ev.clientX);
+      });
+      ohlcHost.addEventListener("mouseleave", function () {
+        if (ohlcPlotLeave) ohlcPlotLeave();
+      });
+      ohlcHost.addEventListener("pointercancel", function () {
+        ohlcPress = null;
+      });
+    }
     document.addEventListener("pointermove", function (ev) {
-      if (!pxRangeDrag) return;
-      applyPxRangeDrag(ev);
+      if (pxRangeDrag) applyPxRangeDrag(ev);
+      if (ohlcDrag) ohlcApplyDrag(ev);
     });
     document.addEventListener("pointerup", function (ev) {
-      if (!pxRangeDrag) return;
-      if (pxRangeDrag.mode === "move" || pxRangeDrag.mode === "plot") snapSlide();
-      else applyPxRangeDrag(ev);
-      pxRangeDrag = null;
-      var bar = document.querySelector("#st-px-chart .px-brush");
-      if (bar) bar.classList.remove("is-drag");
+      if (pxRangeDrag) {
+        if (pxRangeDrag.mode === "move" || pxRangeDrag.mode === "plot") snapSlide();
+        else applyPxRangeDrag(ev);
+        pxRangeDrag = null;
+        var bar = document.querySelector("#st-px-chart .px-brush");
+        if (bar) bar.classList.remove("is-drag");
+      }
+      if (ohlcDrag) {
+        ohlcDrag = null;
+        var ohlcBar = document.querySelector("#ohlc-chart .px-brush");
+        if (ohlcBar) ohlcBar.classList.remove("is-drag");
+        setTimeout(function () { ohlcTouchZoom = false; }, 400);
+      }
     });
     document.addEventListener("pointercancel", function () {
       if (pxRangeDrag && (pxRangeDrag.mode === "move" || pxRangeDrag.mode === "plot")) snapSlide();
       pxRangeDrag = null;
+      ohlcDrag = null;
     });
     document.addEventListener("click", function (ev) {
       var cal = document.getElementById("px-cal");
       if (cal && !cal.hidden && !cal.contains(ev.target) && ev.target !== pxFrom && ev.target !== pxTo) closePxCal();
-      if (!pxPinnedDate || !pxUnpin) return;
-      var host = document.getElementById("st-px-chart");
-      if (host && host.contains(ev.target)) return;
-      pxUnpin();
+      var ocal = document.getElementById("ohlc-cal");
+      var ohlcFromBtn = document.getElementById("ohlc-from");
+      var ohlcToBtn = document.getElementById("ohlc-to");
+      if (ocal && !ocal.hidden && !ocal.contains(ev.target) && ev.target !== ohlcFromBtn && ev.target !== ohlcToBtn) closeOhlcCal();
+      if (pxPinnedDate && pxUnpin) {
+        var host = document.getElementById("st-px-chart");
+        if (!host || !host.contains(ev.target)) pxUnpin();
+      }
+      if (ohlcPinned && ohlcUnpin) {
+        var ohost = document.getElementById("ohlc-chart");
+        if (!ohost || !ohost.contains(ev.target)) ohlcUnpin();
+      }
     });
     document.addEventListener("keydown", function (ev) {
-      if (ev.key === "Escape") closePxCal();
+      if (ev.key === "Escape") {
+        closePxCal();
+        closeOhlcCal();
+      }
     });
     window.addEventListener("resize", function () {
       if (tab !== "stats") return;
       clearTimeout(pxResizeTimer);
-      pxResizeTimer = setTimeout(renderPriceChart, 150);
+      pxResizeTimer = setTimeout(function () {
+        renderPriceChart();
+        renderOhlcChart();
+      }, 150);
     });
     document.querySelectorAll("#page-journal .seg button").forEach(function (b) {
       b.onclick = function () {
@@ -5302,7 +6248,7 @@
   }
 
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("sw.js?v=41", { updateViaCache: "none" }).catch(function () {});
+    navigator.serviceWorker.register("sw.js?v=42", { updateViaCache: "none" }).catch(function () {});
   }
 
   function syncNow() {
