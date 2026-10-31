@@ -1552,11 +1552,15 @@
     if (r.ok) {
       maybeAutoTransfer();
       parts.push("업다운 " + r.trade.type);
+    } else if (r.reason && (r.reason.indexOf("당일") === 0 || r.reason.indexOf("이미") === 0)) {
+      parts.push("업다운 있음");
     }
     var r2 = E.applySuggested(state, "tteol");
     if (r2.ok) {
       maybeAutoTransfer();
       parts.push("떨 " + r2.trade.type);
+    } else if (r2.reason && (r2.reason.indexOf("당일") === 0 || r2.reason.indexOf("이미") === 0)) {
+      parts.push("떨 있음");
     }
     queueFillLines(linesAfter(book, "업다운", state.updownTrades, beforeUd).concat(linesAfter(book, "떨", state.tteolTrades, beforeTt)));
     return parts.length ? parts.join(" · ") : "제안 없음";
@@ -1565,53 +1569,60 @@
   function runAutoFill() {
     scheduleAutoFill();
     if (!state || !state.autoFill || autoFillBusy) return;
-    var day = localDayKey();
-    if (state.autoFillLast === day) return;
+    if (state.autoFillLast === localDayKey()) return;
+    if (syncing) return;
     autoFillBusy = true;
-    var symbol = String((state.settings && state.settings.symbol) || "SOXL").toUpperCase();
-    fetchCnbcQuote(symbol)
-      .then(function (q) {
-        applyLiveQuote(q);
-      }, function () {})
-      .then(function () {
-        var prevView = state.view;
-        var prevId = state.accountId || "1";
-        var keys = [];
-        function addKey(k, off) {
-          if (off) return;
-          k = canonBar(k);
-          if (k && keys.indexOf(k) < 0) keys.push(k);
-        }
-        addKey(state.barLeft, state.barLeftOff);
-        addKey(state.barRight, state.barRightOff);
-        var notes = [];
-        if (!keys.length) notes.push("미사용");
-        keys.forEach(function (key) {
-          var label = BAR_SLOTS[key] ? BAR_SLOTS[key].label : key;
-          if (key === "escape") {
+    pullRemote().then(function () {
+      if (!state || !state.autoFill || state.autoFillLast === localDayKey()) {
+        autoFillBusy = false;
+        return;
+      }
+      var symbol = String((state.settings && state.settings.symbol) || "SOXL").toUpperCase();
+      return fetchCnbcQuote(symbol)
+        .then(function (q) {
+          applyLiveQuote(q);
+        }, function () {})
+        .then(function () {
+          if (!state || !state.autoFill || state.autoFillLast === localDayKey()) return;
+          var day = localDayKey();
+          var prevView = state.view;
+          var prevId = state.accountId || "1";
+          var keys = [];
+          function addKey(k, off) {
+            if (off) return;
+            k = canonBar(k);
+            if (k && keys.indexOf(k) < 0) keys.push(k);
+          }
+          addKey(state.barLeft, state.barLeftOff);
+          addKey(state.barRight, state.barRightOff);
+          var notes = [];
+          if (!keys.length) notes.push("미사용");
+          keys.forEach(function (key) {
+            var label = BAR_SLOTS[key] ? BAR_SLOTS[key].label : key;
+            if (key === "escape") {
+              if (state.view !== "escape") stashActive();
+              state.view = "escape";
+            } else {
+              switchBookSilent(key === "acc2" ? "2" : "1");
+            }
+            notes.push(label + " " + fillCurrentSilent());
+          });
+          state.autoFillLast = day;
+          state.barRev = Date.now();
+          if (prevView === "escape") {
             if (state.view !== "escape") stashActive();
             state.view = "escape";
           } else {
-            switchBookSilent(key === "acc2" ? "2" : "1");
+            switchBookSilent(prevId);
           }
-          notes.push(label + " " + fillCurrentSilent());
+          persist({ noUndo: true });
+          toast("자동 기입 · " + notes.join(" / "));
         });
-        state.autoFillLast = day;
-        state.barRev = Date.now();
-        if (prevView === "escape") {
-          if (state.view !== "escape") stashActive();
-          state.view = "escape";
-        } else {
-          switchBookSilent(prevId);
-        }
-        persist({ noUndo: true });
-        toast("자동 기입 · " + notes.join(" / "));
-      })
-      .then(function () {
-        autoFillBusy = false;
-      }, function () {
-        autoFillBusy = false;
-      });
+    }).then(function () {
+      autoFillBusy = false;
+    }, function () {
+      autoFillBusy = false;
+    });
   }
 
   function renderAccountSeg() {
@@ -6277,7 +6288,7 @@
   }
 
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("sw.js?v=44", { updateViaCache: "none" }).catch(function () {});
+    navigator.serviceWorker.register("sw.js?v=45", { updateViaCache: "none" }).catch(function () {});
   }
 
   function syncNow() {
@@ -6285,14 +6296,10 @@
     pullRemote().catch(function () {});
   }
   document.addEventListener("visibilitychange", function () {
-    if (!document.hidden) {
-      syncNow();
-      maybeCatchUpAutoFill();
-    }
+    if (!document.hidden) syncNow();
   });
   window.addEventListener("pageshow", function () {
     syncNow();
-    maybeCatchUpAutoFill();
   });
   window.addEventListener("focus", function () {
     syncNow();
@@ -6321,7 +6328,6 @@
   fetchQuote();
   pullRemote().catch(function () {});
   scheduleAutoFill();
-  maybeCatchUpAutoFill();
   setTimeout(markSyncReady, 8000);
   setInterval(fetchQuote, 15000);
   setInterval(function () {

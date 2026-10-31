@@ -480,6 +480,7 @@ async function main() {
       state.deletedUd = active.deletedUd || [];
       state.deletedTt = active.deletedTt || [];
     }
+    if ((remote.autoFillLast || "") > (state.autoFillLast || "")) state.autoFillLast = remote.autoFillLast;
   }
 
   async function patchState(nextEsc, escDirty) {
@@ -576,6 +577,17 @@ async function main() {
     applyQuote(state, await fetchQuote(symbol));
   } catch (err) {
     console.log("quote fail · " + err.message);
+  }
+
+  await keepRemoteTrades();
+  if (state.autoFillLast === day) {
+    console.log("already filled " + day);
+    var lateClose = state.market && state.market.closeDate;
+    if (await deliver([], lateClose)) {
+      state.rev = Date.now();
+      await patchState(null, false);
+    }
+    return;
   }
 
   var keys = [];
