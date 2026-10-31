@@ -1042,9 +1042,96 @@
     return changed;
   }
 
+  function fillSig(t) {
+    var px = Number(t.price);
+    return [
+      t.date || "",
+      t.type || "",
+      t.pot == null || t.pot === "" ? "" : t.pot,
+      t.rank == null || t.rank === "" ? "" : t.rank,
+      isFiniteNumber(px) ? px.toFixed(4) : "",
+      t.qty == null || t.qty === "" ? "" : t.qty,
+    ].join("|");
+  }
+
+  function collapseFills(list) {
+    var kept = {};
+    var order = [];
+    var dropped = [];
+    (list || []).forEach(function (t) {
+      if (!t) return;
+      var sig = fillSig(t);
+      var prev = kept[sig];
+      if (!prev) {
+        kept[sig] = t;
+        order.push(sig);
+        return;
+      }
+      var pe = Number(prev.editedAt) || 0;
+      var te = Number(t.editedAt) || 0;
+      var drop = t;
+      if ((te && !pe) || (te && pe && te < pe)) {
+        drop = prev;
+        kept[sig] = t;
+      }
+      if (drop && drop.id) dropped.push("id:" + drop.id);
+    });
+    var rows = order.map(function (sig) {
+      return kept[sig];
+    });
+    rows.sort(function (a, b) {
+      if ((a.date || "") !== (b.date || "")) return a.date < b.date ? 1 : -1;
+      return (Number(b.seq) || 0) - (Number(a.seq) || 0);
+    });
+    return { list: rows, dropped: dropped };
+  }
+
+  function pushDeletedIds(list, ids) {
+    var cur = (list || []).slice();
+    (ids || []).forEach(function (id) {
+      if (id && cur.indexOf(id) < 0) cur.push(id);
+    });
+    if (cur.length > 4000) cur = cur.slice(cur.length - 4000);
+    return cur;
+  }
+
+  function repairDuplicateFills(state) {
+    if (!state || !state.accounts) return false;
+    var changed = false;
+    function apply(book, tradeKey, delKey) {
+      var collapsed = collapseFills(book[tradeKey]);
+      if (!collapsed.dropped.length) return;
+      book[tradeKey] = collapsed.list;
+      book[delKey] = pushDeletedIds(book[delKey], collapsed.dropped);
+      changed = true;
+    }
+    ["1", "2"].forEach(function (id) {
+      var book = state.accounts[id];
+      if (!book) return;
+      apply(book, "updownTrades", "deletedUd");
+      apply(book, "tteolTrades", "deletedTt");
+    });
+    var active = state.accounts[state.accountId || "1"];
+    if (state.updownTrades && (!active || state.updownTrades !== active.updownTrades)) {
+      apply(state, "updownTrades", "deletedUd");
+    }
+    if (state.tteolTrades && (!active || state.tteolTrades !== active.tteolTrades)) {
+      apply(state, "tteolTrades", "deletedTt");
+    }
+    if (changed && active) {
+      state.deletedUd = pushDeletedIds(active.deletedUd, state.deletedUd);
+      state.deletedTt = pushDeletedIds(active.deletedTt, state.deletedTt);
+      active.deletedUd = state.deletedUd;
+      active.deletedTt = state.deletedTt;
+      state.updownTrades = active.updownTrades;
+      state.tteolTrades = active.tteolTrades;
+    }
+    return changed;
+  }
+
   function repairAccountSheets(state) {
     if (!state || !state.accounts) return false;
-    var changed = repairTteolCycles(state);
+    var changed = repairDuplicateFills(state) || repairTteolCycles(state);
     var rev = Date.now();
     function patchSettings(id, fn) {
       var book = state.accounts[id];
@@ -1236,6 +1323,14 @@
     if (!sug || !sug.type) return { ok: false, reason: sug && sug.reason ? sug.reason : "체결 없음" };
 
     var fillDate = sug.date || state.market.closeDate;
+    var list = which === "tteol" ? state.tteolTrades : state.updownTrades;
+    var already = (list || []).some(function (t) {
+      if (!t || t.date !== fillDate || t.type !== sug.type) return false;
+      if (which === "tteol") return String(t.rank) === String(sug.rank);
+      return String(t.pot) === String(sug.pot);
+    });
+    if (already) return { ok: false, reason: "이미 반영된 체결" };
+
     if (which === "tteol") {
       state.tteolTrades.unshift({
         id: newTradeId(), editedAt: Date.now(),
@@ -1447,6 +1542,8 @@
     repairSpikedCloses: repairSpikedCloses,
     repairOffCentPrices: repairOffCentPrices,
     repairAccountSheets: repairAccountSheets,
+    repairDuplicateFills: repairDuplicateFills,
+    collapseFills: collapseFills,
     transferOneRank: transferOneRank,
     liquidateAll: liquidateAll,
     applyPreset: applyPreset,

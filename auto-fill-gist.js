@@ -441,11 +441,15 @@ async function main() {
     }
     put(a);
     put(b);
-    return Object.keys(map)
-      .map(function (k) {
-        return map[k];
-      })
-      .sort(function (x, y) {
+    var rows = Object.keys(map).map(function (k) {
+      return map[k];
+    });
+    var collapsed = E.collapseFills(rows);
+    (collapsed.dropped || []).forEach(function (id) {
+      if (!deleted || !id || deleted.indexOf(id) >= 0) return;
+      deleted.push(id);
+    });
+    return collapsed.list.sort(function (x, y) {
         if ((x.date || "") !== (y.date || "")) return x.date < y.date ? 1 : -1;
         return (y.seq || 0) - (x.seq || 0);
       });

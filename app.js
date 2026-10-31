@@ -842,20 +842,26 @@
     var next = JSON.parse(JSON.stringify(base || blankBook()));
     next.deletedUd = mergeIdList(localBook && localBook.deletedUd, remoteBook && remoteBook.deletedUd);
     next.deletedTt = mergeIdList(localBook && localBook.deletedTt, remoteBook && remoteBook.deletedTt);
-    next.updownTrades = mergeTradeLists(
+    var udMerged = mergeTradeLists(
       localBook && localBook.updownTrades,
       remoteBook && remoteBook.updownTrades,
       next.deletedUd,
       localRev,
       remoteRev
     );
-    next.tteolTrades = mergeTradeLists(
+    var ttMerged = mergeTradeLists(
       localBook && localBook.tteolTrades,
       remoteBook && remoteBook.tteolTrades,
       next.deletedTt,
       localRev,
       remoteRev
     );
+    var udCollapsed = E.collapseFills(udMerged);
+    var ttCollapsed = E.collapseFills(ttMerged);
+    next.updownTrades = udCollapsed.list;
+    next.tteolTrades = ttCollapsed.list;
+    next.deletedUd = mergeIdList(next.deletedUd, udCollapsed.dropped);
+    next.deletedTt = mergeIdList(next.deletedTt, ttCollapsed.dropped);
     var merged = mergeSettings(localBook, remoteBook);
     next.settings = merged.settings;
     next.settingsRev = merged.settingsRev;
@@ -6271,7 +6277,7 @@
   }
 
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("sw.js?v=43", { updateViaCache: "none" }).catch(function () {});
+    navigator.serviceWorker.register("sw.js?v=44", { updateViaCache: "none" }).catch(function () {});
   }
 
   function syncNow() {
