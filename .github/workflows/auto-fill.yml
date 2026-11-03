@@ -2,7 +2,10 @@ name: Auto fill at 07:00 KST
 
 on:
   schedule:
-    - cron: "0 22 * * *"
+    # 07:00–12:00 KST. GitHub often starts the single 07:00 job hours late,
+    # so keep trying until one run actually sends, then later runs no-op.
+    - cron: "*/15 22-23 * * *"
+    - cron: "*/15 0-3 * * *"
   workflow_dispatch:
     inputs:
       telegram_test:
