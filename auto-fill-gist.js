@@ -366,9 +366,17 @@ function readFile(gist, name) {
 }
 
 async function fetchQuote(symbol) {
-  var r = await fetch(CNBC + encodeURIComponent(symbol), { cache: "no-store" });
+  var r = await fetch(CNBC + encodeURIComponent(symbol), {
+    cache: "no-store",
+    headers: {
+      "User-Agent": "Mozilla/5.0",
+      Accept: "application/json",
+    },
+  });
   if (!r.ok) throw new Error("quote http " + r.status);
-  return parseCnbcQuote(await r.json());
+  var quote = parseCnbcQuote(await r.json());
+  if (!quote || !quote.sessionDate) throw new Error("quote empty");
+  return quote;
 }
 
 async function sendTelegram(text) {
@@ -573,11 +581,18 @@ async function main() {
   if (state.accounts["1"] && state.accounts["1"].settings && state.accounts["1"].settings.symbol) {
     symbol = String(state.accounts["1"].settings.symbol).toUpperCase();
   }
+  var quote = null;
   try {
-    applyQuote(state, await fetchQuote(symbol));
+    quote = await fetchQuote(symbol);
+    applyQuote(state, quote);
   } catch (err) {
     console.log("quote fail · " + err.message);
   }
+  if (!quote || !quote.sessionDate) {
+    console.log("quote empty · 기입하지 않고 다음 실행에서 다시");
+    return;
+  }
+  console.log("quote " + quote.sessionDate + " close " + quote.lastClose + " " + quote.phase);
 
   await keepRemoteTrades();
   if (state.autoFillLast === day) {
