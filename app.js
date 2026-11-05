@@ -142,6 +142,7 @@
     root.barRightOff = !!root.barRightOff;
     root.autoFill = !!root.autoFill;
     if (!root.autoFillLast) root.autoFillLast = "";
+    if (!root.autoFillEmptyClose) root.autoFillEmptyClose = "";
     if (root.view !== "1" && root.view !== "2" && root.view !== "escape") root.view = root.accountId || "1";
     if (!Number(root.settingsRev) && root.accounts[root.accountId]) {
       root.settingsRev = Number(root.accounts[root.accountId].settingsRev) || 0;
@@ -893,6 +894,7 @@
       barRev: Number(copy.barRev) || 0,
       autoFill: !!copy.autoFill,
       autoFillLast: copy.autoFillLast || "",
+      autoFillEmptyClose: copy.autoFillEmptyClose || "",
     };
   }
 
@@ -934,7 +936,9 @@
     }
     var lDay = local.autoFillLast || "";
     var rDay = remote.autoFillLast || "";
-    next.autoFillLast = lDay > rDay ? lDay : rDay;
+    var fillSrc = lDay > rDay ? local : rDay > lDay ? remote : remoteRev > localRev ? remote : local;
+    next.autoFillLast = fillSrc.autoFillLast || "";
+    next.autoFillEmptyClose = fillSrc.autoFillEmptyClose || "";
     next.telegramPending = Array.isArray(base.telegramPending) ? base.telegramPending.slice() : [];
     next.telegramSentClose = base.telegramSentClose || "";
     next.view = remoteRev > localRev ? remote.view || local.view : local.view || remote.view;
@@ -1473,11 +1477,34 @@
     }, Math.max(1000, next.getTime() - now.getTime()));
   }
 
+  function closeRowsMissing() {
+    if (!state || !state.market || !state.market.closeDate || !state.accounts) return false;
+    var closeDate = state.market.closeDate;
+    if (state.autoFillEmptyClose === closeDate) return false;
+    var ids = ["1", "2"];
+    for (var i = 0; i < ids.length; i++) {
+      var book = state.accounts[ids[i]];
+      if (!book) continue;
+      var lists = [book.updownTrades, book.tteolTrades];
+      for (var a = 0; a < lists.length; a++) {
+        var rows = lists[a] || [];
+        for (var j = 0; j < rows.length; j++) {
+          if (rows[j] && rows[j].date === closeDate) return false;
+        }
+      }
+    }
+    return true;
+  }
+
+  function dayAlreadyDone() {
+    return !!(state && state.autoFillLast === localDayKey() && !closeRowsMissing());
+  }
+
   function maybeCatchUpAutoFill() {
     if (!state || !state.autoFill || autoFillBusy) return;
     var now = new Date();
     if (now.getHours() < 7) return;
-    if (state.autoFillLast === localDayKey(now)) return;
+    if (dayAlreadyDone()) return;
     runAutoFill();
   }
 
@@ -1569,11 +1596,11 @@
   function runAutoFill() {
     scheduleAutoFill();
     if (!state || !state.autoFill || autoFillBusy) return;
-    if (state.autoFillLast === localDayKey()) return;
+    if (dayAlreadyDone()) return;
     if (syncing) return;
     autoFillBusy = true;
     pullRemote().then(function () {
-      if (!state || !state.autoFill || state.autoFillLast === localDayKey()) {
+      if (!state || !state.autoFill || dayAlreadyDone()) {
         autoFillBusy = false;
         return;
       }
@@ -1583,7 +1610,7 @@
           applyLiveQuote(q);
         }, function () {})
         .then(function () {
-          if (!state || !state.autoFill || state.autoFillLast === localDayKey()) return;
+          if (!state || !state.autoFill || dayAlreadyDone()) return;
           var day = localDayKey();
           var prevView = state.view;
           var prevId = state.accountId || "1";
@@ -1608,6 +1635,7 @@
             notes.push(label + " " + fillCurrentSilent());
           });
           state.autoFillLast = day;
+          state.autoFillEmptyClose = closeRowsMissing() ? (state.market && state.market.closeDate) || "" : "";
           state.barRev = Date.now();
           if (prevView === "escape") {
             if (state.view !== "escape") stashActive();
@@ -6288,7 +6316,7 @@
   }
 
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("sw.js?v=45", { updateViaCache: "none" }).catch(function () {});
+    navigator.serviceWorker.register("sw.js?v=46", { updateViaCache: "none" }).catch(function () {});
   }
 
   function syncNow() {

@@ -614,6 +614,26 @@ async function main() {
     return !!(closeDate && !bookHasClose(closeDate) && state.autoFillEmptyClose !== closeDate);
   }
 
+  async function savedHasClose(closeDate) {
+    if (!closeDate) return false;
+    var again = await fetch("https://api.github.com/gists/" + gistId, { headers: gistHeaders(token) });
+    if (!again.ok) throw new Error("gist reread " + again.status);
+    var remote = attach(readFile(await again.json(), STATE_FILE) || {});
+    var ids = ["1", "2"];
+    for (var i = 0; i < ids.length; i++) {
+      var book = remote.accounts && remote.accounts[ids[i]];
+      if (!book) continue;
+      var lists = [book.updownTrades, book.tteolTrades];
+      for (var a = 0; a < lists.length; a++) {
+        var rows = lists[a] || [];
+        for (var j = 0; j < rows.length; j++) {
+          if (rows[j] && rows[j].date === closeDate) return true;
+        }
+      }
+    }
+    return false;
+  }
+
   if (state.autoFillLast === day && !missingCloseRows()) {
     console.log("already filled " + day);
     var filledClose = state.market && state.market.closeDate;
@@ -667,6 +687,7 @@ async function main() {
   var notes = [];
   var added = [];
   var escDirty = false;
+  var expectAccount = false;
   if (!keys.length) notes.push("미사용");
   keys.forEach(function (key) {
     if (key === "escape") {
@@ -682,6 +703,7 @@ async function main() {
     }
     var id = key === "acc2" ? "2" : "1";
     var label = id === "2" ? "2번 계좌" : "1번 계좌";
+    expectAccount = true;
     var view = bookView(state, id);
     var bookFill = fillBook(label, view);
     var book = state.accounts[id];
@@ -691,8 +713,6 @@ async function main() {
     added = added.concat(bookFill.lines);
   });
 
-  state.autoFillLast = day;
-  state.autoFillEmptyClose = added.length ? "" : (state.market && state.market.closeDate) || "";
   state.rev = Date.now();
   state.barRev = Date.now();
   if (state.accounts[state.accountId || "1"]) {
@@ -705,7 +725,16 @@ async function main() {
   await patchState(esc, escDirty);
   console.log("자동 기입 · " + notes.join(" / "));
   var runClose = state.market && state.market.closeDate;
-  if (await deliver(added, runClose)) await patchState(esc, escDirty);
+  var saved = await savedHasClose(runClose);
+  if (expectAccount && added.length && runClose && !saved) {
+    console.log("saved book missing " + runClose);
+    throw new Error("saved book missing " + runClose);
+  }
+  state.autoFillLast = day;
+  state.autoFillEmptyClose = saved ? "" : runClose || "";
+  state.rev = Date.now();
+  await patchState(esc, false);
+  if (added.length && (await deliver(added, runClose))) await patchState(esc, escDirty);
 }
 
 main().catch(function (err) {
