@@ -536,6 +536,23 @@ async function main() {
     return lines;
   }
 
+  function morningOff() {
+    var file = gist.files && gist.files["switch-auto-heartbeat.json"];
+    if (!file || !file.content) return false;
+    var hb;
+    try {
+      hb = JSON.parse(file.content);
+    } catch (e) {
+      return false;
+    }
+    var keys = ["meritz", "eugene"];
+    for (var i = 0; i < keys.length; i++) {
+      var row = hb[keys[i]];
+      if (row && row.morning === false) return true;
+    }
+    return false;
+  }
+
   async function deliver(lines, closeDate) {
     var hadPending = Array.isArray(state.telegramPending) && state.telegramPending.length > 0;
     state.telegramPending = [];
@@ -550,6 +567,10 @@ async function main() {
     if (!note.length) {
       console.log("telegram skip · no new rows");
       return hadPending;
+    }
+    if (morningOff()) {
+      console.log("telegram skip · morning off");
+      return false;
     }
     console.log("telegram lines " + note.length);
     var head = "Switch 자동 기입 " + day + "\n";
