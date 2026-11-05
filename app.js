@@ -22,6 +22,9 @@
   var tab = "home";
   var statsMode = "month";
   var statsYear = 2026;
+  var savedUi = readUi();
+  if (savedUi.statsMode === "month" || savedUi.statsMode === "year") statsMode = savedUi.statsMode;
+  if (Number.isFinite(Number(savedUi.statsYear))) statsYear = Number(savedUi.statsYear);
   var pxSpan = "all";
   var pxFocus = "";
   var pxCycleOn = true;
@@ -1379,11 +1382,33 @@
 
   var TABS = { home: 1, orders: 1, journal: 1, stats: 1, settings: 1, closes: 1 };
 
+  var UI_KEY = "switch-v3-ui";
+
+  function readUi() {
+    try {
+      return JSON.parse(localStorage.getItem(UI_KEY) || "{}") || {};
+    } catch (e) {
+      return {};
+    }
+  }
+
+  function writeUi(patch) {
+    var cur = readUi();
+    Object.keys(patch).forEach(function (k) {
+      cur[k] = patch[k];
+    });
+    try {
+      localStorage.setItem(UI_KEY, JSON.stringify(cur));
+    } catch (e) {}
+  }
+
   function tabFromUrl() {
     var h = (location.hash || "").replace(/^#/, "");
     if (TABS[h]) return h;
+    var saved = readUi().tab;
+    if (TABS[saved]) return saved;
     try {
-      var saved = sessionStorage.getItem("switch-v3-tab");
+      saved = sessionStorage.getItem("switch-v3-tab");
       if (TABS[saved]) return saved;
     } catch (e) {}
     return "home";
@@ -1398,6 +1423,7 @@
     document.querySelectorAll(".page").forEach(function (p) {
       p.classList.toggle("active", p.id === "page-" + name);
     });
+    writeUi({ tab: name });
     try {
       sessionStorage.setItem("switch-v3-tab", name);
     } catch (e) {}
@@ -5104,6 +5130,7 @@
     document.querySelectorAll("#st-mode button").forEach(function (b) {
       b.onclick = function () {
         statsMode = b.dataset.mode;
+        writeUi({ statsMode: statsMode });
         document.querySelectorAll("#st-mode button").forEach(function (x) {
           x.classList.toggle("active", x === b);
         });
@@ -5114,6 +5141,7 @@
       var y = ev.target.getAttribute("data-year");
       if (!y) return;
       statsYear = parseInt(y, 10);
+      writeUi({ statsYear: statsYear });
       render();
     };
     document.querySelectorAll("#px-range > button").forEach(function (b) {
@@ -5513,14 +5541,41 @@
         });
         document.getElementById("log-ud").classList.toggle("hidden", b.dataset.log !== "ud");
         document.getElementById("log-tt").classList.toggle("hidden", b.dataset.log !== "tt");
+        writeUi({ journal: b.dataset.log });
       };
     });
+    if (readUi().journal === "tt" || readUi().journal === "ud") {
+      var journal = readUi().journal;
+      document.querySelectorAll("#page-journal .seg button").forEach(function (x) {
+        x.classList.toggle("active", x.dataset.log === journal);
+      });
+      document.getElementById("log-ud").classList.toggle("hidden", journal !== "ud");
+      document.getElementById("log-tt").classList.toggle("hidden", journal !== "tt");
+    }
+    function setFold(btn, wrapId, open) {
+      btn.setAttribute("aria-expanded", open ? "true" : "false");
+      var wrap = document.getElementById(wrapId);
+      if (wrap) wrap.classList.toggle("hidden", !open);
+      var arrow = btn.querySelector(".rank-arrow");
+      if (arrow) arrow.textContent = open ? "▲" : "▼";
+    }
     function bindFold(btnId, wrapId, after) {
-      document.getElementById(btnId).onclick = function () {
+      var btn = document.getElementById(btnId);
+      if (!btn) return;
+      var savedFolds = readUi().folds || {};
+      if (typeof savedFolds[btnId] === "boolean") {
+        setFold(btn, wrapId, savedFolds[btnId]);
+        if (btnId === "btn-fold-ret") {
+          var seg = document.getElementById("st-mode");
+          if (seg) seg.hidden = !savedFolds[btnId];
+        }
+      }
+      btn.onclick = function () {
         var open = this.getAttribute("aria-expanded") !== "true";
-        this.setAttribute("aria-expanded", open ? "true" : "false");
-        document.getElementById(wrapId).classList.toggle("hidden", !open);
-        this.querySelector(".rank-arrow").textContent = open ? "▲" : "▼";
+        setFold(this, wrapId, open);
+        var folds = readUi().folds || {};
+        folds[btnId] = open;
+        writeUi({ folds: folds });
         if (after) after();
       };
     }
@@ -6316,7 +6371,7 @@
   }
 
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("sw.js?v=46", { updateViaCache: "none" }).catch(function () {});
+    navigator.serviceWorker.register("sw.js?v=47", { updateViaCache: "none" }).catch(function () {});
   }
 
   function syncNow() {
