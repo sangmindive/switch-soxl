@@ -1402,15 +1402,17 @@
     } catch (e) {}
   }
 
+  var forceHome = true;
+  try { forceHome = sessionStorage.getItem("switch-v3-session") !== "1"; } catch (e) {}
+  try { sessionStorage.setItem("switch-v3-session", "1"); } catch (e) {}
+
   function tabFromUrl() {
+    if (forceHome) {
+      forceHome = false;
+      return "home";
+    }
     var h = (location.hash || "").replace(/^#/, "");
     if (TABS[h]) return h;
-    var saved = readUi().tab;
-    if (TABS[saved]) return saved;
-    try {
-      saved = sessionStorage.getItem("switch-v3-tab");
-      if (TABS[saved]) return saved;
-    } catch (e) {}
     return "home";
   }
 
@@ -6371,7 +6373,7 @@
   }
 
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("sw.js?v=47", { updateViaCache: "none" }).catch(function () {});
+    navigator.serviceWorker.register("sw.js?v=48", { updateViaCache: "none" }).catch(function () {});
   }
 
   function syncNow() {
