@@ -572,6 +572,10 @@ async function main() {
       console.log("telegram skip · morning off");
       return false;
     }
+    if (closeDate && state.telegramSentClose === closeDate) {
+      console.log("telegram skip · already sent");
+      return false;
+    }
     console.log("telegram lines " + note.length);
     var head = "Switch 자동 기입 " + day + "\n";
     var chunk = head;
@@ -588,7 +592,29 @@ async function main() {
     return true;
   }
 
-  if (state.autoFillLast === day) {
+  function bookHasClose(closeDate) {
+    if (!closeDate) return false;
+    var ids = ["1", "2"];
+    for (var i = 0; i < ids.length; i++) {
+      var book = state.accounts[ids[i]];
+      if (!book) continue;
+      var lists = [book.updownTrades, book.tteolTrades];
+      for (var a = 0; a < lists.length; a++) {
+        var rows = lists[a] || [];
+        for (var j = 0; j < rows.length; j++) {
+          if (rows[j] && rows[j].date === closeDate) return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  function missingCloseRows() {
+    var closeDate = state.market && state.market.closeDate;
+    return !!(closeDate && !bookHasClose(closeDate) && state.autoFillEmptyClose !== closeDate);
+  }
+
+  if (state.autoFillLast === day && !missingCloseRows()) {
     console.log("already filled " + day);
     var filledClose = state.market && state.market.closeDate;
     if (await deliver([], filledClose)) {
@@ -596,6 +622,9 @@ async function main() {
       await patchState(null, false);
     }
     return;
+  }
+  if (state.autoFillLast === day) {
+    console.log("close rows missing · " + (state.market && state.market.closeDate));
   }
 
   var symbol = "SOXL";
@@ -616,7 +645,7 @@ async function main() {
   console.log("quote " + quote.sessionDate + " close " + quote.lastClose + " " + quote.phase);
 
   await keepRemoteTrades();
-  if (state.autoFillLast === day) {
+  if (state.autoFillLast === day && !missingCloseRows()) {
     console.log("already filled " + day);
     var lateClose = state.market && state.market.closeDate;
     if (await deliver([], lateClose)) {
@@ -653,12 +682,17 @@ async function main() {
     }
     var id = key === "acc2" ? "2" : "1";
     var label = id === "2" ? "2번 계좌" : "1번 계좌";
-    var bookFill = fillBook(label, bookView(state, id));
+    var view = bookView(state, id);
+    var bookFill = fillBook(label, view);
+    var book = state.accounts[id];
+    book.updownTrades = view.updownTrades;
+    book.tteolTrades = view.tteolTrades;
     notes.push(label + " " + bookFill.text);
     added = added.concat(bookFill.lines);
   });
 
   state.autoFillLast = day;
+  state.autoFillEmptyClose = added.length ? "" : (state.market && state.market.closeDate) || "";
   state.rev = Date.now();
   state.barRev = Date.now();
   if (state.accounts[state.accountId || "1"]) {
