@@ -6019,13 +6019,14 @@
     for (var i = 0; i < m.closeHistory.length; i++) {
       if (m.closeHistory[i].date === date) {
         if (near(m.closeHistory[i].close, close, 1e-6)) return false;
-        if (!closeRevisionOk(m.closeHistory[i].close, close, settle)) return false;
+        if (!closeRevisionOk(m.closeHistory[i].close, close, settle, date)) return false;
         var oldClose = Number(m.closeHistory[i].close);
         m.closeHistory[i].close = close;
         if (m === state.market) E.retargetBooks(state, date, oldClose, close);
         return true;
       }
     }
+    if (state.market && state.market.closeDate && date < state.market.closeDate) return false;
     m.closeHistory.push({ date: date, close: close });
     m.closeHistory.sort(function (a, b) {
       return a.date < b.date ? 1 : -1;
@@ -6040,13 +6041,14 @@
     for (var i = 0; i < state.closeDb.length; i++) {
       if (state.closeDb[i].date === date) {
         if (near(state.closeDb[i].close, close, 1e-6)) return false;
-        if (!closeRevisionOk(state.closeDb[i].close, close, settle)) return false;
+        if (!closeRevisionOk(state.closeDb[i].close, close, settle, date)) return false;
         var oldClose = Number(state.closeDb[i].close);
         state.closeDb[i].close = close;
         E.retargetBooks(state, date, oldClose, close);
         return true;
       }
     }
+    if (state.market && state.market.closeDate && date < state.market.closeDate) return false;
     state.closeDb.push({ date: date, close: Number(close) });
     state.closeDb.sort(function (a, b) {
       return a.date < b.date ? 1 : -1;
@@ -6054,9 +6056,9 @@
     return true;
   }
 
-  function closeRevisionOk(oldClose, nextClose, settle) {
-    if (settle) return true;
-    return Math.abs(Number(oldClose) - Number(nextClose)) <= 0.05;
+  function closeRevisionOk(oldClose, nextClose, settle, date) {
+    var latest = state.market && state.market.closeDate;
+    return E.acceptCloseRevision(oldClose, nextClose, date, latest, !!settle);
   }
 
   function patchCloseRow(list, date, close) {
@@ -6373,7 +6375,7 @@
   }
 
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("sw.js?v=48", { updateViaCache: "none" }).catch(function () {});
+    navigator.serviceWorker.register("sw.js?v=49", { updateViaCache: "none" }).catch(function () {});
   }
 
   function syncNow() {

@@ -969,6 +969,16 @@
     return changed;
   }
 
+  function acceptCloseRevision(oldClose, nextClose, date, latestDate, settle) {
+    var oldN = Number(oldClose);
+    var nextN = Number(nextClose);
+    if (!isFiniteNumber(oldN) || !isFiniteNumber(nextN) || oldN <= 0 || nextN <= 0) return false;
+    if (Math.abs(oldN - nextN) <= 1e-6) return false;
+    if (date && latestDate && String(date) < String(latestDate)) return Math.abs(oldN - nextN) <= 0.05;
+    if (settle) return true;
+    return Math.abs(oldN - nextN) <= 0.05;
+  }
+
   function retargetBooks(state, date, oldClose, nextClose) {
     if (!state) return false;
     var changed = false;
@@ -1538,6 +1548,7 @@
     nextTradingDate: nextTradingDate,
     applySuggested: applySuggested,
     recomputeFromEdit: recomputeFromEdit,
+    acceptCloseRevision: acceptCloseRevision,
     retargetBooks: retargetBooks,
     repairSpikedCloses: repairSpikedCloses,
     repairOffCentPrices: repairOffCentPrices,

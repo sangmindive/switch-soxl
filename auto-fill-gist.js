@@ -325,25 +325,29 @@ function applyQuote(state, q) {
   if (q.price) state.market.price = q.price;
   if (q.changePct != null) state.market.changePct = q.changePct;
   if (q.phase) state.market.phase = q.phase;
-  var lastClose = isFinite(q.lastClose) && q.lastClose > 0 ? q.lastClose : q.price;
-  var sessionDate = q.sessionDate || state.market.closeDate;
-  var echoedPrev = isFinite(q.prevClose) && q.prevClose > 0 && isFinite(lastClose) && Math.abs(q.prevClose - lastClose) <= 1e-4;
-  if (lastClose && sessionDate && !echoedPrev) {
+  var officialClose = isFinite(q.lastClose) && q.lastClose > 0 ? q.lastClose : NaN;
+  var sessionDate = q.sessionDate || "";
+  var latest = state.market.closeDate || "";
+  var echoedPrev = isFinite(q.prevClose) && q.prevClose > 0 && isFinite(officialClose) && Math.abs(q.prevClose - officialClose) <= 1e-4;
+  if (officialClose && sessionDate && !echoedPrev && q.phase && q.phase !== "REG_MKT" && sessionDate >= latest) {
     var priorClose = null;
     (state.closeDb || []).forEach(function (row) {
       if (row && row.date === sessionDate) priorClose = Number(row.close);
     });
-    state.market.lastClose = lastClose;
-    state.market.closeDate = sessionDate;
-    state.market.tradeDate = sessionDate;
-    if (q.phase && q.phase !== "REG_MKT") {
-      if (priorClose && Math.abs(priorClose - lastClose) > 1e-4) E.retargetBooks(state, sessionDate, priorClose, lastClose);
-      state.closeDb = upsertClose(state.closeDb, sessionDate, lastClose);
-      state.market.closeHistory = upsertClose(state.market.closeHistory, sessionDate, lastClose);
+    var revising = priorClose != null && Math.abs(priorClose - officialClose) > 1e-4;
+    if (!revising || E.acceptCloseRevision(priorClose, officialClose, sessionDate, latest, true)) {
+      if (revising) E.retargetBooks(state, sessionDate, priorClose, officialClose);
+      state.closeDb = upsertClose(state.closeDb, sessionDate, officialClose);
+      state.market.closeHistory = upsertClose(state.market.closeHistory, sessionDate, officialClose);
       E.repairSpikedCloses(state);
+      state.market.lastClose = officialClose;
+      state.market.closeDate = sessionDate;
+      state.market.tradeDate = sessionDate;
     }
   }
-  if (isFinite(q.prevClose) && q.prevClose > 0 && !echoedPrev) state.market.prevClose = q.prevClose;
+  if (isFinite(q.prevClose) && q.prevClose > 0 && !echoedPrev && (!sessionDate || !latest || sessionDate >= latest)) {
+    state.market.prevClose = q.prevClose;
+  }
 }
 
 function gistHeaders(token) {
