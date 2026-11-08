@@ -1872,10 +1872,15 @@
     var seedUsed = (out.E16 || 0) + (out.K16 || 0);
     var seedRatio = out.C8 > 0 ? seedUsed / out.C8 : 0;
     if (seedRatio < 0) seedRatio = 0;
-    if (seedRatio > 1) seedRatio = 1;
     var seedBar = document.getElementById("v-seed-bar");
-    if (seedBar) seedBar.style.width = (seedRatio * 100).toFixed(1) + "%";
-    fillText("v-seed-pct", "(" + Math.round(seedRatio * 100) + "%)");
+    if (seedBar) seedBar.style.width = (Math.min(seedRatio, 1) * 100).toFixed(1) + "%";
+    var seedText = "(" + Math.round(Math.min(seedRatio, 1) * 100) + "%)";
+    if (seedRatio > 1) {
+      var overPct = Math.round((seedRatio - 1) * 100);
+      if (overPct < 1) overPct = Math.round((seedRatio - 1) * 1000) / 10;
+      seedText = "(+" + overPct + "%)";
+    }
+    fillText("v-seed-pct", seedText);
     fillText("v-C8", money(out.C8));
     fillText("v-seed-used", money(seedUsed));
     fillText("v-D8", money(out.D8));
@@ -6378,7 +6383,7 @@
   }
 
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("sw.js?v=50", { updateViaCache: "none" }).catch(function () {});
+    navigator.serviceWorker.register("sw.js?v=51", { updateViaCache: "none" }).catch(function () {});
   }
 
   function syncNow() {
