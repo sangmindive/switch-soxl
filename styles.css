@@ -415,6 +415,7 @@ body {
 }
 .seed-bar-pct {
   flex: none;
+  white-space: nowrap;
   color: var(--muted);
   font-size: 12px;
   font-weight: 600;

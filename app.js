@@ -1878,7 +1878,7 @@
     if (seedRatio > 1) {
       var overPct = Math.round((seedRatio - 1) * 100);
       if (overPct < 1) overPct = Math.round((seedRatio - 1) * 1000) / 10;
-      seedText = "(+" + overPct + "%)";
+      seedText = "(100% + " + overPct + "%)";
     }
     fillText("v-seed-pct", seedText);
     fillText("v-C8", money(out.C8));
@@ -6383,7 +6383,7 @@
   }
 
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("sw.js?v=51", { updateViaCache: "none" }).catch(function () {});
+    navigator.serviceWorker.register("sw.js?v=52", { updateViaCache: "none" }).catch(function () {});
   }
 
   function syncNow() {
