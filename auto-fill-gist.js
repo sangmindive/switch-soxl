@@ -8,6 +8,7 @@ var E = require("./engine.js");
 
 var STATE_FILE = "switch-v3-state.json";
 var ESCAPE_FILE = "switch-escape-v1.json";
+var SENT_FILE = "switch-fill-sent.json";
 var CNBC =
   "https://quote.cnbc.com/quote-html-webservice/quote.htm?partnerId=2&requestMethod=quick&exthrs=1&noform=1&output=json&symbols=";
 
@@ -418,6 +419,8 @@ async function main() {
   var gist = await res.json();
   var state = attach(readFile(gist, STATE_FILE) || {});
   var esc = readFile(gist, ESCAPE_FILE);
+  var sentClose = ((readFile(gist, SENT_FILE) || {}).close) || "";
+  if (sentClose > (state.telegramSentClose || "")) state.telegramSentClose = sentClose;
 
   if (!state.autoFill) {
     console.log("autoFill off · skip");
@@ -493,12 +496,14 @@ async function main() {
       state.deletedTt = active.deletedTt || [];
     }
     if ((remote.autoFillLast || "") > (state.autoFillLast || "")) state.autoFillLast = remote.autoFillLast;
+    if ((remote.telegramSentClose || "") > (state.telegramSentClose || "")) state.telegramSentClose = remote.telegramSentClose;
   }
 
   async function patchState(nextEsc, escDirty) {
     await keepRemoteTrades();
     var files = {};
     files[STATE_FILE] = { content: JSON.stringify(state) };
+    if (state.telegramSentClose) files[SENT_FILE] = { content: JSON.stringify({ close: state.telegramSentClose }) };
     if (escDirty && nextEsc) files[ESCAPE_FILE] = { content: JSON.stringify(nextEsc) };
     var patch = await fetch("https://api.github.com/gists/" + gistId, {
       method: "PATCH",
@@ -506,6 +511,18 @@ async function main() {
       body: JSON.stringify({ files: files }),
     });
     if (!patch.ok) throw new Error("gist patch " + patch.status + " " + (await patch.text()));
+  }
+
+  async function lockSentFile() {
+    var current = state.telegramSentClose || "";
+    if (!current || current <= sentClose) return;
+    sentClose = current;
+    var patch = await fetch("https://api.github.com/gists/" + gistId, {
+      method: "PATCH",
+      headers: Object.assign({ "Content-Type": "application/json" }, gistHeaders(token)),
+      body: JSON.stringify({ files: { [SENT_FILE]: { content: JSON.stringify({ close: current }) } } }),
+    });
+    if (!patch.ok) throw new Error("gist sent " + patch.status + " " + (await patch.text()));
   }
 
   function linesForClose(closeDate) {
@@ -638,6 +655,8 @@ async function main() {
     return false;
   }
 
+  await lockSentFile();
+
   if (state.autoFillLast === day && !missingCloseRows()) {
     console.log("already filled " + day);
     var filledClose = state.market && state.market.closeDate;
@@ -669,6 +688,7 @@ async function main() {
   console.log("quote " + quote.sessionDate + " close " + quote.lastClose + " " + quote.phase);
 
   await keepRemoteTrades();
+  await lockSentFile();
   if (state.autoFillLast === day && !missingCloseRows()) {
     console.log("already filled " + day);
     var lateClose = state.market && state.market.closeDate;

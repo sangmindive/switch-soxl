@@ -898,6 +898,7 @@
       autoFill: !!copy.autoFill,
       autoFillLast: copy.autoFillLast || "",
       autoFillEmptyClose: copy.autoFillEmptyClose || "",
+      telegramSentClose: copy.telegramSentClose || "",
     };
   }
 
@@ -943,7 +944,9 @@
     next.autoFillLast = fillSrc.autoFillLast || "";
     next.autoFillEmptyClose = fillSrc.autoFillEmptyClose || "";
     next.telegramPending = Array.isArray(base.telegramPending) ? base.telegramPending.slice() : [];
-    next.telegramSentClose = base.telegramSentClose || "";
+    var lSent = local.telegramSentClose || "";
+    var rSent = remote.telegramSentClose || "";
+    next.telegramSentClose = lSent > rSent ? lSent : rSent;
     next.view = remoteRev > localRev ? remote.view || local.view : local.view || remote.view;
     if (next.view !== "1" && next.view !== "2" && next.view !== "escape") next.view = next.accountId || "1";
     next.settings = next.accounts[next.accountId].settings;
@@ -6375,7 +6378,7 @@
   }
 
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("sw.js?v=49", { updateViaCache: "none" }).catch(function () {});
+    navigator.serviceWorker.register("sw.js?v=50", { updateViaCache: "none" }).catch(function () {});
   }
 
   function syncNow() {
