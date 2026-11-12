@@ -2028,10 +2028,7 @@
     });
 
     var byRank = {};
-    var udHold = 0;
-    var udCost = 0;
-    var ttHold = 0;
-    var ttCost = 0;
+    var pool = { qty: 0, cost: 0 };
     var curDate = "";
     var snaps = [];
     var markers = [];
@@ -2039,7 +2036,7 @@
 
     function flush() {
       if (!curDate) return;
-      snaps.push({ date: curDate, hold: udHold + ttHold, cost: udCost + ttCost });
+      snaps.push({ date: curDate, hold: pool.qty, cost: pool.cost });
     }
 
     function rememberFill(t) {
@@ -2070,13 +2067,8 @@
         curDate = t.date;
       }
       rememberFill(t);
+      E.applyCombinedFill(pool, t);
       if (ev.side === "ud") {
-        var hold = finiteNum(t.holdQty);
-        if (hold == null) hold = udHold;
-        var cost = finiteNum(t.cost);
-        if (cost == null) cost = (finiteNum(t.avg) || 0) * hold;
-        udHold = hold;
-        udCost = cost;
         var qty = finiteNum(t.qty) || 0;
         var avg = finiteNum(t.avg) || 0;
         pushMarker(t, qty * avg, "ud");
@@ -2093,12 +2085,6 @@
         delete byRank[t.rank];
         pushMarker(t, basis, "tt");
       }
-      ttHold = 0;
-      ttCost = 0;
-      Object.keys(byRank).forEach(function (k) {
-        ttHold += byRank[k].qty;
-        ttCost += byRank[k].cost;
-      });
     });
     flush();
 
@@ -6383,7 +6369,7 @@
   }
 
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("sw.js?v=52", { updateViaCache: "none" }).catch(function () {});
+    navigator.serviceWorker.register("sw.js?v=53", { updateViaCache: "none" }).catch(function () {});
   }
 
   function syncNow() {

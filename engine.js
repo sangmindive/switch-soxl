@@ -333,6 +333,51 @@
     return repaired;
   }
 
+  function tradeNotional(t) {
+    if (!t) return 0;
+    if (t.amount != null && t.amount !== "" && isFiniteNumber(Number(t.amount))) return Number(t.amount);
+    return (Number(t.price) || 0) * (Number(t.qty) || 0);
+  }
+
+  function applyCombinedFill(pool, t) {
+    if (!pool) pool = { qty: 0, cost: 0 };
+    if (!t) return pool;
+    var qty = Number(t.qty) || 0;
+    var amount = tradeNotional(t);
+    if (t.type === "매수" || t.type === "떨") {
+      pool.qty += qty;
+      pool.cost += amount;
+    } else if (t.type === "매도") {
+      pool.qty -= qty;
+      pool.cost -= amount;
+      if (pool.qty <= 1e-9) {
+        pool.qty = 0;
+        pool.cost = 0;
+      }
+    }
+    return pool;
+  }
+
+  function combinedBasis(ud, tt) {
+    var rows = [];
+    (ud || []).forEach(function (t) {
+      if (t) rows.push(t);
+    });
+    (tt || []).forEach(function (t) {
+      if (t) rows.push(t);
+    });
+    rows.sort(function (a, b) {
+      if ((a.date || "") !== (b.date || "")) return a.date < b.date ? -1 : 1;
+      return (Number(a.seq) || 0) - (Number(b.seq) || 0);
+    });
+    var pool = { qty: 0, cost: 0 };
+    rows.forEach(function (t) {
+      applyCombinedFill(pool, t);
+    });
+    pool.avg = pool.qty ? pool.cost / pool.qty : 0;
+    return pool;
+  }
+
   function compute(state, opts) {
     var s = state.settings;
     var m = state.market;
@@ -447,9 +492,9 @@
       var tr = openRanks[ti];
       ttCost += tr.amount != null && tr.amount !== "" ? Number(tr.amount) : Number(tr.price) * Number(tr.qty);
     }
-    var udCost = (avg || 0) * (C13 || 0);
-    var holdQty = (C13 || 0) + (I13 || 0);
-    var combAvg = holdQty ? (udCost + ttCost) / holdQty : 0;
+    var basis = combinedBasis(ud, tt);
+    var holdQty = basis.qty;
+    var combAvg = basis.avg;
     var mark = profitPx;
     var udEval = C13 ? (mark - avg) * C13 : 0;
     var udEvalPct = avg && C13 ? mark / avg - 1 : "";
@@ -1544,6 +1589,8 @@
     defaultMarket: defaultMarket,
     newTradeId: newTradeId,
     compute: compute,
+    applyCombinedFill: applyCombinedFill,
+    combinedBasis: combinedBasis,
     previousTradingDate: previousTradingDate,
     nextTradingDate: nextTradingDate,
     applySuggested: applySuggested,
