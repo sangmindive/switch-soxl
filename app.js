@@ -745,7 +745,7 @@
         if (drop[k]) return;
         var prev = map[k];
         if (!prev) {
-        map[k] = t;
+          map[k] = t;
           return;
         }
         var pe = Number(prev.editedAt) || 0;
@@ -951,7 +951,7 @@
       next.autoFill = lFillAt > rFillAt ? !!local.autoFill : !!remote.autoFill;
       next.autoFillAt = Math.max(lFillAt, rFillAt);
     } else {
-    next.autoFill = !!barSrc.autoFill;
+      next.autoFill = !!barSrc.autoFill;
     }
     var lDay = local.autoFillLast || "";
     var rDay = remote.autoFillLast || "";
@@ -1128,10 +1128,10 @@
             return pullRemote();
           }
           if (localPending && pushQueued) {
-          pushQueued = false;
-          return pushRemote().then(function () {
-            return escChanged;
-          });
+            pushQueued = false;
+            return pushRemote().then(function () {
+              return escChanged;
+            });
           }
           pushQueued = false;
           return escChanged;
@@ -1216,9 +1216,9 @@
           method: "PATCH",
           headers: gistHeaders(cfg.token),
           body: JSON.stringify(gistBody()),
-      })
+        })
           .then(readGistResponse)
-      .then(function () {
+          .then(function () {
             return fetch("https://api.github.com/gists/" + cfg.gistId, { headers: gistHeaders(cfg.token) }).then(readGistResponse);
           })
           .then(function (again) {
@@ -1652,53 +1652,53 @@
         autoFillBusy = false;
         return;
       }
-    var symbol = String((state.settings && state.settings.symbol) || "SOXL").toUpperCase();
+      var symbol = String((state.settings && state.settings.symbol) || "SOXL").toUpperCase();
       return fetchCnbcQuote(symbol)
-      .then(function (q) {
-        applyLiveQuote(q);
-      }, function () {})
-      .then(function () {
+        .then(function (q) {
+          applyLiveQuote(q);
+        }, function () {})
+        .then(function () {
           if (!state || !state.autoFill || dayAlreadyDone()) return;
           var day = localDayKey();
-        var prevView = state.view;
-        var prevId = state.accountId || "1";
-        var keys = [];
-        function addKey(k, off) {
-          if (off) return;
-          k = canonBar(k);
-          if (k && keys.indexOf(k) < 0) keys.push(k);
-        }
-        addKey(state.barLeft, state.barLeftOff);
-        addKey(state.barRight, state.barRightOff);
-        var notes = [];
-        if (!keys.length) notes.push("미사용");
-        keys.forEach(function (key) {
-          var label = BAR_SLOTS[key] ? BAR_SLOTS[key].label : key;
-          if (key === "escape") {
+          var prevView = state.view;
+          var prevId = state.accountId || "1";
+          var keys = [];
+          function addKey(k, off) {
+            if (off) return;
+            k = canonBar(k);
+            if (k && keys.indexOf(k) < 0) keys.push(k);
+          }
+          addKey(state.barLeft, state.barLeftOff);
+          addKey(state.barRight, state.barRightOff);
+          var notes = [];
+          if (!keys.length) notes.push("미사용");
+          keys.forEach(function (key) {
+            var label = BAR_SLOTS[key] ? BAR_SLOTS[key].label : key;
+            if (key === "escape") {
+              if (state.view !== "escape") stashActive();
+              state.view = "escape";
+            } else {
+              switchBookSilent(key === "acc2" ? "2" : "1");
+            }
+            notes.push(label + " " + fillCurrentSilent());
+          });
+          state.autoFillLast = day;
+          state.autoFillEmptyClose = closeRowsMissing() ? (state.market && state.market.closeDate) || "" : "";
+          state.barRev = Date.now();
+          if (prevView === "escape") {
             if (state.view !== "escape") stashActive();
             state.view = "escape";
           } else {
-            switchBookSilent(key === "acc2" ? "2" : "1");
+            switchBookSilent(prevId);
           }
-          notes.push(label + " " + fillCurrentSilent());
-        });
-        state.autoFillLast = day;
-          state.autoFillEmptyClose = closeRowsMissing() ? (state.market && state.market.closeDate) || "" : "";
-        state.barRev = Date.now();
-        if (prevView === "escape") {
-          if (state.view !== "escape") stashActive();
-          state.view = "escape";
-        } else {
-          switchBookSilent(prevId);
-        }
-        persist({ noUndo: true });
-        toast("자동 기입 · " + notes.join(" / "));
+          persist({ noUndo: true });
+          toast("자동 기입 · " + notes.join(" / "));
         });
     }).then(function () {
-        autoFillBusy = false;
-      }, function () {
-        autoFillBusy = false;
-      });
+      autoFillBusy = false;
+    }, function () {
+      autoFillBusy = false;
+    });
   }
 
   function renderAccountSeg() {
