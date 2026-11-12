@@ -511,6 +511,7 @@ async function main() {
       body: JSON.stringify({ files: files }),
     });
     if (!patch.ok) throw new Error("gist patch " + patch.status + " " + (await patch.text()));
+    return await patch.json();
   }
 
   async function lockSentFile() {
@@ -635,14 +636,11 @@ async function main() {
     return !!(closeDate && !bookHasClose(closeDate) && state.autoFillEmptyClose !== closeDate);
   }
 
-  async function savedHasClose(closeDate) {
-    if (!closeDate) return false;
-    var again = await fetch("https://api.github.com/gists/" + gistId, { headers: gistHeaders(token) });
-    if (!again.ok) throw new Error("gist reread " + again.status);
-    var remote = attach(readFile(await again.json(), STATE_FILE) || {});
+  function stateHasClose(root, closeDate) {
+    if (!closeDate || !root) return false;
     var ids = ["1", "2"];
     for (var i = 0; i < ids.length; i++) {
-      var book = remote.accounts && remote.accounts[ids[i]];
+      var book = root.accounts && root.accounts[ids[i]];
       if (!book) continue;
       var lists = [book.updownTrades, book.tteolTrades];
       for (var a = 0; a < lists.length; a++) {
@@ -651,6 +649,41 @@ async function main() {
           if (rows[j] && rows[j].date === closeDate) return true;
         }
       }
+    }
+    return false;
+  }
+
+  function payloadHasClose(payload, closeDate) {
+    var file = payload && payload.files && payload.files[STATE_FILE];
+    if (!file || !file.content || file.truncated) return false;
+    try {
+      return stateHasClose(attach(JSON.parse(file.content)), closeDate);
+    } catch (e) {
+      return false;
+    }
+  }
+
+  async function savedHasClose(closeDate) {
+    if (!closeDate) return false;
+    var again = await fetch("https://api.github.com/gists/" + gistId, {
+      cache: "no-store",
+      headers: gistHeaders(token),
+    });
+    if (!again.ok) throw new Error("gist reread " + again.status);
+    var payload = await again.json();
+    if (payload.files && payload.files[STATE_FILE] && payload.files[STATE_FILE].truncated) return false;
+    return stateHasClose(attach(readFile(payload, STATE_FILE) || {}), closeDate);
+  }
+
+  async function confirmSaved(closeDate) {
+    var gaps = [0, 2000, 5000, 10000, 20000, 30000];
+    for (var i = 0; i < gaps.length; i++) {
+      if (gaps[i]) await new Promise(function (resolve) { setTimeout(resolve, gaps[i]); });
+      if (await savedHasClose(closeDate)) {
+        console.log("saved book seen · " + closeDate + (i ? " · retry " + i : ""));
+        return true;
+      }
+      console.log("saved book missing " + closeDate + " · check " + (i + 1) + "/" + gaps.length);
     }
     return false;
   }
@@ -746,12 +779,13 @@ async function main() {
     state.tteolTrades = cur.tteolTrades;
   }
 
-  await patchState(esc, escDirty);
+  var patched = await patchState(esc, escDirty);
   console.log("자동 기입 · " + notes.join(" / "));
   var runClose = state.market && state.market.closeDate;
-  var saved = await savedHasClose(runClose);
+  var saved = payloadHasClose(patched, runClose);
+  if (saved) console.log("saved book seen · " + runClose);
+  else if (runClose) saved = await confirmSaved(runClose);
   if (expectAccount && added.length && runClose && !saved) {
-    console.log("saved book missing " + runClose);
     throw new Error("saved book missing " + runClose);
   }
   state.autoFillLast = day;
