@@ -95,6 +95,8 @@
   var histLadder = null;
 
   function bookOf(s) {
+    var extra = s.extraBuys;
+    if (extra == null && s.accounts && s.accountId && s.accounts[s.accountId]) extra = s.accounts[s.accountId].extraBuys;
     return {
       settings: JSON.parse(JSON.stringify(s.settings)),
       settingsRev: Number(s.settingsRev) || 0,
@@ -102,6 +104,7 @@
       tteolTrades: JSON.parse(JSON.stringify(s.tteolTrades || [])),
       deletedUd: (s.deletedUd || []).slice(),
       deletedTt: (s.deletedTt || []).slice(),
+      extraBuys: JSON.parse(JSON.stringify(extra || [])),
     };
   }
 
@@ -114,6 +117,7 @@
       tteolTrades: [],
       deletedUd: [],
       deletedTt: [],
+      extraBuys: [],
       settingsRev: 0,
     };
   }
@@ -150,6 +154,10 @@
     if (!Number(root.settingsRev) && root.accounts[root.accountId]) {
       root.settingsRev = Number(root.accounts[root.accountId].settingsRev) || 0;
     }
+    if (!root.accounts["2"].extraBuys) {
+      root.accounts["2"].extraBuys = [{ date: "2026-11-05", type: "매수", price: 40.87, qty: 91, amount: 40.87 * 91 }];
+    }
+    if (!root.accounts["1"].extraBuys) root.accounts["1"].extraBuys = [];
     if (root.settings && root.updownTrades) root.accounts[root.accountId] = bookOf(root);
     ["1", "2"].forEach(function (id) {
       if (root.accounts[id] && root.accounts[id].settings) {
@@ -164,6 +172,7 @@
     root.tteolTrades = active.tteolTrades || [];
     root.deletedUd = active.deletedUd || [];
     root.deletedTt = active.deletedTt || [];
+    root.extraBuys = active.extraBuys || [];
     return root;
   }
 
@@ -530,6 +539,7 @@
     state.tteolTrades = book.tteolTrades;
     state.deletedUd = book.deletedUd || [];
     state.deletedTt = book.deletedTt || [];
+    state.extraBuys = book.extraBuys || [];
     persist();
   }
 
@@ -788,6 +798,7 @@
       tteolTrades: book.tteolTrades || [],
       deletedUd: (book.deletedUd || []).slice(),
       deletedTt: (book.deletedTt || []).slice(),
+      extraBuys: JSON.parse(JSON.stringify(book.extraBuys || [])),
     };
   }
 
@@ -1079,6 +1090,7 @@
         next.tteolTrades = book.tteolTrades || [];
         next.deletedUd = book.deletedUd || [];
         next.deletedTt = book.deletedTt || [];
+        next.extraBuys = book.extraBuys || [];
       }
     } else if (view === "escape") {
       next.view = "escape";
@@ -1552,6 +1564,7 @@
     state.tteolTrades = book.tteolTrades;
     state.deletedUd = book.deletedUd || [];
     state.deletedTt = book.deletedTt || [];
+    state.extraBuys = book.extraBuys || [];
   }
 
   function fmtFillLine(book, kind, t) {
@@ -2023,6 +2036,9 @@
     (state.tteolTrades || []).forEach(function (t) {
       if (t && t.date) events.push({ side: "tt", t: t });
     });
+    (state.extraBuys || []).forEach(function (t) {
+      if (t && t.date) events.push({ side: "extra", t: t });
+    });
     events.sort(function (a, b) {
       return chronoTrade(a.t, b.t);
     });
@@ -2068,6 +2084,7 @@
       }
       rememberFill(t);
       E.applyCombinedFill(pool, t);
+      if (ev.side === "extra") return;
       if (ev.side === "ud") {
         var qty = finiteNum(t.qty) || 0;
         var avg = finiteNum(t.avg) || 0;
@@ -5668,6 +5685,7 @@
         tteolTrades: state.tteolTrades,
         deletedUd: state.deletedUd || [],
         deletedTt: state.deletedTt || [],
+        extraBuys: state.extraBuys || [],
       };
       persist();
       toast(id + "번 계좌 거래 내역을 지웠습니다");
@@ -6369,7 +6387,7 @@
   }
 
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("sw.js?v=53", { updateViaCache: "none" }).catch(function () {});
+    navigator.serviceWorker.register("sw.js?v=54", { updateViaCache: "none" }).catch(function () {});
   }
 
   function syncNow() {

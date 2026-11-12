@@ -348,22 +348,26 @@
       pool.qty += qty;
       pool.cost += amount;
     } else if (t.type === "매도") {
+      if (qty <= 0 || pool.qty <= 0) return pool;
+      var avg = pool.cost / pool.qty;
       pool.qty -= qty;
-      pool.cost -= amount;
       if (pool.qty <= 1e-9) {
         pool.qty = 0;
         pool.cost = 0;
-      }
+      } else pool.cost = avg * pool.qty;
     }
     return pool;
   }
 
-  function combinedBasis(ud, tt) {
+  function combinedBasis(ud, tt, extras) {
     var rows = [];
     (ud || []).forEach(function (t) {
       if (t) rows.push(t);
     });
     (tt || []).forEach(function (t) {
+      if (t) rows.push(t);
+    });
+    (extras || []).forEach(function (t) {
       if (t) rows.push(t);
     });
     rows.sort(function (a, b) {
@@ -492,7 +496,7 @@
       var tr = openRanks[ti];
       ttCost += tr.amount != null && tr.amount !== "" ? Number(tr.amount) : Number(tr.price) * Number(tr.qty);
     }
-    var basis = combinedBasis(ud, tt);
+    var basis = combinedBasis(ud, tt, state.extraBuys);
     var holdQty = basis.qty;
     var combAvg = basis.avg;
     var mark = profitPx;
