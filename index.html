@@ -644,6 +644,12 @@
         <label class="check"><input type="checkbox" id="set-fixed" /> 시드 분할 고정</label>
         <label class="check"><input type="checkbox" id="set-sell-loss" /> 매도 손실 반영해서 보기</label>
         <p class="note">켜면 홈의 매수금과 진행률에서 매도 손실을 뺍니다. 끄면 지금처럼 매수 금액에서 매도대금만 뺀 금액입니다. 잔금과 주문은 그대로입니다.</p>
+        <div class="setting-row"><span class="k">실현손익</span>
+          <select id="set-realized">
+            <option value="cycle">이번 사이클</option>
+            <option value="all">전체</option>
+          </select>
+        </div>
         </div>
       </article>
       <article class="card rank-card">
@@ -725,8 +731,8 @@
       <div class="num-pop-grid" id="num-pop-grid"></div>
     </div>
   </div>
-  <script src="engine.js?v=20261113d"></script>
+  <script src="engine.js?v=20261113e"></script>
   <script src="seed.js?v=20260924c"></script>
-  <script src="app.js?v=20261113d"></script>
+  <script src="app.js?v=20261113e"></script>
 </body>
 </html>

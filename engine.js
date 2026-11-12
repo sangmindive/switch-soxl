@@ -123,6 +123,7 @@
       applySheetF8Limit: true,
       autoTransfer: false,
       showSellLoss: false,
+      realizedScope: "cycle",
     };
   }
 
