@@ -359,15 +359,12 @@
     return pool;
   }
 
-  function combinedBasis(ud, tt, extras) {
+  function combinedBasis(ud, tt) {
     var rows = [];
     (ud || []).forEach(function (t) {
       if (t) rows.push(t);
     });
     (tt || []).forEach(function (t) {
-      if (t) rows.push(t);
-    });
-    (extras || []).forEach(function (t) {
       if (t) rows.push(t);
     });
     rows.sort(function (a, b) {
@@ -496,7 +493,7 @@
       var tr = openRanks[ti];
       ttCost += tr.amount != null && tr.amount !== "" ? Number(tr.amount) : Number(tr.price) * Number(tr.qty);
     }
-    var basis = combinedBasis(ud, tt, state.extraBuys);
+    var basis = combinedBasis(ud, tt);
     var holdQty = basis.qty;
     var combAvg = basis.avg;
     var mark = profitPx;

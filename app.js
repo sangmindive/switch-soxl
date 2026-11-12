@@ -154,10 +154,14 @@
     if (!Number(root.settingsRev) && root.accounts[root.accountId]) {
       root.settingsRev = Number(root.accounts[root.accountId].settingsRev) || 0;
     }
-    if (!root.accounts["2"].extraBuys) {
-      root.accounts["2"].extraBuys = [{ date: "2026-11-05", type: "매수", price: 40.87, qty: 91, amount: 40.87 * 91 }];
+    function mistake91(rows) {
+      return rows && rows.length === 1 && Number(rows[0].qty) === 91 && Number(rows[0].price) === 40.87;
     }
-    if (!root.accounts["1"].extraBuys) root.accounts["1"].extraBuys = [];
+    if (mistake91(root.extraBuys)) root.extraBuys = [];
+    ["1", "2"].forEach(function (id) {
+      var book = root.accounts[id];
+      if (book && mistake91(book.extraBuys)) book.extraBuys = [];
+    });
     if (root.settings && root.updownTrades) root.accounts[root.accountId] = bookOf(root);
     ["1", "2"].forEach(function (id) {
       if (root.accounts[id] && root.accounts[id].settings) {
@@ -741,7 +745,7 @@
         if (drop[k]) return;
         var prev = map[k];
         if (!prev) {
-          map[k] = t;
+        map[k] = t;
           return;
         }
         var pe = Number(prev.editedAt) || 0;
@@ -947,7 +951,7 @@
       next.autoFill = lFillAt > rFillAt ? !!local.autoFill : !!remote.autoFill;
       next.autoFillAt = Math.max(lFillAt, rFillAt);
     } else {
-      next.autoFill = !!barSrc.autoFill;
+    next.autoFill = !!barSrc.autoFill;
     }
     var lDay = local.autoFillLast || "";
     var rDay = remote.autoFillLast || "";
@@ -1124,10 +1128,10 @@
             return pullRemote();
           }
           if (localPending && pushQueued) {
-            pushQueued = false;
-            return pushRemote().then(function () {
-              return escChanged;
-            });
+          pushQueued = false;
+          return pushRemote().then(function () {
+            return escChanged;
+          });
           }
           pushQueued = false;
           return escChanged;
@@ -1212,9 +1216,9 @@
           method: "PATCH",
           headers: gistHeaders(cfg.token),
           body: JSON.stringify(gistBody()),
-        })
+      })
           .then(readGistResponse)
-          .then(function () {
+      .then(function () {
             return fetch("https://api.github.com/gists/" + cfg.gistId, { headers: gistHeaders(cfg.token) }).then(readGistResponse);
           })
           .then(function (again) {
@@ -1648,53 +1652,53 @@
         autoFillBusy = false;
         return;
       }
-      var symbol = String((state.settings && state.settings.symbol) || "SOXL").toUpperCase();
+    var symbol = String((state.settings && state.settings.symbol) || "SOXL").toUpperCase();
       return fetchCnbcQuote(symbol)
-        .then(function (q) {
-          applyLiveQuote(q);
-        }, function () {})
-        .then(function () {
+      .then(function (q) {
+        applyLiveQuote(q);
+      }, function () {})
+      .then(function () {
           if (!state || !state.autoFill || dayAlreadyDone()) return;
           var day = localDayKey();
-          var prevView = state.view;
-          var prevId = state.accountId || "1";
-          var keys = [];
-          function addKey(k, off) {
-            if (off) return;
-            k = canonBar(k);
-            if (k && keys.indexOf(k) < 0) keys.push(k);
-          }
-          addKey(state.barLeft, state.barLeftOff);
-          addKey(state.barRight, state.barRightOff);
-          var notes = [];
-          if (!keys.length) notes.push("미사용");
-          keys.forEach(function (key) {
-            var label = BAR_SLOTS[key] ? BAR_SLOTS[key].label : key;
-            if (key === "escape") {
-              if (state.view !== "escape") stashActive();
-              state.view = "escape";
-            } else {
-              switchBookSilent(key === "acc2" ? "2" : "1");
-            }
-            notes.push(label + " " + fillCurrentSilent());
-          });
-          state.autoFillLast = day;
-          state.autoFillEmptyClose = closeRowsMissing() ? (state.market && state.market.closeDate) || "" : "";
-          state.barRev = Date.now();
-          if (prevView === "escape") {
+        var prevView = state.view;
+        var prevId = state.accountId || "1";
+        var keys = [];
+        function addKey(k, off) {
+          if (off) return;
+          k = canonBar(k);
+          if (k && keys.indexOf(k) < 0) keys.push(k);
+        }
+        addKey(state.barLeft, state.barLeftOff);
+        addKey(state.barRight, state.barRightOff);
+        var notes = [];
+        if (!keys.length) notes.push("미사용");
+        keys.forEach(function (key) {
+          var label = BAR_SLOTS[key] ? BAR_SLOTS[key].label : key;
+          if (key === "escape") {
             if (state.view !== "escape") stashActive();
             state.view = "escape";
           } else {
-            switchBookSilent(prevId);
+            switchBookSilent(key === "acc2" ? "2" : "1");
           }
-          persist({ noUndo: true });
-          toast("자동 기입 · " + notes.join(" / "));
+          notes.push(label + " " + fillCurrentSilent());
+        });
+        state.autoFillLast = day;
+          state.autoFillEmptyClose = closeRowsMissing() ? (state.market && state.market.closeDate) || "" : "";
+        state.barRev = Date.now();
+        if (prevView === "escape") {
+          if (state.view !== "escape") stashActive();
+          state.view = "escape";
+        } else {
+          switchBookSilent(prevId);
+        }
+        persist({ noUndo: true });
+        toast("자동 기입 · " + notes.join(" / "));
         });
     }).then(function () {
-      autoFillBusy = false;
-    }, function () {
-      autoFillBusy = false;
-    });
+        autoFillBusy = false;
+      }, function () {
+        autoFillBusy = false;
+      });
   }
 
   function renderAccountSeg() {
@@ -2036,9 +2040,6 @@
     (state.tteolTrades || []).forEach(function (t) {
       if (t && t.date) events.push({ side: "tt", t: t });
     });
-    (state.extraBuys || []).forEach(function (t) {
-      if (t && t.date) events.push({ side: "extra", t: t });
-    });
     events.sort(function (a, b) {
       return chronoTrade(a.t, b.t);
     });
@@ -2084,7 +2085,6 @@
       }
       rememberFill(t);
       E.applyCombinedFill(pool, t);
-      if (ev.side === "extra") return;
       if (ev.side === "ud") {
         var qty = finiteNum(t.qty) || 0;
         var avg = finiteNum(t.avg) || 0;
@@ -6387,7 +6387,7 @@
   }
 
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("sw.js?v=54", { updateViaCache: "none" }).catch(function () {});
+    navigator.serviceWorker.register("sw.js?v=55", { updateViaCache: "none" }).catch(function () {});
   }
 
   function syncNow() {
