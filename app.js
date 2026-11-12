@@ -1829,6 +1829,8 @@
     document.getElementById("set-hold").value = s.rankHoldDays;
     document.getElementById("set-reinvest").value = Math.round(Number(s.reinvest) * 1000) / 10;
     document.getElementById("set-fixed").checked = !!s.seedSplitFixed;
+    var sellLossEl = document.getElementById("set-sell-loss");
+    if (sellLossEl) sellLossEl.checked = !!s.showSellLoss;
     document.getElementById("set-blocked").checked = !!s.buyBlocked;
     document.getElementById("set-f8").checked = !!s.applySheetF8Limit;
     var j16El = document.getElementById("set-j16");
@@ -1887,6 +1889,7 @@
     fillText("v-L3", pct(s.capital ? (Number(out.H8) || 0) / s.capital : 0));
     fillText("v-B8", out.B8);
     var seedUsed = (out.E16 || 0) + (out.K16 || 0);
+    if (s.showSellLoss) seedUsed = out.basisCost || 0;
     var seedRatio = out.C8 > 0 ? seedUsed / out.C8 : 0;
     if (seedRatio < 0) seedRatio = 0;
     var seedBar = document.getElementById("v-seed-bar");
@@ -5079,6 +5082,8 @@
     s.rankHoldDays = parseFloat(document.getElementById("set-hold").value) || 0;
     s.reinvest = (parseFloat(document.getElementById("set-reinvest").value) || 0) / 100;
     s.seedSplitFixed = document.getElementById("set-fixed").checked;
+    var sellLossEl = document.getElementById("set-sell-loss");
+    s.showSellLoss = !!(sellLossEl && sellLossEl.checked);
     s.buyBlocked = document.getElementById("set-blocked").checked;
     s.applySheetF8Limit = document.getElementById("set-f8").checked;
     var j16El = document.getElementById("set-j16");
@@ -5647,7 +5652,7 @@
     ].forEach(function (id) {
       document.getElementById(id).addEventListener("change", readSettingsFromForm);
     });
-    ["set-fixed", "set-blocked", "set-f8", "set-auto", "set-auto-fill", "set-bar-left-off", "set-bar-right-off"].forEach(function (id) {
+    ["set-fixed", "set-blocked", "set-f8", "set-auto", "set-auto-fill", "set-sell-loss", "set-bar-left-off", "set-bar-right-off"].forEach(function (id) {
       document.getElementById(id).addEventListener("change", readSettingsFromForm);
     });
 
@@ -6387,7 +6392,7 @@
   }
 
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("sw.js?v=55", { updateViaCache: "none" }).catch(function () {});
+    navigator.serviceWorker.register("sw.js?v=56", { updateViaCache: "none" }).catch(function () {});
   }
 
   function syncNow() {

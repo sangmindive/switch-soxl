@@ -122,6 +122,7 @@
       tteolStepQty: 3,
       applySheetF8Limit: true,
       autoTransfer: false,
+      showSellLoss: false,
     };
   }
 
@@ -594,6 +595,7 @@
       I19: I19,
       avg: avg,
       combAvg: combAvg,
+      basisCost: basis.cost,
       holdQty: holdQty,
       udEval: udEval,
       udEvalPct: udEvalPct,
